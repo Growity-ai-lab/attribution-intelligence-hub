@@ -57,12 +57,29 @@ MAX_LIFT: dict[str, float] = {
 # Baseline weekly leads (organic / brand)
 BASELINE_LEADS = 120.0
 
-# Unified scoring weights
+# Unified scoring weights (DDA replaces rule-based MTA)
 UNIFIED_WEIGHTS = {
-    "mta": 0.50,
+    "dda": 0.50,
     "mmm": 0.35,
     "incrementality": 0.15,
 }
+
+# DDA ensemble blend weights (Markov vs Shapley within DDA)
+DDA_BLEND_WEIGHTS = {
+    "markov": 0.65,
+    "shapley": 0.35,
+}
+
+# Bayesian smoothing for Markov transition matrix
+# Lower = less smoothing (trust data more), higher = more uniform
+MARKOV_PRIOR_ALPHA = 0.5
+
+# Cross-validation: max acceptable DDA vs MMM deviation
+CROSS_VALIDATION_THRESHOLD = 0.20
+
+# Offline channels (no individual-level touchpoint tracking)
+OFFLINE_CHANNELS = {"tv_match", "tv_news", "radio", "dooh"}
+ONLINE_CHANNELS = {"meta", "google", "tiktok", "linkedin", "dv360", "youtube"}
 
 # Segments
 SEGMENTS = {

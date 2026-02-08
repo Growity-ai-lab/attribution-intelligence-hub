@@ -1,4 +1,4 @@
-lead_id,timestamp,channel,touchpoint_type,campaign,segment
-L001,2026-01-15 10:23,meta,impression,S1_lead_campaign,S1
-L001,2026-01-16 14:05,google,click,brand_search,S1
-L001,2026-01-16 14:08,landing_page,form_submit,lp_filo,S1
+lead_id,timestamp,channel,touchpoint_type,campaign,segment,converted,session_id
+L001,2026-01-15 10:23,meta,impression,S1_lead_campaign,S1,0,sess_001
+L001,2026-01-16 14:05,google,click,brand_search,S1,0,sess_002
+L001,2026-01-16 14:08,form,submit,lp_filo,S1,1,sess_002

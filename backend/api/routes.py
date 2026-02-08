@@ -2,12 +2,14 @@
 
 from io import BytesIO
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, File, HTTPException, UploadFile
 
 from backend.config import (
     ADSTOCK_PARAMS,
     BASELINE_LEADS,
     CHANNELS,
+    DDA_BLEND_WEIGHTS,
+    MARKOV_PRIOR_ALPHA,
     MAX_LIFT,
     SATURATION_PARAMS,
     UNIFIED_WEIGHTS,
@@ -18,6 +20,8 @@ from backend.data.schemas import (
     ChannelDecomposition,
     SaturationResult,
 )
+from backend.models.dda.data_prep import Journey, journey_stats
+from backend.models.dda.ensemble import run_full_dda_pipeline
 from backend.models.mmm import (
     compute_adstock,
     compute_response,
@@ -139,6 +143,83 @@ def get_decomposition(spend: str = "") -> list[ChannelDecomposition]:
     return results
 
 
+# --------------- DDA Endpoints ---------------
+
+
+@router.post("/dda/run")
+def run_dda(
+    journeys: list[dict] = Body(..., description="List of journey objects"),
+    mmm_shares: dict[str, float] | None = Body(None, description="MMM channel shares"),
+    prior_alpha: float = Body(MARKOV_PRIOR_ALPHA, description="Bayesian smoothing"),
+) -> dict:
+    """Run the full DDA pipeline on journey data.
+
+    Expects a list of journey dicts: {lead_id, channels, converted, segment}
+    """
+    if not journeys:
+        raise HTTPException(status_code=422, detail="No journey data provided")
+
+    journey_objects = []
+    for j in journeys:
+        try:
+            journey_objects.append(Journey(
+                lead_id=j["lead_id"],
+                channels=j["channels"],
+                converted=j.get("converted", False),
+                segment=j.get("segment", ""),
+            ))
+        except (KeyError, TypeError) as e:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid journey format: {e}. Expected: lead_id, channels, converted",
+            )
+
+    result = run_full_dda_pipeline(
+        journey_objects,
+        mmm_shares,
+        prior_alpha=prior_alpha,
+        markov_blend=DDA_BLEND_WEIGHTS["markov"],
+        shapley_blend=DDA_BLEND_WEIGHTS["shapley"],
+    )
+
+    # Convert numpy values for JSON serialization
+    return {
+        "journey_stats": result["journey_stats"],
+        "online_channels": result["online_channels"],
+        "offline_channels": result["offline_channels"],
+        "markov": {
+            "conversion_probability": float(result["markov"]["conversion_probability"]),
+            "removal_effects": {k: float(v) for k, v in result["markov"]["removal_effects"].items()},
+            "attribution_weights": {k: float(v) for k, v in result["markov"]["attribution_weights"].items()},
+            "prior_alpha": result["markov"]["prior_alpha"],
+        },
+        "shapley_dda": {k: float(v) for k, v in result["shapley_dda"].items()},
+        "blended_dda_online": {k: float(v) for k, v in result["blended_dda_online"].items()},
+        "cross_validation": result["cross_validation"],
+        "hybrid_attribution": {k: float(v) for k, v in result["hybrid_attribution"].items()},
+    }
+
+
+@router.post("/dda/journey-stats")
+def get_journey_stats(
+    journeys: list[dict] = Body(...),
+) -> dict:
+    """Get summary statistics for journey data."""
+    journey_objects = []
+    for j in journeys:
+        try:
+            journey_objects.append(Journey(
+                lead_id=j["lead_id"],
+                channels=j["channels"],
+                converted=j.get("converted", False),
+                segment=j.get("segment", ""),
+            ))
+        except (KeyError, TypeError) as e:
+            raise HTTPException(status_code=422, detail=f"Invalid journey: {e}")
+
+    return journey_stats(journey_objects)
+
+
 @router.get("/config/channels")
 def get_channels() -> dict:
     """Return channel configuration."""
@@ -148,4 +229,6 @@ def get_channels() -> dict:
         "saturation_params": {k: {"alpha": v[0], "gamma": v[1]} for k, v in SATURATION_PARAMS.items()},
         "max_lift": MAX_LIFT,
         "unified_weights": UNIFIED_WEIGHTS,
+        "dda_blend_weights": DDA_BLEND_WEIGHTS,
+        "markov_prior_alpha": MARKOV_PRIOR_ALPHA,
     }

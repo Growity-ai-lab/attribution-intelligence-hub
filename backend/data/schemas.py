@@ -25,6 +25,8 @@ class CRMTouchpoint(BaseModel):
     touchpoint_type: str
     campaign: str = ""
     segment: str = ""
+    converted: bool = False
+    session_id: str = ""
 
 
 class AdstockResult(BaseModel):
@@ -57,12 +59,32 @@ class ChannelDecomposition(BaseModel):
     share: float
 
 
+class DDAResult(BaseModel):
+    """DDA pipeline result for a channel."""
+
+    channel: str
+    markov_weight: float
+    shapley_weight: float
+    blended_weight: float
+    is_online: bool
+
+
+class CrossValidationResult(BaseModel):
+    """Cross-validation result comparing DDA vs MMM."""
+
+    channel: str
+    dda_weight: float
+    mmm_weight: float
+    deviation: float
+    flagged: bool
+
+
 class UnifiedScore(BaseModel):
     """Unified attribution score for a channel."""
 
     channel: str
     mmm_score: float
-    mta_score: float
+    dda_score: float
     incrementality_score: float
     unified_score: float
 
