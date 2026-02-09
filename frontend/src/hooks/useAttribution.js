@@ -53,6 +53,31 @@ export function useAttribution() {
     return res.data
   }, [])
 
+  const runDDAFromCSV = useCallback(async (file, priorAlpha = 0.5) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await axios.post(`${API_BASE}/dda/run-from-csv`, formData, {
+      params: { prior_alpha: priorAlpha },
+    })
+    return res.data
+  }, [])
+
+  const runDDA = useCallback(async (journeys, mmmShares = null, priorAlpha = 0.5) => {
+    const res = await axios.post(`${API_BASE}/dda/run`, {
+      journeys,
+      mmm_shares: mmmShares,
+      prior_alpha: priorAlpha,
+    })
+    return res.data
+  }, [])
+
+  const fetchSampleJourneys = useCallback(async () => {
+    const res = await axios.get(`${API_BASE}/data/sample/journeys`, {
+      responseType: 'blob',
+    })
+    return new File([res.data], 'journeys_sample.csv', { type: 'text/csv' })
+  }, [])
+
   useEffect(() => {
     fetchConfig()
   }, [fetchConfig])
@@ -66,6 +91,9 @@ export function useAttribution() {
     getDecomposition,
     getAdstock,
     getSaturation,
+    runDDAFromCSV,
+    runDDA,
+    fetchSampleJourneys,
     refetch: fetchConfig,
   }
 }
