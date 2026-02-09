@@ -1,34 +1,153 @@
 """API routes for Attribution Intelligence Hub."""
 
 from io import BytesIO
+from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Body, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 
 from backend.config import (
     ADSTOCK_PARAMS,
+    ALLOWED_FILE_EXTENSIONS,
     BASELINE_LEADS,
     CHANNELS,
     DDA_BLEND_WEIGHTS,
     MARKOV_PRIOR_ALPHA,
+    MAX_ARRAY_SIZE,
+    MAX_JOURNEY_COUNT,
     MAX_LIFT,
+    MAX_UPLOAD_SIZE_BYTES,
+    PRIOR_ALPHA_MAX,
+    PRIOR_ALPHA_MIN,
+    SAMPLE_DIR,
     SATURATION_PARAMS,
     UNIFIED_WEIGHTS,
 )
-from backend.data.loader import load_weekly_csv
+from backend.data.loader import load_crm_touchpoints, load_weekly_csv
 from backend.data.schemas import (
     AdstockResult,
     ChannelDecomposition,
     SaturationResult,
 )
-from backend.models.dda.data_prep import Journey, journey_stats
+from backend.models.dda.data_prep import Journey, extract_journeys, journey_stats
 from backend.models.dda.ensemble import run_full_dda_pipeline
 from backend.models.mmm import (
     compute_adstock,
     compute_response,
     compute_saturation,
 )
+from backend.models.unified import compute_unified_report
 
 router = APIRouter()
+
+# Channels that represent conversion events, not marketing touchpoints
+_CONVERSION_CHANNELS = {"form", "landing_page", "website", "app"}
+
+
+def _validate_file(file: UploadFile) -> None:
+    """Validate uploaded file has a name and allowed extension."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+    ext = PurePosixPath(file.filename).suffix.lower()
+    if ext not in ALLOWED_FILE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: {ext}. Allowed: {', '.join(sorted(ALLOWED_FILE_EXTENSIONS))}",
+        )
+
+
+async def _read_file_content(file: UploadFile) -> bytes:
+    """Read file content with size limit."""
+    content = await file.read(MAX_UPLOAD_SIZE_BYTES + 1)
+    if len(content) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)} MB",
+        )
+    return content
+
+
+def _parse_float_list(raw: str, param_name: str) -> list[float]:
+    """Parse comma-separated float string with validation."""
+    if not raw:
+        return []
+    try:
+        values = [float(x) for x in raw.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {param_name}: must be comma-separated numbers",
+        )
+    if len(values) > MAX_ARRAY_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many values ({len(values)}). Maximum: {MAX_ARRAY_SIZE}",
+        )
+    return values
+
+
+def _compute_default_mmm_shares() -> dict[str, float]:
+    """Compute MMM channel shares using default week_01 spend values."""
+    default_spend = {
+        "meta": 2_600_000, "google": 300_000, "tiktok": 800_000,
+        "linkedin": 500_000, "dv360": 400_000, "youtube": 600_000,
+        "tv_match": 0, "tv_news": 0, "radio": 0, "dooh": 150_000,
+    }
+    shares: dict[str, float] = {}
+    for ch in CHANNELS:
+        s = default_spend.get(ch, 0.0)
+        decay = ADSTOCK_PARAMS[ch]
+        alpha, gamma = SATURATION_PARAMS[ch]
+        max_lift = MAX_LIFT[ch]
+        adstocked = compute_adstock([s], decay)
+        adstocked_val = adstocked[0] if adstocked else 0.0
+        sat_val = compute_saturation(adstocked_val, alpha, gamma)
+        shares[ch] = compute_response(sat_val, BASELINE_LEADS / len(CHANNELS), max_lift)
+
+    total = sum(shares.values())
+    if total > 0:
+        shares = {ch: v / total for ch, v in shares.items()}
+    return shares
+
+
+def _serialize_dda_result(result: dict) -> dict:
+    """Convert numpy values in DDA result to JSON-serializable types."""
+    return {
+        "journey_stats": result["journey_stats"],
+        "online_channels": result["online_channels"],
+        "offline_channels": result["offline_channels"],
+        "markov": {
+            "conversion_probability": float(result["markov"]["conversion_probability"]),
+            "removal_effects": {k: float(v) for k, v in result["markov"]["removal_effects"].items()},
+            "attribution_weights": {k: float(v) for k, v in result["markov"]["attribution_weights"].items()},
+            "prior_alpha": result["markov"]["prior_alpha"],
+        },
+        "shapley_dda": {k: float(v) for k, v in result["shapley_dda"].items()},
+        "blended_dda_online": {k: float(v) for k, v in result["blended_dda_online"].items()},
+        "cross_validation": result["cross_validation"],
+        "hybrid_attribution": {k: float(v) for k, v in result["hybrid_attribution"].items()},
+    }
+
+
+def _validate_prior_alpha(prior_alpha: float) -> None:
+    """Validate prior_alpha is within acceptable bounds."""
+    if not (PRIOR_ALPHA_MIN <= prior_alpha <= PRIOR_ALPHA_MAX):
+        raise HTTPException(
+            status_code=400,
+            detail=f"prior_alpha must be between {PRIOR_ALPHA_MIN} and {PRIOR_ALPHA_MAX}",
+        )
+
+
+def _validate_journey_count(journeys: list) -> None:
+    """Validate journey list doesn't exceed maximum."""
+    if len(journeys) > MAX_JOURNEY_COUNT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many journeys ({len(journeys)}). Maximum: {MAX_JOURNEY_COUNT}",
+        )
+
+
+# --------------- Health ---------------
 
 
 @router.get("/health")
@@ -36,13 +155,15 @@ def health_check() -> dict[str, str]:
     return {"status": "healthy"}
 
 
+# --------------- Data Upload ---------------
+
+
 @router.post("/data/upload")
 async def upload_weekly_data(file: UploadFile = File(...)) -> dict:
     """Upload weekly CSV data file."""
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No file provided")
+    _validate_file(file)
+    content = await _read_file_content(file)
 
-    content = await file.read()
     try:
         records = load_weekly_csv(BytesIO(content))
     except ValueError as e:
@@ -56,6 +177,9 @@ async def upload_weekly_data(file: UploadFile = File(...)) -> dict:
     }
 
 
+# --------------- MMM Endpoints ---------------
+
+
 @router.get("/mmm/adstock/{channel}")
 def get_adstock(channel: str, spend: str = "") -> AdstockResult:
     """Compute adstock for a channel given comma-separated spend values."""
@@ -63,7 +187,7 @@ def get_adstock(channel: str, spend: str = "") -> AdstockResult:
         raise HTTPException(status_code=404, detail=f"Unknown channel: {channel}")
 
     decay = ADSTOCK_PARAMS[channel]
-    spend_values = [float(x) for x in spend.split(",") if x.strip()] if spend else []
+    spend_values = _parse_float_list(spend, "spend")
     adstocked = compute_adstock(spend_values, decay)
 
     return AdstockResult(
@@ -81,9 +205,7 @@ def get_saturation(channel: str, values: str = "") -> SaturationResult:
         raise HTTPException(status_code=404, detail=f"Unknown channel: {channel}")
 
     alpha, gamma = SATURATION_PARAMS[channel]
-    input_values = (
-        [float(x) for x in values.split(",") if x.strip()] if values else []
-    )
+    input_values = _parse_float_list(values, "values")
     saturated = [compute_saturation(v, alpha, gamma) for v in input_values]
 
     return SaturationResult(
@@ -106,7 +228,19 @@ def get_decomposition(spend: str = "") -> list[ChannelDecomposition]:
         for pair in spend.split(","):
             parts = pair.strip().split(":")
             if len(parts) == 2:
-                channel_spend[parts[0]] = float(parts[1])
+                ch_name = parts[0].strip()
+                if ch_name not in ADSTOCK_PARAMS:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Unknown channel: '{ch_name}'. Valid: {', '.join(CHANNELS)}",
+                    )
+                try:
+                    channel_spend[ch_name] = float(parts[1])
+                except ValueError:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid spend value for {ch_name}",
+                    )
 
     results: list[ChannelDecomposition] = []
     total_leads = BASELINE_LEADS
@@ -134,7 +268,6 @@ def get_decomposition(spend: str = "") -> list[ChannelDecomposition]:
             )
         )
 
-    # Calculate shares
     total_attributed = sum(r.attributed_leads for r in results)
     if total_attributed > 0:
         for r in results:
@@ -159,6 +292,9 @@ def run_dda(
     if not journeys:
         raise HTTPException(status_code=422, detail="No journey data provided")
 
+    _validate_prior_alpha(prior_alpha)
+    _validate_journey_count(journeys)
+
     journey_objects = []
     for j in journeys:
         try:
@@ -182,22 +318,64 @@ def run_dda(
         shapley_blend=DDA_BLEND_WEIGHTS["shapley"],
     )
 
-    # Convert numpy values for JSON serialization
-    return {
-        "journey_stats": result["journey_stats"],
-        "online_channels": result["online_channels"],
-        "offline_channels": result["offline_channels"],
-        "markov": {
-            "conversion_probability": float(result["markov"]["conversion_probability"]),
-            "removal_effects": {k: float(v) for k, v in result["markov"]["removal_effects"].items()},
-            "attribution_weights": {k: float(v) for k, v in result["markov"]["attribution_weights"].items()},
-            "prior_alpha": result["markov"]["prior_alpha"],
-        },
-        "shapley_dda": {k: float(v) for k, v in result["shapley_dda"].items()},
-        "blended_dda_online": {k: float(v) for k, v in result["blended_dda_online"].items()},
-        "cross_validation": result["cross_validation"],
-        "hybrid_attribution": {k: float(v) for k, v in result["hybrid_attribution"].items()},
+    return _serialize_dda_result(result)
+
+
+@router.post("/dda/run-from-csv")
+async def run_dda_from_csv(
+    file: UploadFile = File(...),
+    prior_alpha: float = 0.5,
+) -> dict:
+    """Run DDA pipeline from a CRM touchpoint CSV.
+
+    Parses the CSV, extracts journeys (filtering conversion events),
+    runs Markov+Shapley ensemble, and returns unified results.
+    """
+    _validate_file(file)
+    _validate_prior_alpha(prior_alpha)
+    content = await _read_file_content(file)
+
+    try:
+        touchpoints = load_crm_touchpoints(BytesIO(content))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # Filter out conversion-event channels (form, landing_page etc.)
+    tp_dicts = [
+        tp.model_dump()
+        for tp in touchpoints
+        if tp.channel not in _CONVERSION_CHANNELS
+    ]
+
+    journeys = extract_journeys(tp_dicts)
+    if not journeys:
+        raise HTTPException(status_code=422, detail="No valid journeys extracted from touchpoints")
+
+    _validate_journey_count(journeys)
+
+    mmm_shares = _compute_default_mmm_shares()
+
+    result = run_full_dda_pipeline(
+        journeys,
+        mmm_shares,
+        prior_alpha=prior_alpha,
+        markov_blend=DDA_BLEND_WEIGHTS["markov"],
+        shapley_blend=DDA_BLEND_WEIGHTS["shapley"],
+    )
+
+    # Build unified report
+    hybrid = result["hybrid_attribution"]
+    unified = compute_unified_report(
+        mmm_scores=mmm_shares,
+        dda_scores={k: float(v) for k, v in hybrid.items()},
+    )
+
+    serialized = _serialize_dda_result(result)
+    serialized["unified_report"] = {
+        ch: {k: round(float(v), 4) for k, v in scores.items()}
+        for ch, scores in unified.items()
     }
+    return serialized
 
 
 @router.post("/dda/journey-stats")
@@ -205,6 +383,8 @@ def get_journey_stats(
     journeys: list[dict] = Body(...),
 ) -> dict:
     """Get summary statistics for journey data."""
+    _validate_journey_count(journeys)
+
     journey_objects = []
     for j in journeys:
         try:
@@ -218,6 +398,21 @@ def get_journey_stats(
             raise HTTPException(status_code=422, detail=f"Invalid journey: {e}")
 
     return journey_stats(journey_objects)
+
+
+# --------------- Sample Data ---------------
+
+
+@router.get("/data/sample/journeys")
+async def get_sample_journeys():
+    """Serve the sample journeys CSV file."""
+    sample_path = SAMPLE_DIR / "journeys_sample.csv"
+    if not sample_path.exists():
+        raise HTTPException(status_code=404, detail="Sample file not found")
+    return FileResponse(sample_path, media_type="text/csv", filename="journeys_sample.csv")
+
+
+# --------------- Config ---------------
 
 
 @router.get("/config/channels")

@@ -91,3 +91,12 @@ SEGMENTS = {
 
 # All channels
 CHANNELS = list(ADSTOCK_PARAMS.keys())
+
+# Security limits
+MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_CSV_ROWS = 50_000
+MAX_ARRAY_SIZE = 520  # 10 channels * 52 weeks
+MAX_JOURNEY_COUNT = 100_000
+PRIOR_ALPHA_MIN = 0.01
+PRIOR_ALPHA_MAX = 10.0
+ALLOWED_FILE_EXTENSIONS = {".csv", ".xlsx", ".xls"}
