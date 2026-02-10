@@ -91,7 +91,7 @@ export default function UnifiedChart({ data }) {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h3 className="text-lg font-semibold text-gray-800 mb-4">Unified Attribution</h3>
-      <div className="h-80">
+      <div className="h-60 md:h-80">
         <Bar data={chartData} options={options} />
       </div>
     </div>

@@ -29,14 +29,14 @@ from backend.data.schemas import (
     ChannelDecomposition,
     SaturationResult,
 )
-from backend.models.dda.data_prep import Journey, extract_journeys, journey_stats
+from backend.models.dda.data_prep import Journey, _is_truthy, extract_journeys, journey_stats
 from backend.models.dda.ensemble import run_full_dda_pipeline
 from backend.models.mmm import (
     compute_adstock,
     compute_response,
     compute_saturation,
 )
-from backend.models.unified import compute_unified_report
+from backend.models.unified import compute_unified_report, suggest_reallocation
 
 router = APIRouter()
 
@@ -124,7 +124,10 @@ def _serialize_dda_result(result: dict) -> dict:
         },
         "shapley_dda": {k: float(v) for k, v in result["shapley_dda"].items()},
         "blended_dda_online": {k: float(v) for k, v in result["blended_dda_online"].items()},
-        "cross_validation": result["cross_validation"],
+        "cross_validation": [
+            {"channel": ch, **{k: float(v) if isinstance(v, (int, float)) else v for k, v in vals.items()}}
+            for ch, vals in result["cross_validation"].items()
+        ],
         "hybrid_attribution": {k: float(v) for k, v in result["hybrid_attribution"].items()},
     }
 
@@ -340,12 +343,22 @@ async def run_dda_from_csv(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+    # Capture lead-level conversion status BEFORE filtering
+    lead_converted: dict[str, bool] = {}
+    for tp in touchpoints:
+        if _is_truthy(tp.converted):
+            lead_converted[tp.lead_id] = True
+
     # Filter out conversion-event channels (form, landing_page etc.)
     tp_dicts = [
         tp.model_dump()
         for tp in touchpoints
         if tp.channel not in _CONVERSION_CHANNELS
     ]
+
+    # Restore lead-level conversion flag on remaining touchpoints
+    for tp in tp_dicts:
+        tp["converted"] = lead_converted.get(tp["lead_id"], False)
 
     journeys = extract_journeys(tp_dicts)
     if not journeys:
@@ -398,6 +411,35 @@ def get_journey_stats(
             raise HTTPException(status_code=422, detail=f"Invalid journey: {e}")
 
     return journey_stats(journey_objects)
+
+
+# --------------- Unified / Reallocation ---------------
+
+
+@router.post("/unified/reallocation")
+def get_reallocation(
+    unified_report: dict[str, dict[str, float]] = Body(..., description="Unified report scores"),
+    current_budgets: dict[str, float] = Body(..., description="Current budget per channel"),
+    total_budget: float | None = Body(None, description="Total budget to reallocate"),
+) -> dict:
+    """Suggest budget reallocation based on unified attribution scores."""
+    if not unified_report:
+        raise HTTPException(status_code=422, detail="No unified report data provided")
+    if not current_budgets:
+        raise HTTPException(status_code=422, detail="No budget data provided")
+
+    for ch, budget in current_budgets.items():
+        if budget < 0:
+            raise HTTPException(status_code=400, detail=f"Negative budget for {ch}")
+
+    if total_budget is not None and total_budget < 0:
+        raise HTTPException(status_code=400, detail="Total budget cannot be negative")
+
+    suggestions = suggest_reallocation(unified_report, current_budgets, total_budget)
+    return {
+        "total_budget": total_budget if total_budget is not None else sum(current_budgets.values()),
+        "suggestions": suggestions,
+    }
 
 
 # --------------- Sample Data ---------------

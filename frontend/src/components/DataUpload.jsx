@@ -38,7 +38,7 @@ export default function DataUpload() {
       <h2 className="text-lg font-semibold text-gray-800 mb-4">Veri Yukle</h2>
 
       {/* Mode Selection */}
-      <div className="flex gap-4 mb-4">
+      <div className="flex flex-wrap gap-4 mb-4">
         <button
           onClick={() => { setMode('weekly'); setResult(null); setDdaResult(null); setError(null) }}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

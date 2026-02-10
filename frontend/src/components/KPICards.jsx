@@ -14,7 +14,7 @@ export default function KPICards({ data }) {
         <div key={card.label} className="bg-white rounded-lg shadow p-4">
           <div className={`w-2 h-2 rounded-full ${card.color} mb-2`} />
           <p className="text-sm text-gray-500">{card.label}</p>
-          <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+          <p className="text-xl md:text-2xl font-bold text-gray-900">{card.value}</p>
         </div>
       ))}
     </div>

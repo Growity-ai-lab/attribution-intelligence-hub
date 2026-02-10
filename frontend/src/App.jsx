@@ -15,7 +15,7 @@ export default function App() {
       {/* Header */}
       <header className="bg-po-dark text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold">Attribution Intelligence Hub</h1>
+          <h1 className="text-xl md:text-2xl font-bold">Attribution Intelligence Hub</h1>
           <p className="text-gray-300 text-sm">PO AutoMatic Filo — Multi-Channel Attribution</p>
         </div>
         {/* Tab Navigation */}

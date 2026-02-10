@@ -4,6 +4,7 @@ import KPICards from './KPICards'
 import ChannelTable from './ChannelTable'
 import UnifiedChart from './UnifiedChart'
 import UnifiedScoringTable from './UnifiedScoringTable'
+import ReallocationPanel from './ReallocationPanel'
 
 const SAMPLE_KPI = {
   totalSpend: 55_000_000,
@@ -26,10 +27,11 @@ const SAMPLE_CHANNELS = [
 ]
 
 export default function Dashboard() {
-  const { fetchSampleJourneys, runDDAFromCSV } = useAttribution()
+  const { fetchSampleJourneys, runDDAFromCSV, getReallocation } = useAttribution()
   const [unifiedData, setUnifiedData] = useState(null)
   const [crossValidation, setCrossValidation] = useState([])
   const [journeyStats, setJourneyStats] = useState(null)
+  const [reallocationData, setReallocationData] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisError, setAnalysisError] = useState(null)
 
@@ -42,6 +44,14 @@ export default function Dashboard() {
       setUnifiedData(result.unified_report || null)
       setCrossValidation(result.cross_validation || [])
       setJourneyStats(result.journey_stats || null)
+
+      // Auto-run reallocation after DDA analysis
+      if (result.unified_report) {
+        const currentBudgets = {}
+        SAMPLE_CHANNELS.forEach(ch => { currentBudgets[ch.channel] = ch.spend })
+        const reallocResult = await getReallocation(result.unified_report, currentBudgets)
+        setReallocationData(reallocResult)
+      }
     } catch (err) {
       setAnalysisError(err.response?.data?.detail || err.message)
     } finally {
@@ -55,12 +65,12 @@ export default function Dashboard() {
       <ChannelTable channels={SAMPLE_CHANNELS} />
 
       {/* DDA Analysis Section */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white rounded-lg shadow p-4 md:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-800">DDA Analizi</h3>
             <p className="text-sm text-gray-500">
-              Markov Chain + Shapley ensemble ile unified attribution skorlaması
+              Markov Chain + Shapley ensemble ile unified attribution skorlamasi
             </p>
           </div>
           <button
@@ -97,7 +107,7 @@ export default function Dashboard() {
             <div className="bg-gray-50 rounded-lg p-3">
               <p className="text-xs text-gray-500">Ort. Touchpoint</p>
               <p className="text-lg font-semibold text-gray-800">
-                {(journeyStats.avg_journey_length || 0).toFixed(1)}
+                {(journeyStats.avg_path_length || 0).toFixed(1)}
               </p>
             </div>
           </div>
@@ -118,6 +128,7 @@ export default function Dashboard() {
       </div>
 
       <UnifiedScoringTable data={unifiedData} crossValidation={crossValidation} />
+      <ReallocationPanel data={reallocationData?.suggestions} totalBudget={reallocationData?.total_budget} />
     </div>
   )
 }

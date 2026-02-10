@@ -71,6 +71,18 @@ export function useAttribution() {
     return res.data
   }, [])
 
+  const getReallocation = useCallback(async (unifiedReport, currentBudgets, totalBudget = null) => {
+    const payload = {
+      unified_report: unifiedReport,
+      current_budgets: currentBudgets,
+    }
+    if (totalBudget !== null) {
+      payload.total_budget = totalBudget
+    }
+    const res = await axios.post(`${API_BASE}/unified/reallocation`, payload)
+    return res.data
+  }, [])
+
   const fetchSampleJourneys = useCallback(async () => {
     const res = await axios.get(`${API_BASE}/data/sample/journeys`, {
       responseType: 'blob',
@@ -93,6 +105,7 @@ export function useAttribution() {
     getSaturation,
     runDDAFromCSV,
     runDDA,
+    getReallocation,
     fetchSampleJourneys,
     refetch: fetchConfig,
   }

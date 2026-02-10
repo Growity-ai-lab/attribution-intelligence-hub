@@ -87,3 +87,96 @@ class TestReallocation:
         }
         result = suggest_reallocation(scores, {"a": 50_000}, total_budget=200_000)
         assert result["a"]["suggested"] == pytest.approx(200_000)
+
+
+# --------------- Reallocation API Tests ---------------
+
+from fastapi.testclient import TestClient
+from backend.main import app
+
+_client = TestClient(app)
+
+
+class TestReallocationAPI:
+    """Tests for POST /api/unified/reallocation endpoint."""
+
+    _report = {
+        "meta": {"unified_score": 0.6, "mmm_score": 0.3, "dda_score": 0.5, "incrementality_score": 1.0},
+        "google": {"unified_score": 0.4, "mmm_score": 0.2, "dda_score": 0.3, "incrementality_score": 1.0},
+    }
+    _budgets = {"meta": 100_000, "google": 50_000}
+
+    def test_basic_response_format(self):
+        r = _client.post(
+            "/api/unified/reallocation",
+            json={"unified_report": self._report, "current_budgets": self._budgets},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "total_budget" in data
+        assert "suggestions" in data
+        assert data["total_budget"] == pytest.approx(150_000)
+        for ch in ("meta", "google"):
+            s = data["suggestions"][ch]
+            assert "current" in s
+            assert "suggested" in s
+            assert "delta" in s
+            assert "share" in s
+
+    def test_budget_sum_preserved(self):
+        r = _client.post(
+            "/api/unified/reallocation",
+            json={"unified_report": self._report, "current_budgets": self._budgets},
+        )
+        data = r.json()
+        total = sum(s["suggested"] for s in data["suggestions"].values())
+        assert total == pytest.approx(data["total_budget"])
+
+    def test_custom_total_budget_endpoint(self):
+        r = _client.post(
+            "/api/unified/reallocation",
+            json={
+                "unified_report": self._report,
+                "current_budgets": self._budgets,
+                "total_budget": 200_000,
+            },
+        )
+        assert r.status_code == 200
+        assert r.json()["total_budget"] == pytest.approx(200_000)
+
+    def test_empty_report_rejected(self):
+        r = _client.post(
+            "/api/unified/reallocation",
+            json={"unified_report": {}, "current_budgets": self._budgets},
+        )
+        assert r.status_code == 422
+
+    def test_empty_budgets_rejected(self):
+        r = _client.post(
+            "/api/unified/reallocation",
+            json={"unified_report": self._report, "current_budgets": {}},
+        )
+        assert r.status_code == 422
+
+    def test_negative_budget_rejected(self):
+        r = _client.post(
+            "/api/unified/reallocation",
+            json={
+                "unified_report": self._report,
+                "current_budgets": {"meta": -1000},
+            },
+        )
+        assert r.status_code == 400
+        assert "Negative budget" in r.json()["detail"]
+
+    def test_negative_total_budget_rejected(self):
+        r = _client.post(
+            "/api/unified/reallocation",
+            json={
+                "unified_report": self._report,
+                "current_budgets": self._budgets,
+                "total_budget": -500,
+            },
+        )
+        assert r.status_code == 400
+        assert "Total budget cannot be negative" in r.json()["detail"]
