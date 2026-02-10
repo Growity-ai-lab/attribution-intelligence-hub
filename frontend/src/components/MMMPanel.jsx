@@ -21,7 +21,15 @@ const CHANNELS = ['meta', 'google', 'tiktok', 'linkedin', 'dv360', 'youtube', 't
 const SAMPLE_SPEND = [1_000_000, 800_000, 600_000, 400_000, 200_000, 100_000, 50_000, 25_000]
 const SAT_INPUTS = Array.from({ length: 30 }, (_, i) => i * 100_000)
 
+// Default weekly spend values (matches backend _compute_default_mmm_shares)
+const DEFAULT_SPEND = {
+  meta: 2_600_000, google: 300_000, tiktok: 800_000,
+  linkedin: 500_000, dv360: 400_000, youtube: 600_000,
+  tv_match: 0, tv_news: 0, radio: 0, dooh: 150_000,
+}
+
 const fmtM = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(2)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}K` : `${v}`
+const fmtTL = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}K` : v.toFixed(0)
 
 export default function MMMPanel() {
   const { getAdstock, getSaturation, getDecomposition, config } = useAttribution()
@@ -57,7 +65,7 @@ export default function MMMPanel() {
     let cancelled = false
     const loadDecomp = async () => {
       try {
-        const res = await getDecomposition({})
+        const res = await getDecomposition(DEFAULT_SPEND)
         if (!cancelled) setDecomposition(res)
       } catch { /* silently handle */ }
     }
@@ -148,25 +156,68 @@ export default function MMMPanel() {
     }
   }, [saturationData, selectedChannel, satHalf])
 
-  const decompChartData = useMemo(() => {
-    if (!decomposition) return null
-    const sorted = [...decomposition].sort((a, b) => b.share - a.share)
-    return {
-      labels: sorted.map(d => CHANNEL_LABELS[d.channel] || d.channel),
-      datasets: [{
-        label: 'Katki (%)',
-        data: sorted.map(d => +(d.share * 100).toFixed(1)),
-        backgroundColor: sorted.map(d => CHANNEL_COLORS[d.channel] || '#6B7280'),
-        borderRadius: 4, barThickness: 20,
-      }],
-      _raw: sorted,
-    }
+  // --- Decomposition: enriched analysis ---
+  const decompAnalysis = useMemo(() => {
+    if (!decomposition?.length) return null
+    const totalSpend = decomposition.reduce((s, d) => s + d.spend, 0)
+    const totalLeads = decomposition.reduce((s, d) => s + d.attributed_leads, 0)
+    const ranked = [...decomposition]
+      .filter(d => d.spend > 0)
+      .map(d => ({
+        ...d,
+        label: CHANNEL_LABELS[d.channel] || d.channel,
+        color: CHANNEL_COLORS[d.channel] || '#6B7280',
+        sharePct: +(d.share * 100).toFixed(1),
+        spendPct: totalSpend > 0 ? +((d.spend / totalSpend) * 100).toFixed(1) : 0,
+        efficiency: d.spend > 0 ? +((d.attributed_leads / d.spend) * 1_000_000).toFixed(1) : 0,
+        roi: d.spend > 0 && totalSpend > 0
+          ? +(((d.share * 100) / ((d.spend / totalSpend) * 100))).toFixed(2)
+          : 0,
+      }))
+      .sort((a, b) => b.share - a.share)
+    const zeroSpend = [...decomposition].filter(d => d.spend === 0)
+    const bestEfficiency = ranked.length ? [...ranked].sort((a, b) => b.efficiency - a.efficiency)[0] : null
+    const worstEfficiency = ranked.length > 1 ? [...ranked].sort((a, b) => a.efficiency - b.efficiency)[0] : null
+    return { ranked, zeroSpend, totalSpend, totalLeads, bestEfficiency, worstEfficiency }
   }, [decomposition])
 
-  const topDecompChannel = useMemo(() => {
-    if (!decomposition?.length) return null
-    return [...decomposition].sort((a, b) => b.share - a.share)[0]
-  }, [decomposition])
+  const decompChartData = useMemo(() => {
+    if (!decompAnalysis) return null
+    const { ranked } = decompAnalysis
+    return {
+      labels: ranked.map(d => d.label),
+      datasets: [
+        {
+          label: 'Harcama Payi (%)',
+          data: ranked.map(d => d.spendPct),
+          backgroundColor: ranked.map(d => d.color + '40'),
+          borderColor: ranked.map(d => d.color),
+          borderWidth: 1,
+          borderRadius: 3, barThickness: 14,
+        },
+        {
+          label: 'Lead Payi (%)',
+          data: ranked.map(d => d.sharePct),
+          backgroundColor: ranked.map(d => d.color),
+          borderRadius: 3, barThickness: 14,
+        },
+      ],
+    }
+  }, [decompAnalysis])
+
+  const efficiencyChartData = useMemo(() => {
+    if (!decompAnalysis) return null
+    const byEff = [...decompAnalysis.ranked].sort((a, b) => b.efficiency - a.efficiency)
+    return {
+      labels: byEff.map(d => d.label),
+      datasets: [{
+        label: 'Lead / M TL',
+        data: byEff.map(d => d.efficiency),
+        backgroundColor: byEff.map(d => d.color),
+        borderRadius: 3, barThickness: 14,
+      }],
+    }
+  }, [decompAnalysis])
 
   // --- Chart options ---
   const lineOptions = {
@@ -211,12 +262,26 @@ export default function MMMPanel() {
     maintainAspectRatio: false,
     indexAxis: 'y',
     plugins: {
-      legend: { display: false },
-      tooltip: { callbacks: { label: ctx => `%${ctx.parsed.x.toFixed(1)}` } },
+      legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 12, font: { size: 10 } } },
+      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: %${ctx.parsed.x.toFixed(1)}` } },
     },
     scales: {
-      x: { ticks: { callback: v => `%${v}` } },
-      y: { grid: { display: false }, ticks: { font: { size: 10 } } },
+      x: { ticks: { callback: v => `%${v}` }, grid: { color: '#1e293b' } },
+      y: { grid: { display: false }, ticks: { font: { size: 11 } } },
+    },
+  }
+
+  const efficiencyOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: 'y',
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `${ctx.parsed.x.toFixed(1)} lead / M TL` } },
+    },
+    scales: {
+      x: { ticks: { callback: v => v.toFixed(0) }, grid: { color: '#1e293b' } },
+      y: { grid: { display: false }, ticks: { font: { size: 11 } } },
     },
   }
 
@@ -348,29 +413,159 @@ export default function MMMPanel() {
         </div>
       </div>
 
-      {/* Decomposition */}
+      {/* Decomposition Report */}
       <div className="dark-card">
         <div className="card-hdr">
-          <span className="card-title">Channel Decomposition</span>
-          <span className="text-xs text-slate-500">Varsayilan haftalik harcamaya gore MMM katki dagilimi</span>
+          <span className="card-title">Channel Decomposition Raporu</span>
+          <span className="text-xs text-slate-500">Haftalik harcama bazli MMM katki analizi</span>
         </div>
-        <div className="p-4">
-          <div className="h-72">
-            {decompChartData ? (
-              <Bar data={decompChartData} options={decompOptions} />
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-600 text-sm">Veri bekleniyor...</div>
-            )}
+        <div className="p-4 space-y-4">
+          {/* KPI Summary */}
+          {decompAnalysis && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-dark-bg rounded-lg p-3 text-center">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Harcama</p>
+                <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtTL(decompAnalysis.totalSpend)}{' TL'}</p>
+              </div>
+              <div className="bg-dark-bg rounded-lg p-3 text-center">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Tahmini Lead</p>
+                <p className="text-lg font-mono text-accent mt-0.5">{decompAnalysis.totalLeads.toFixed(0)}</p>
+              </div>
+              <div className="bg-dark-bg rounded-lg p-3 text-center">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">En Etkili Kanal</p>
+                <p className="text-sm font-semibold text-slate-100 mt-1">{decompAnalysis.ranked[0]?.label}</p>
+                <p className="text-[10px] text-slate-500">%{decompAnalysis.ranked[0]?.sharePct} pay</p>
+              </div>
+              <div className="bg-dark-bg rounded-lg p-3 text-center">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">En Verimli Kanal</p>
+                <p className="text-sm font-semibold text-slate-100 mt-1">{decompAnalysis.bestEfficiency?.label}</p>
+                <p className="text-[10px] text-slate-500">{decompAnalysis.bestEfficiency?.efficiency} lead/M TL</p>
+              </div>
+            </div>
+          )}
+
+          {/* Charts: Share comparison + Efficiency */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-slate-400 mb-2 font-medium">{'Harcama vs Lead Payi'}</p>
+              <div className="h-64">
+                {decompChartData ? (
+                  <Bar data={decompChartData} options={decompOptions} />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-600 text-sm">Veri bekleniyor...</div>
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 mb-2 font-medium">{'Verimlilik (Lead / M TL)'}</p>
+              <div className="h-64">
+                {efficiencyChartData ? (
+                  <Bar data={efficiencyChartData} options={efficiencyOptions} />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-600 text-sm">Veri bekleniyor...</div>
+                )}
+              </div>
+            </div>
           </div>
+
+          {/* Detailed Table */}
+          {decompAnalysis && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-dark-border text-slate-400">
+                    <th className="text-left py-2 px-2">#</th>
+                    <th className="text-left py-2 px-2">Kanal</th>
+                    <th className="text-right py-2 px-2">Harcama</th>
+                    <th className="text-right py-2 px-2">Harcama %</th>
+                    <th className="text-right py-2 px-2">Lead</th>
+                    <th className="text-right py-2 px-2">Lead %</th>
+                    <th className="text-right py-2 px-2">Lead/M TL</th>
+                    <th className="text-right py-2 px-2">ROI Skoru</th>
+                    <th className="text-left py-2 px-2">Performans</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {decompAnalysis.ranked.map((d, i) => (
+                    <tr key={d.channel} className="border-b border-dark-border/50 hover:bg-dark-bg/30">
+                      <td className="py-2 px-2 text-slate-500">{i + 1}</td>
+                      <td className="py-2 px-2">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: d.color }} />
+                          <span className="text-slate-200">{d.label}</span>
+                        </span>
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono text-slate-300">{fmtTL(d.spend)}</td>
+                      <td className="py-2 px-2 text-right font-mono text-slate-400">%{d.spendPct}</td>
+                      <td className="py-2 px-2 text-right font-mono text-slate-200">{d.attributed_leads.toFixed(0)}</td>
+                      <td className="py-2 px-2 text-right font-mono text-accent">%{d.sharePct}</td>
+                      <td className="py-2 px-2 text-right font-mono text-slate-300">{d.efficiency}</td>
+                      <td className="py-2 px-2 text-right font-mono">
+                        <span className={d.roi >= 1.2 ? 'text-green-400' : d.roi >= 0.8 ? 'text-slate-300' : 'text-red-400'}>
+                          {d.roi}x
+                        </span>
+                      </td>
+                      <td className="py-2 px-2">
+                        {d.roi >= 1.5
+                          ? <span className="text-green-400 font-medium">{'Yuksek verim'}</span>
+                          : d.roi >= 1.0
+                            ? <span className="text-emerald-400">{'Iyi'}</span>
+                            : d.roi >= 0.8
+                              ? <span className="text-yellow-400">{'Ortalama'}</span>
+                              : <span className="text-red-400">{'Dusuk verim'}</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                  {decompAnalysis.zeroSpend.length > 0 && (
+                    <tr className="border-b border-dark-border/50">
+                      <td colSpan={9} className="py-2 px-2 text-slate-500 italic">
+                        {'Harcama yapilmayan kanallar: '}
+                        {decompAnalysis.zeroSpend.map(d => CHANNEL_LABELS[d.channel] || d.channel).join(', ')}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Rationale */}
-          {topDecompChannel && (
-            <div className="mt-3 p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed">
-              {'MMM modeline gore en yuksek katki saglayan kanal '}
-              <strong className="text-accent">{CHANNEL_LABELS[topDecompChannel.channel] || topDecompChannel.channel}</strong>
-              {` (%${(topDecompChannel.share * 100).toFixed(1)} pay). `}
-              {topDecompChannel.attributed_leads > 0 &&
-                `Bu kanal haftada tahmini ${topDecompChannel.attributed_leads.toFixed(0)} lead attribution'a sahip. `}
-              {'Decomposition, her kanalin adstock + saturation sonrasi response modelinden hesaplanir.'}
+          {decompAnalysis && decompAnalysis.ranked.length > 0 && (
+            <div className="p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed space-y-1.5">
+              <p>
+                <strong className="text-slate-300">{'Ozet:'}</strong>
+                {' MMM modeline gore en yuksek katki saglayan kanal '}
+                <strong className="text-accent">{decompAnalysis.ranked[0].label}</strong>
+                {` (%${decompAnalysis.ranked[0].sharePct} pay, ${decompAnalysis.ranked[0].attributed_leads.toFixed(0)} lead). `}
+                {decompAnalysis.bestEfficiency && (
+                  <>
+                    {'En verimli kanal '}
+                    <strong className="text-green-400">{decompAnalysis.bestEfficiency.label}</strong>
+                    {` (${decompAnalysis.bestEfficiency.efficiency} lead/M TL). `}
+                  </>
+                )}
+              </p>
+              <p>
+                <strong className="text-slate-300">{'ROI Skoru:'}</strong>
+                {' Lead Payi / Harcama Payi orani. '}
+                {'1.0x = harcama ile orantili getiri. '}
+                <span className="text-green-400">{'1.0x ustu'}</span>
+                {' = butce payindan daha fazla lead ureten kanallar. '}
+                <span className="text-red-400">{'1.0x alti'}</span>
+                {' = harcamaya gore dusuk getiri.'}
+              </p>
+              {decompAnalysis.worstEfficiency && decompAnalysis.bestEfficiency &&
+                decompAnalysis.bestEfficiency.channel !== decompAnalysis.worstEfficiency.channel && (
+                <p>
+                  <strong className="text-slate-300">{'Oneri:'}</strong>
+                  {' '}
+                  <span className="text-red-400">{decompAnalysis.worstEfficiency.label}</span>
+                  {` (${decompAnalysis.worstEfficiency.efficiency} lead/M TL) butcesinin bir kismini `}
+                  <span className="text-green-400">{decompAnalysis.bestEfficiency.label}</span>
+                  {` (${decompAnalysis.bestEfficiency.efficiency} lead/M TL) kanalina kaydirmak toplam lead'i artirabilir.`}
+                </p>
+              )}
             </div>
           )}
         </div>
