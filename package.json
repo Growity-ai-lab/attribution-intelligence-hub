@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --config frontend/vite.config.js",
     "build": "vite build --config frontend/vite.config.js",
-    "preview": "vite preview --config frontend/vite.config.js"
+    "preview": "vite preview --config frontend/vite.config.js",
+    "start": "npm run build && python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000"
   },
   "dependencies": {
     "react": "^18.3.1",

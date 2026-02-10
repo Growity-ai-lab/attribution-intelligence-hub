@@ -1,12 +1,19 @@
 """FastAPI application entry point for Attribution Intelligence Hub."""
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import FileResponse, Response
 
 from backend.api.routes import router
+
+# Resolve paths relative to project root
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DIST_DIR = PROJECT_ROOT / "frontend" / "dist"
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -37,9 +44,30 @@ app.add_middleware(
     allow_headers=["Content-Type", "Accept"],
 )
 
+# API routes
 app.include_router(router, prefix="/api")
 
+# Serve frontend static assets if build exists
+if DIST_DIR.exists() and (DIST_DIR / "index.html").exists():
+    # Mount /assets for JS/CSS bundles
+    assets_dir = DIST_DIR / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
-@app.get("/")
-def root() -> dict[str, str]:
-    return {"status": "ok", "service": "Attribution Intelligence Hub"}
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str) -> FileResponse:
+        """Serve React SPA — any non-API route returns index.html."""
+        file_path = (DIST_DIR / full_path).resolve()
+        # Path traversal protection: only serve files inside DIST_DIR
+        if full_path and file_path.is_relative_to(DIST_DIR) and file_path.is_file():
+            return FileResponse(str(file_path))
+        return FileResponse(str(DIST_DIR / "index.html"))
+else:
+
+    @app.get("/")
+    def root() -> dict[str, str]:
+        return {
+            "status": "ok",
+            "service": "Attribution Intelligence Hub",
+            "hint": "Run 'npm run build' to enable the web UI",
+        }
