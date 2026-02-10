@@ -1,14 +1,41 @@
 """SQLAlchemy ORM models."""
 
-from sqlalchemy import Column, Float, Integer, String
+from sqlalchemy import Column, Float, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 
 from backend.db.database import Base
+
+
+class Client(Base):
+    __tablename__ = "clients"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    year = Column(Integer, nullable=False, index=True)
+    created_at = Column(String, nullable=False)
+
+    campaigns = relationship("Campaign", back_populates="client", cascade="all, delete-orphan")
+
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    budget = Column(Float, default=0.0)
+    channels = Column(String, default="")  # comma-separated channel list
+    status = Column(String, default="active")  # active, paused, completed
+    created_at = Column(String, nullable=False)
+
+    client = relationship("Client", back_populates="campaigns")
 
 
 class WeeklyData(Base):
     __tablename__ = "weekly_data"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True, index=True)
     week = Column(String, nullable=False, index=True)
     channel = Column(String, nullable=False, index=True)
     spend = Column(Float, default=0.0)
@@ -23,6 +50,7 @@ class TouchpointData(Base):
     __tablename__ = "touchpoint_data"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True, index=True)
     lead_id = Column(String, nullable=False, index=True)
     timestamp = Column(String, nullable=False)
     channel = Column(String, nullable=False)

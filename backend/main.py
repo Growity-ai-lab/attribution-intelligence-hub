@@ -10,6 +10,10 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
 from backend.api.routes import router
+from backend.db.database import Base, engine
+
+# Create all tables on startup
+Base.metadata.create_all(bind=engine)
 
 # Resolve paths relative to project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -41,7 +45,7 @@ app.add_middleware(
     allow_origins=["http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Accept"],
+    allow_headers=["Content-Type", "Accept", "Authorization"],
 )
 
 # API routes

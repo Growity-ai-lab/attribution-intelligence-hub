@@ -1,14 +1,18 @@
 """API routes for Attribution Intelligence Hub."""
 
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
 
 from backend.api.deps import get_current_user
 from backend.auth import authenticate_user, create_access_token
+from backend.db.database import get_db
+from backend.db.models import Campaign, Client
 
 from backend.config import (
     ADSTOCK_PARAMS,
@@ -65,6 +69,146 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
 async def get_me(current_user: dict = Depends(get_current_user)) -> dict:
     """Return the current authenticated user."""
     return current_user
+
+
+# --------------- Clients ---------------
+
+
+@router.get("/clients")
+def list_clients(
+    year: int | None = Query(None),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """List all clients, optionally filtered by year."""
+    q = db.query(Client)
+    if year is not None:
+        q = q.filter(Client.year == year)
+    clients = q.order_by(Client.name).all()
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "year": c.year,
+            "created_at": c.created_at,
+            "campaign_count": len(c.campaigns),
+        }
+        for c in clients
+    ]
+
+
+@router.post("/clients")
+def create_client(
+    name: str = Body(..., embed=True),
+    year: int = Body(..., embed=True),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Create a new client."""
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="Client name is required")
+    client = Client(
+        name=name.strip(),
+        year=year,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+    return {"id": client.id, "name": client.name, "year": client.year, "created_at": client.created_at}
+
+
+@router.delete("/clients/{client_id}")
+def delete_client(
+    client_id: int,
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Delete a client and all its campaigns."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    db.delete(client)
+    db.commit()
+    return {"deleted": True, "id": client_id}
+
+
+# --------------- Campaigns ---------------
+
+
+@router.get("/clients/{client_id}/campaigns")
+def list_campaigns(
+    client_id: int,
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """List campaigns for a client."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return [
+        {
+            "id": c.id,
+            "client_id": c.client_id,
+            "name": c.name,
+            "budget": c.budget,
+            "channels": c.channels.split(",") if c.channels else [],
+            "status": c.status,
+            "created_at": c.created_at,
+        }
+        for c in client.campaigns
+    ]
+
+
+@router.post("/clients/{client_id}/campaigns")
+def create_campaign(
+    client_id: int,
+    name: str = Body(..., embed=True),
+    budget: float = Body(0.0, embed=True),
+    channels: str = Body("", embed=True),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Create a new campaign under a client."""
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="Campaign name is required")
+    campaign = Campaign(
+        client_id=client_id,
+        name=name.strip(),
+        budget=budget,
+        channels=channels,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(campaign)
+    db.commit()
+    db.refresh(campaign)
+    return {
+        "id": campaign.id,
+        "client_id": campaign.client_id,
+        "name": campaign.name,
+        "budget": campaign.budget,
+        "channels": campaign.channels.split(",") if campaign.channels else [],
+        "status": campaign.status,
+        "created_at": campaign.created_at,
+    }
+
+
+@router.delete("/campaigns/{campaign_id}")
+def delete_campaign(
+    campaign_id: int,
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Delete a campaign."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    db.delete(campaign)
+    db.commit()
+    return {"deleted": True, "id": campaign_id}
 
 
 def _validate_file(file: UploadFile) -> None:
