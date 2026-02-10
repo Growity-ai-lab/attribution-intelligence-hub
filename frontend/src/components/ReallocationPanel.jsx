@@ -54,6 +54,18 @@ export default function ReallocationPanel({ data, totalBudget }) {
           </tbody>
         </table>
       </div>
+      <div className="mx-4 mb-4 p-3 bg-dark-bg rounded-lg border border-dark-border/50">
+        <p className="text-xs text-slate-400 leading-relaxed">
+          <span className="text-slate-300 font-medium">Oneri rasyoneli:</span>{' '}
+          Butce onerisi, her kanalin Unified skoruna oranla toplam butcenin yeniden dagitilmasiyla hesaplanir.
+          Yuksek unified skora sahip kanallar (ornegin guclu DDA + MMM sinyali verenler) daha fazla butce alirken,
+          dusuk performansli kanallardan butce aktarilir.{' '}
+          <span className="text-emerald-400">{'\u2191'} Yesil</span> degerler butce artisi,{' '}
+          <span className="text-red-400">{'\u2193'} Kirmizi</span> degerler azalis onerisini gosterir.
+          Bu oneriler otomatik bir optimizasyon degil, karar destek amacidir —
+          nihai kararda segment stratejisi, kampanya hedefleri ve mevsimsellik de goz onunde bulundurulmalidir.
+        </p>
+      </div>
     </div>
   )
 }

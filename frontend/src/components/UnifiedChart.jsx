@@ -102,6 +102,18 @@ export default function UnifiedChart({ data }) {
       <div className="h-60 md:h-80">
         <Bar data={chartData} options={options} />
       </div>
+      <div className="mt-4 p-3 bg-dark-bg rounded-lg border border-dark-border/50">
+        <p className="text-xs text-slate-400 leading-relaxed">
+          <span className="text-slate-300 font-medium">Nasil yorumlanir:</span>{' '}
+          Her kanal icin toplam bar yuksekligi, o kanalin genel attribution payini gosterir.
+          Renk katmanlari uc farkli modelin katkisini temsil eder:{' '}
+          <span className="text-orange-400">DDA (Data-Driven Attribution)</span> kullanici yolculugu verisinden,{' '}
+          <span className="text-blue-400">MMM (Marketing Mix Model)</span> harcama-donusum iliskisinden,{' '}
+          <span className="text-emerald-400">Incrementality</span> ise kanallarin ek (incremental) etkisinden beslenir.
+          Agirliklar (DDA %50, MMM %35, Inc %15) modellerin veri olgunluguna ve guvenilirligine gore belirlenmistir;
+          DDA kullanici bazli veri icerdigi icin en yuksek agirligi alir.
+        </p>
+      </div>
     </div>
   )
 }
