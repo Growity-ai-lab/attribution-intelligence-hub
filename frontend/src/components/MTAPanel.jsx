@@ -78,8 +78,8 @@ export default function MTAPanel({ ddaResult }) {
   return (
     <div className="space-y-6">
       <InfoTip>
-        <strong>DDA (Data-Driven Attribution):</strong> Markov Chain (\u00d70.65) + Shapley Value (\u00d70.35) blend.
-        CRM touchpoint verisi uzerinden kanal bazli atif dagilimi hesaplar.
+        <strong>DDA (Data-Driven Attribution):</strong> {'Markov Chain (\u00d70.65) + Shapley Value (\u00d70.35) blend.'}
+        {' CRM touchpoint verisi uzerinden kanal bazli atif dagilimi hesaplar.'}
       </InfoTip>
 
       {/* Journey Paths */}
@@ -100,7 +100,7 @@ export default function MTAPanel({ ddaResult }) {
                     >
                       {CHANNEL_LABELS[ch] || ch}
                     </span>
-                    {j < p.path.length - 1 && <span className="text-slate-600">\u2192</span>}
+                    {j < p.path.length - 1 && <span className="text-slate-600">{'\u2192'}</span>}
                   </span>
                 ))}
               </div>
@@ -158,7 +158,7 @@ export default function MTAPanel({ ddaResult }) {
         <div className="dark-card">
           <div className="card-hdr">
             <span className="card-title">Blended DDA Attribution</span>
-            <span className="text-xs text-slate-500">Markov\u00d70.65 + Shapley\u00d70.35</span>
+            <span className="text-xs text-slate-500">{'Markov\u00d70.65 + Shapley\u00d70.35'}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

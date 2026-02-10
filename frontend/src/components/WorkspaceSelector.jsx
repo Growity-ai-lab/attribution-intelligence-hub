@@ -6,9 +6,9 @@ const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 2 + i)
 
 function formatBudget(val) {
   if (!val) return '-'
-  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M \u20BA`
-  if (val >= 1_000) return `${(val / 1_000).toFixed(0)}K \u20BA`
-  return `${val} \u20BA`
+  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M TL`
+  if (val >= 1_000) return `${(val / 1_000).toFixed(0)}K TL`
+  return `${val} TL`
 }
 
 export default function WorkspaceSelector({ onSelect }) {
@@ -45,7 +45,7 @@ export default function WorkspaceSelector({ onSelect }) {
 
   const handleDeleteClient = async (e, clientId) => {
     e.stopPropagation()
-    if (!window.confirm('Bu m\u00FC\u015Fteri ve t\u00FCm kampanyalar\u0131 silinecek. Emin misiniz?')) return
+    if (!window.confirm('Bu musteri ve tum kampanyalari silinecek. Emin misiniz?')) return
     await deleteClient(clientId)
     if (selectedClient?.id === clientId) setSelectedClient(null)
     fetchClients(year)
@@ -81,7 +81,7 @@ export default function WorkspaceSelector({ onSelect }) {
           </div>
           <div className="flex-1">
             <h1 className="text-xl font-semibold text-slate-100">Attribution Intelligence Hub</h1>
-            <p className="text-xs text-slate-500">M\u00FC\u015Fteri ve kampanya se\u00E7imi</p>
+            <p className="text-xs text-slate-500">Musteri ve kampanya secimi</p>
           </div>
           <div className="flex gap-1">
             {YEARS.map(y => (
@@ -105,12 +105,12 @@ export default function WorkspaceSelector({ onSelect }) {
           {/* Client List */}
           <div className="dark-card">
             <div className="card-hdr">
-              <h3 className="card-title">M\u00FC\u015Fteriler ({year})</h3>
+              <h3 className="card-title">Musteriler ({year})</h3>
               <button
                 onClick={() => setShowNewClient(!showNewClient)}
                 className="px-3 py-1 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent-dark transition-colors"
               >
-                + Yeni M\u00FC\u015Fteri
+                + Yeni Musteri
               </button>
             </div>
 
@@ -122,7 +122,7 @@ export default function WorkspaceSelector({ onSelect }) {
                     value={newClientName}
                     onChange={e => setNewClientName(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleCreateClient()}
-                    placeholder="M\u00FC\u015Fteri ad\u0131..."
+                    placeholder="Musteri adi..."
                     className="flex-1 bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
                     autoFocus
                   />
@@ -136,12 +136,12 @@ export default function WorkspaceSelector({ onSelect }) {
               )}
 
               {loading && !clients.length && (
-                <p className="text-slate-500 text-xs py-4 text-center">Y\u00FCkleniyor...</p>
+                <p className="text-slate-500 text-xs py-4 text-center">Yukleniyor...</p>
               )}
 
               {!loading && !clients.length && !showNewClient && (
                 <p className="text-slate-500 text-xs py-8 text-center">
-                  Hen\u00FCz m\u00FC\u015Fteri eklenmedi. "Yeni M\u00FC\u015Fteri" butonuna t\u0131klay\u0131n.
+                  Henuz musteri eklenmedi. "Yeni Musteri" butonuna tiklayin.
                 </p>
               )}
 
@@ -167,7 +167,7 @@ export default function WorkspaceSelector({ onSelect }) {
                       className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 text-xs transition-all"
                       title="Sil"
                     >
-                      \u2715
+                      {'×'}
                     </button>
                   </div>
                 </button>
@@ -179,7 +179,7 @@ export default function WorkspaceSelector({ onSelect }) {
           <div className="dark-card">
             <div className="card-hdr">
               <h3 className="card-title">
-                {selectedClient ? `${selectedClient.name} \u2014 Kampanyalar` : 'Kampanyalar'}
+                {selectedClient ? `${selectedClient.name} - Kampanyalar` : 'Kampanyalar'}
               </h3>
               {selectedClient && (
                 <button
@@ -194,7 +194,7 @@ export default function WorkspaceSelector({ onSelect }) {
             <div className="p-4 space-y-2">
               {!selectedClient && (
                 <p className="text-slate-500 text-xs py-8 text-center">
-                  Sol taraftan bir m\u00FC\u015Fteri se\u00E7in.
+                  Sol taraftan bir musteri secin.
                 </p>
               )}
 
@@ -205,7 +205,7 @@ export default function WorkspaceSelector({ onSelect }) {
                     value={newCampaign.name}
                     onChange={e => setNewCampaign(prev => ({ ...prev, name: e.target.value }))}
                     onKeyDown={e => e.key === 'Enter' && handleCreateCampaign()}
-                    placeholder="Kampanya ad\u0131..."
+                    placeholder="Kampanya adi..."
                     className="w-full bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
                     autoFocus
                   />
@@ -214,14 +214,14 @@ export default function WorkspaceSelector({ onSelect }) {
                       type="number"
                       value={newCampaign.budget}
                       onChange={e => setNewCampaign(prev => ({ ...prev, budget: e.target.value }))}
-                      placeholder="B\u00FCt\u00E7e (\u20BA)..."
+                      placeholder="Butce (TL)..."
                       className="flex-1 bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
                     />
                     <button
                       onClick={handleCreateCampaign}
                       className="px-4 py-2 bg-accent text-white rounded-lg text-xs font-medium"
                     >
-                      Olu\u015Ftur
+                      Olustur
                     </button>
                   </div>
                 </div>
@@ -229,7 +229,7 @@ export default function WorkspaceSelector({ onSelect }) {
 
               {selectedClient && !campaigns.length && !showNewCampaign && (
                 <p className="text-slate-500 text-xs py-8 text-center">
-                  Hen\u00FCz kampanya eklenmedi.
+                  Henuz kampanya eklenmedi.
                 </p>
               )}
 
@@ -263,7 +263,7 @@ export default function WorkspaceSelector({ onSelect }) {
                         className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 text-xs transition-all"
                         title="Sil"
                       >
-                        \u2715
+                        {'×'}
                       </button>
                     </div>
                   </div>

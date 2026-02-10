@@ -54,7 +54,7 @@ export default function LoginPage({ onLogin }) {
               onChange={(e) => setPassword(e.target.value)}
               required
               className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-accent transition-colors"
-              placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+              placeholder="********"
             />
           </div>
 
@@ -74,7 +74,7 @@ export default function LoginPage({ onLogin }) {
         </form>
 
         <p className="text-center text-xs text-slate-600 mt-6">
-          Growity \u00d7 Atlas &mdash; Guvenli Erisim
+          {'Growity \u00d7 Atlas'} &mdash; Guvenli Erisim
         </p>
       </div>
     </div>

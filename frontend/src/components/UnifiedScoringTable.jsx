@@ -19,7 +19,7 @@ export default function UnifiedScoringTable({ data, crossValidation = [] }) {
       <div className="card-hdr">
         <div>
           <span className="card-title">Unified Attribution Scoring</span>
-          <p className="text-xs text-slate-500 mt-0.5">DDA\u00d70.50 + MMM\u00d70.35 + Incrementality\u00d70.15</p>
+          <p className="text-xs text-slate-500 mt-0.5">{'DDA\u00d70.50 + MMM\u00d70.35 + Incrementality\u00d70.15'}</p>
         </div>
       </div>
       <div className="overflow-x-auto">

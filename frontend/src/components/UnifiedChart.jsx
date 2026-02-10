@@ -87,7 +87,7 @@ export default function UnifiedChart({ data }) {
       <div className="dark-card p-6">
         <h3 className="card-title mb-4">Unified Attribution</h3>
         <p className="text-slate-500 text-xs">
-          Unified scoring chart \u2014 veri yuklendiginde Chart.js ile render edilecek.
+          {'Unified scoring chart \u2014 veri yuklendiginde Chart.js ile render edilecek.'}
         </p>
         <div className="h-64 flex items-center justify-center border border-dashed border-dark-border rounded-lg mt-4">
           <span className="text-slate-600 text-sm">Grafik alani</span>

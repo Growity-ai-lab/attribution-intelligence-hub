@@ -185,7 +185,7 @@ export default function MMMPanel() {
           </div>
           <div className="p-4">
             <InfoTip>
-              <strong>Adstock formulu:</strong> adstock[t] = spend[t] + \u03bb \u00d7 adstock[t-1] \u2014 Harcamanin zaman icinde tasma etkisi.
+              <strong>Adstock formulu:</strong> {'adstock[t] = spend[t] + \u03bb \u00d7 adstock[t-1] \u2014 Harcamanin zaman icinde tasma etkisi.'}
             </InfoTip>
             <div className="h-56 mt-3">
               {adstockChartData ? (
@@ -204,7 +204,7 @@ export default function MMMPanel() {
           </div>
           <div className="p-4">
             <InfoTip>
-              <strong>Hill formulu:</strong> saturation(x) = x^\u03b3 / (\u03b1^\u03b3 + x^\u03b3) \u2014 Azalan getiri egrisi.
+              <strong>Hill formulu:</strong> {'saturation(x) = x^\u03b3 / (\u03b1^\u03b3 + x^\u03b3) \u2014 Azalan getiri egrisi.'}
             </InfoTip>
             <div className="h-56 mt-3">
               {saturationChartData ? (

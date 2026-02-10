@@ -16,7 +16,7 @@ export default function ReallocationPanel({ data, totalBudget }) {
         <div>
           <span className="card-title">Butce Reallocation Onerisi</span>
           <p className="text-xs text-slate-500 mt-0.5">
-            Toplam butce: {totalBudget ? formatCurrency(totalBudget) : '\u2014'} \u2014 Unified skora gore dagilim
+            Toplam butce: {totalBudget ? formatCurrency(totalBudget) : '\u2014'} {'\u2014'} Unified skora gore dagilim
           </p>
         </div>
       </div>

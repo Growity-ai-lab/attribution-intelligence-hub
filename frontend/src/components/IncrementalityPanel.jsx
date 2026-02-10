@@ -82,7 +82,7 @@ export default function IncrementalityPanel() {
       <div className="dark-card">
         <div className="card-hdr">
           <span className="card-title">Duzeltme Faktorleri</span>
-          <span className="text-xs text-slate-500">Inc. \u00d7 Unified skor carpani</span>
+          <span className="text-xs text-slate-500">{'Inc. \u00d7 Unified skor carpani'}</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
