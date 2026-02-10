@@ -5,6 +5,7 @@ import io
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.auth import create_access_token
 from backend.main import app
 
 
@@ -12,6 +13,13 @@ from backend.main import app
 def client():
     """FastAPI test client."""
     return TestClient(app)
+
+
+@pytest.fixture()
+def auth_headers():
+    """Return Authorization headers with a valid JWT token for test requests."""
+    token = create_access_token(data={"sub": "admin", "role": "admin"})
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture()

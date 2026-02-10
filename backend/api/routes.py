@@ -3,8 +3,12 @@
 from io import BytesIO
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Body, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.security import OAuth2PasswordRequestForm
+
+from backend.api.deps import get_current_user
+from backend.auth import authenticate_user, create_access_token
 
 from backend.config import (
     ADSTOCK_PARAMS,
@@ -42,6 +46,25 @@ router = APIRouter()
 
 # Channels that represent conversion events, not marketing touchpoints
 _CONVERSION_CHANNELS = {"form", "landing_page", "website", "app"}
+
+
+# --------------- Auth ---------------
+
+
+@router.post("/auth/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
+    """Authenticate and return a JWT access token."""
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+    token = create_access_token(data={"sub": user["username"], "role": user["role"]})
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@router.get("/auth/me")
+async def get_me(current_user: dict = Depends(get_current_user)) -> dict:
+    """Return the current authenticated user."""
+    return current_user
 
 
 def _validate_file(file: UploadFile) -> None:
@@ -162,7 +185,7 @@ def health_check() -> dict[str, str]:
 
 
 @router.post("/data/upload")
-async def upload_weekly_data(file: UploadFile = File(...)) -> dict:
+async def upload_weekly_data(file: UploadFile = File(...), _user: dict = Depends(get_current_user)) -> dict:
     """Upload weekly CSV data file."""
     _validate_file(file)
     content = await _read_file_content(file)
@@ -287,6 +310,7 @@ def run_dda(
     journeys: list[dict] = Body(..., description="List of journey objects"),
     mmm_shares: dict[str, float] | None = Body(None, description="MMM channel shares"),
     prior_alpha: float = Body(MARKOV_PRIOR_ALPHA, description="Bayesian smoothing"),
+    _user: dict = Depends(get_current_user),
 ) -> dict:
     """Run the full DDA pipeline on journey data.
 
@@ -328,6 +352,7 @@ def run_dda(
 async def run_dda_from_csv(
     file: UploadFile = File(...),
     prior_alpha: float = 0.5,
+    _user: dict = Depends(get_current_user),
 ) -> dict:
     """Run DDA pipeline from a CRM touchpoint CSV.
 
@@ -394,6 +419,7 @@ async def run_dda_from_csv(
 @router.post("/dda/journey-stats")
 def get_journey_stats(
     journeys: list[dict] = Body(...),
+    _user: dict = Depends(get_current_user),
 ) -> dict:
     """Get summary statistics for journey data."""
     _validate_journey_count(journeys)
@@ -421,6 +447,7 @@ def get_reallocation(
     unified_report: dict[str, dict[str, float]] = Body(..., description="Unified report scores"),
     current_budgets: dict[str, float] = Body(..., description="Current budget per channel"),
     total_budget: float | None = Body(None, description="Total budget to reallocate"),
+    _user: dict = Depends(get_current_user),
 ) -> dict:
     """Suggest budget reallocation based on unified attribution scores."""
     if not unified_report:

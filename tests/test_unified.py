@@ -92,9 +92,11 @@ class TestReallocation:
 # --------------- Reallocation API Tests ---------------
 
 from fastapi.testclient import TestClient
+from backend.auth import create_access_token
 from backend.main import app
 
 _client = TestClient(app)
+_auth_headers = {"Authorization": f"Bearer {create_access_token(data={'sub': 'admin', 'role': 'admin'})}"}
 
 
 class TestReallocationAPI:
@@ -110,6 +112,7 @@ class TestReallocationAPI:
         r = _client.post(
             "/api/unified/reallocation",
             json={"unified_report": self._report, "current_budgets": self._budgets},
+            headers=_auth_headers,
         )
         assert r.status_code == 200
         data = r.json()
@@ -127,6 +130,7 @@ class TestReallocationAPI:
         r = _client.post(
             "/api/unified/reallocation",
             json={"unified_report": self._report, "current_budgets": self._budgets},
+            headers=_auth_headers,
         )
         data = r.json()
         total = sum(s["suggested"] for s in data["suggestions"].values())
@@ -140,6 +144,7 @@ class TestReallocationAPI:
                 "current_budgets": self._budgets,
                 "total_budget": 200_000,
             },
+            headers=_auth_headers,
         )
         assert r.status_code == 200
         assert r.json()["total_budget"] == pytest.approx(200_000)
@@ -148,6 +153,7 @@ class TestReallocationAPI:
         r = _client.post(
             "/api/unified/reallocation",
             json={"unified_report": {}, "current_budgets": self._budgets},
+            headers=_auth_headers,
         )
         assert r.status_code == 422
 
@@ -155,6 +161,7 @@ class TestReallocationAPI:
         r = _client.post(
             "/api/unified/reallocation",
             json={"unified_report": self._report, "current_budgets": {}},
+            headers=_auth_headers,
         )
         assert r.status_code == 422
 
@@ -165,6 +172,7 @@ class TestReallocationAPI:
                 "unified_report": self._report,
                 "current_budgets": {"meta": -1000},
             },
+            headers=_auth_headers,
         )
         assert r.status_code == 400
         assert "Negative budget" in r.json()["detail"]
@@ -177,6 +185,7 @@ class TestReallocationAPI:
                 "current_budgets": self._budgets,
                 "total_budget": -500,
             },
+            headers=_auth_headers,
         )
         assert r.status_code == 400
         assert "Total budget cannot be negative" in r.json()["detail"]

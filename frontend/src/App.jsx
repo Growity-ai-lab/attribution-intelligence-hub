@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useAuth } from './hooks/useAuth'
+import LoginPage from './components/LoginPage'
 import Dashboard from './components/Dashboard'
 import MMMPanel from './components/MMMPanel'
 import MTAPanel from './components/MTAPanel'
@@ -14,8 +16,21 @@ const TABS = [
 ]
 
 export default function App() {
+  const { user, loading, login, logout } = useAuth()
   const [activeTab, setActiveTab] = useState('unified')
   const [ddaResult, setDdaResult] = useState(null)
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark-bg flex items-center justify-center">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-orange-600 animate-pulse" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginPage onLogin={login} />
+  }
 
   return (
     <div className="min-h-screen bg-dark-bg bg-grid-overlay">
@@ -38,6 +53,15 @@ export default function App() {
             <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700 text-slate-300">
               HAFTA 8
             </span>
+            <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-emerald-500/15 text-emerald-400">
+              {user.username}
+            </span>
+            <button
+              onClick={logout}
+              className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700/50 text-slate-400 hover:text-red-400 transition-colors"
+            >
+              Cikis
+            </button>
           </div>
         </div>
 
