@@ -1,20 +1,21 @@
-import { formatCurrency, formatNumber } from '../utils/formatters'
+import { formatCurrency, formatNumber, formatPercent, formatCompact } from '../utils/formatters'
 
 export default function KPICards({ data }) {
   const cards = [
-    { label: 'Toplam Harcama', value: formatCurrency(data.totalSpend), color: 'bg-blue-500' },
-    { label: 'Toplam Lead', value: formatNumber(data.totalLeads), color: 'bg-green-500' },
-    { label: 'CPL', value: formatCurrency(data.costPerLead), color: 'bg-yellow-500' },
-    { label: 'Aktif Kampanya', value: data.activeCampaigns, color: 'bg-purple-500' },
+    { label: 'Toplam Harcama', value: formatCurrency(data.totalSpend), borderColor: 'border-accent' },
+    { label: 'Toplam Lead', value: formatNumber(data.totalLeads), borderColor: 'border-blue-500' },
+    { label: 'CPL', value: formatCurrency(data.costPerLead), borderColor: 'border-emerald-500' },
+    { label: 'Aktif Kampanya', value: data.activeCampaigns, borderColor: 'border-purple-500' },
+    { label: 'Conversion Rate', value: formatPercent(data.conversionRate || 0), borderColor: 'border-cyan-500' },
+    { label: 'Toplam Butce', value: formatCompact(data.totalBudget || 0) + ' TL', borderColor: 'border-yellow-500' },
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
       {cards.map(card => (
-        <div key={card.label} className="bg-white rounded-lg shadow p-4">
-          <div className={`w-2 h-2 rounded-full ${card.color} mb-2`} />
-          <p className="text-sm text-gray-500">{card.label}</p>
-          <p className="text-xl md:text-2xl font-bold text-gray-900">{card.value}</p>
+        <div key={card.label} className={`dark-card border-t-2 ${card.borderColor} p-4`}>
+          <p className="text-xs text-slate-500 mb-1">{card.label}</p>
+          <p className="text-lg md:text-xl font-bold font-mono text-slate-100">{card.value}</p>
         </div>
       ))}
     </div>

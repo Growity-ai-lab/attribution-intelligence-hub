@@ -24,3 +24,10 @@ export function formatCompact(value) {
   if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`
   return value.toString()
 }
+
+/** Shorten large numbers with TL suffix: 2.6M TL, 300K TL */
+export function formatCompactTL(value) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M TL`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K TL`
+  return `${value} TL`
+}

@@ -34,38 +34,36 @@ export default function DataUpload() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
-      <h2 className="text-lg font-semibold text-gray-800 mb-4">Veri Yukle</h2>
+    <div className="dark-card p-6 max-w-2xl">
+      <h2 className="card-title mb-4">Veri Yukle</h2>
 
-      {/* Mode Selection */}
-      <div className="flex flex-wrap gap-4 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4">
         <button
           onClick={() => { setMode('weekly'); setResult(null); setDdaResult(null); setError(null) }}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${
             mode === 'weekly'
-              ? 'bg-po-dark text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              ? 'bg-accent text-white'
+              : 'bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200'
           }`}
         >
           Haftalik Veri
         </button>
         <button
           onClick={() => { setMode('crm'); setResult(null); setDdaResult(null); setError(null) }}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${
             mode === 'crm'
-              ? 'bg-po-dark text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              ? 'bg-accent text-white'
+              : 'bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200'
           }`}
         >
           CRM Touchpoint
         </button>
       </div>
 
-      <p className="text-gray-500 text-sm mb-4">
+      <p className="text-slate-500 text-xs mb-4">
         {mode === 'weekly'
-          ? 'CSV veya Excel formatinda haftalik kanal verilerini yukleyin. Sablon icin data/templates/weekly_input_template.csv dosyasini kullanin.'
-          : 'CRM touchpoint CSV yukleyin. DDA pipeline otomatik calisacak ve unified attribution skorlari hesaplanacak.'
-        }
+          ? 'CSV veya Excel formatinda haftalik kanal verilerini yukleyin.'
+          : 'CRM touchpoint CSV yukleyin. DDA pipeline otomatik calisacak.'}
       </p>
 
       <label className="block">
@@ -75,23 +73,22 @@ export default function DataUpload() {
           accept=".csv,.xlsx,.xls"
           onChange={handleUpload}
           disabled={uploading}
-          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-po-dark file:text-white hover:file:bg-po-blue cursor-pointer"
+          className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-accent file:text-white hover:file:bg-accent-dark cursor-pointer"
         />
       </label>
 
-      {uploading && <p className="mt-4 text-blue-600 text-sm">Yukleniyor...</p>}
+      {uploading && <p className="mt-4 text-accent text-xs">Yukleniyor...</p>}
 
       {error && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+        <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs">
           {error}
         </div>
       )}
 
-      {/* Weekly upload result */}
       {result && (
-        <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded text-sm">
-          <p className="font-medium text-green-800">Yukleme basarili!</p>
-          <ul className="mt-2 text-green-700 space-y-1">
+        <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs">
+          <p className="font-medium text-emerald-400">Yukleme basarili!</p>
+          <ul className="mt-2 text-emerald-300/80 space-y-1">
             <li>Dosya: {result.filename}</li>
             <li>Satir: {result.rows}</li>
             <li>Haftalar: {result.weeks?.join(', ')}</li>
@@ -100,18 +97,16 @@ export default function DataUpload() {
         </div>
       )}
 
-      {/* DDA result */}
       {ddaResult && (
-        <div className="mt-4 space-y-4">
-          <div className="p-4 bg-green-50 border border-green-200 rounded text-sm">
-            <p className="font-medium text-green-800">DDA Analizi Tamamlandi!</p>
+        <div className="mt-4 space-y-3">
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs">
+            <p className="font-medium text-emerald-400">DDA Analizi Tamamlandi!</p>
           </div>
 
-          {/* Journey Stats */}
           {ddaResult.journey_stats && (
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded text-sm">
-              <p className="font-medium text-gray-800 mb-2">Journey Istatistikleri</p>
-              <div className="grid grid-cols-2 gap-2 text-gray-700">
+            <div className="p-3 bg-dark-bg rounded-lg text-xs">
+              <p className="font-medium text-slate-300 mb-2">Journey Istatistikleri</p>
+              <div className="grid grid-cols-2 gap-2 text-slate-400">
                 <span>Toplam Journey: {ddaResult.journey_stats.total_journeys}</span>
                 <span>Conversion: {ddaResult.journey_stats.converted}</span>
                 <span>Conversion Rate: %{((ddaResult.journey_stats.conversion_rate || 0) * 100).toFixed(1)}</span>
@@ -120,29 +115,27 @@ export default function DataUpload() {
             </div>
           )}
 
-          {/* Hybrid Attribution */}
           {ddaResult.hybrid_attribution && (
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded text-sm">
-              <p className="font-medium text-blue-800 mb-2">Hybrid Attribution</p>
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs">
+              <p className="font-medium text-blue-400 mb-2">Hybrid Attribution</p>
               <div className="space-y-1">
                 {Object.entries(ddaResult.hybrid_attribution)
                   .sort(([, a], [, b]) => b - a)
                   .map(([ch, val]) => (
-                    <div key={ch} className="flex justify-between text-blue-700">
+                    <div key={ch} className="flex justify-between text-blue-300/80">
                       <span>{ch}</span>
-                      <span>%{(val * 100).toFixed(1)}</span>
+                      <span className="font-mono">%{(val * 100).toFixed(1)}</span>
                     </div>
                   ))}
               </div>
             </div>
           )}
 
-          {/* Cross Validation Flags */}
           {ddaResult.cross_validation?.some(cv => cv.flagged) && (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded text-sm">
-              <p className="font-medium text-amber-800 mb-2">Cross-Validation Uyarilari</p>
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs">
+              <p className="font-medium text-amber-400 mb-2">Cross-Validation Uyarilari</p>
               {ddaResult.cross_validation.filter(cv => cv.flagged).map(cv => (
-                <p key={cv.channel} className="text-amber-700">
+                <p key={cv.channel} className="text-amber-300/80">
                   {cv.channel}: DDA-MMM sapmasi %{(cv.deviation * 100).toFixed(0)} (&gt;20%)
                 </p>
               ))}

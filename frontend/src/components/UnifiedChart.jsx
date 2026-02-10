@@ -30,22 +30,22 @@ export default function UnifiedChart({ data }) {
       labels,
       datasets: [
         {
-          label: 'DDA (×0.50)',
+          label: 'DDA (\u00d70.50)',
           data: ddaValues,
-          backgroundColor: 'rgba(59, 130, 246, 0.8)',
-          borderRadius: 2,
+          backgroundColor: 'rgba(249, 115, 22, 0.8)',
+          borderRadius: 3,
         },
         {
-          label: 'MMM (×0.35)',
+          label: 'MMM (\u00d70.35)',
           data: mmmValues,
-          backgroundColor: 'rgba(34, 197, 94, 0.8)',
-          borderRadius: 2,
+          backgroundColor: 'rgba(59, 130, 246, 0.8)',
+          borderRadius: 3,
         },
         {
-          label: 'Incrementality (×0.15)',
+          label: 'Incrementality (\u00d70.15)',
           data: incValues,
-          backgroundColor: 'rgba(245, 158, 11, 0.8)',
-          borderRadius: 2,
+          backgroundColor: 'rgba(34, 197, 94, 0.8)',
+          borderRadius: 3,
         },
       ],
     }
@@ -55,7 +55,10 @@ export default function UnifiedChart({ data }) {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top' },
+      legend: {
+        position: 'top',
+        labels: { usePointStyle: true, pointStyle: 'circle', padding: 16 },
+      },
       title: { display: false },
       tooltip: {
         callbacks: {
@@ -64,11 +67,16 @@ export default function UnifiedChart({ data }) {
       },
     },
     scales: {
-      x: { stacked: true },
+      x: {
+        stacked: true,
+        grid: { display: false },
+        ticks: { font: { size: 10 } },
+      },
       y: {
         stacked: true,
         ticks: {
           callback: (v) => `%${v}`,
+          font: { size: 10 },
         },
       },
     },
@@ -76,21 +84,21 @@ export default function UnifiedChart({ data }) {
 
   if (!chartData) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Unified Attribution</h3>
-        <p className="text-gray-500 text-sm">
-          Unified scoring chart — veri yüklendiğinde Chart.js ile render edilecek.
+      <div className="dark-card p-6">
+        <h3 className="card-title mb-4">Unified Attribution</h3>
+        <p className="text-slate-500 text-xs">
+          Unified scoring chart \u2014 veri yuklendiginde Chart.js ile render edilecek.
         </p>
-        <div className="h-64 flex items-center justify-center border-2 border-dashed border-gray-200 rounded-lg mt-4">
-          <span className="text-gray-400">Grafik alanı</span>
+        <div className="h-64 flex items-center justify-center border border-dashed border-dark-border rounded-lg mt-4">
+          <span className="text-slate-600 text-sm">Grafik alani</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4">Unified Attribution</h3>
+    <div className="dark-card p-6">
+      <h3 className="card-title mb-4">Unified Attribution</h3>
       <div className="h-60 md:h-80">
         <Bar data={chartData} options={options} />
       </div>

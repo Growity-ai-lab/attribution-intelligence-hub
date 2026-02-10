@@ -5,12 +5,15 @@ import ChannelTable from './ChannelTable'
 import UnifiedChart from './UnifiedChart'
 import UnifiedScoringTable from './UnifiedScoringTable'
 import ReallocationPanel from './ReallocationPanel'
+import DataUpload from './DataUpload'
 
 const SAMPLE_KPI = {
   totalSpend: 55_000_000,
   totalLeads: 4280,
   costPerLead: 12_850,
   activeCampaigns: 4,
+  conversionRate: 0.065,
+  totalBudget: 55_000_000,
 }
 
 const SAMPLE_CHANNELS = [
@@ -26,7 +29,7 @@ const SAMPLE_CHANNELS = [
   { channel: 'dooh', spend: 150_000, leads: 45, share: 0.01 },
 ]
 
-export default function Dashboard() {
+export default function Dashboard({ onDdaResult }) {
   const { fetchSampleJourneys, runDDAFromCSV, getReallocation } = useAttribution()
   const [unifiedData, setUnifiedData] = useState(null)
   const [crossValidation, setCrossValidation] = useState([])
@@ -44,8 +47,8 @@ export default function Dashboard() {
       setUnifiedData(result.unified_report || null)
       setCrossValidation(result.cross_validation || [])
       setJourneyStats(result.journey_stats || null)
+      if (onDdaResult) onDdaResult(result)
 
-      // Auto-run reallocation after DDA analysis
       if (result.unified_report) {
         const currentBudgets = {}
         SAMPLE_CHANNELS.forEach(ch => { currentBudgets[ch.channel] = ch.spend })
@@ -65,62 +68,66 @@ export default function Dashboard() {
       <ChannelTable channels={SAMPLE_CHANNELS} />
 
       {/* DDA Analysis Section */}
-      <div className="bg-white rounded-lg shadow p-4 md:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+      <div className="dark-card">
+        <div className="card-hdr">
           <div>
-            <h3 className="text-lg font-semibold text-gray-800">DDA Analizi</h3>
-            <p className="text-sm text-gray-500">
+            <h3 className="card-title">DDA Analizi</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
               Markov Chain + Shapley ensemble ile unified attribution skorlamasi
             </p>
           </div>
           <button
             onClick={handleAnalyzeSample}
             disabled={analyzing}
-            className="px-4 py-2 bg-po-dark text-white rounded-lg text-sm font-medium hover:bg-po-blue transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {analyzing ? 'Analiz ediliyor...' : 'Ornek Veri ile Analiz Et'}
           </button>
         </div>
 
-        {analysisError && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
-            {analysisError}
-          </div>
-        )}
+        <div className="p-4">
+          {analysisError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs">
+              {analysisError}
+            </div>
+          )}
 
-        {journeyStats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-500">Toplam Journey</p>
-              <p className="text-lg font-semibold text-gray-800">{journeyStats.total_journeys}</p>
+          {journeyStats && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
+              <div className="bg-dark-bg rounded-lg p-3">
+                <p className="text-xs text-slate-500">Toplam Journey</p>
+                <p className="text-lg font-semibold font-mono text-slate-100">{journeyStats.total_journeys}</p>
+              </div>
+              <div className="bg-dark-bg rounded-lg p-3">
+                <p className="text-xs text-slate-500">Conversion</p>
+                <p className="text-lg font-semibold font-mono text-emerald-400">{journeyStats.converted}</p>
+              </div>
+              <div className="bg-dark-bg rounded-lg p-3">
+                <p className="text-xs text-slate-500">Conversion Rate</p>
+                <p className="text-lg font-semibold font-mono text-blue-400">
+                  %{((journeyStats.conversion_rate || 0) * 100).toFixed(1)}
+                </p>
+              </div>
+              <div className="bg-dark-bg rounded-lg p-3">
+                <p className="text-xs text-slate-500">Ort. Touchpoint</p>
+                <p className="text-lg font-semibold font-mono text-slate-100">
+                  {(journeyStats.avg_path_length || 0).toFixed(1)}
+                </p>
+              </div>
             </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-500">Conversion</p>
-              <p className="text-lg font-semibold text-green-700">{journeyStats.converted}</p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-500">Conversion Rate</p>
-              <p className="text-lg font-semibold text-blue-700">
-                %{((journeyStats.conversion_rate || 0) * 100).toFixed(1)}
-              </p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-500">Ort. Touchpoint</p>
-              <p className="text-lg font-semibold text-gray-800">
-                {(journeyStats.avg_path_length || 0).toFixed(1)}
-              </p>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      <DataUpload />
 
       {/* Unified Scoring */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <UnifiedChart data={unifiedData} />
         {!unifiedData && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Unified Scoring Table</h3>
-            <p className="text-gray-500 text-sm">
+          <div className="dark-card p-6">
+            <h3 className="card-title mb-4">Unified Scoring Table</h3>
+            <p className="text-slate-500 text-xs">
               Analiz calistirildiktan sonra kanal bazli unified skorlar burada gorunecek.
             </p>
           </div>
