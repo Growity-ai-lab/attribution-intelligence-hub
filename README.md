@@ -3,7 +3,46 @@
 Multi-channel attribution modelling platform for PO AutoMatic Filo campaign.
 Combines **MMM** (Marketing Mix Modeling), **MTA** (Multi-Touch Attribution), and **Incrementality Testing** into a unified scoring framework.
 
-## Quick Start
+## Quick Start (Docker)
+
+**Tek komutla calistirin:**
+
+```bash
+git clone <repo-url> && cd attribution-intelligence-hub
+./scripts/setup.sh
+```
+
+Bu komut:
+1. `.env` dosyasini otomatik olusturur
+2. Docker ile frontend + backend build eder
+3. Health check yapar ve URL'leri gosterir
+
+Uygulama: **http://localhost:8000** | API Docs: **http://localhost:8000/docs**
+
+> Giris: `admin` / `attribution2026` (`.env` dosyasindan degistirilebilir)
+
+### Yararli Docker komutlari
+
+```bash
+docker compose logs -f       # loglari izle
+docker compose down           # durdur
+docker compose restart        # yeniden baslat
+docker compose up --build -d  # yeniden build et
+```
+
+### Otomatik guncelleme (opsiyonel)
+
+Remote branch'e push yapildiginda otomatik pull + rebuild icin:
+
+```bash
+./scripts/auto-update.sh &              # arka planda izle (30sn aralik)
+./scripts/auto-update.sh --interval 60  # 60sn aralik
+kill $(cat .auto-update.pid)            # durdur
+```
+
+---
+
+## Lokal Gelistirme (Docker'siz)
 
 ### Backend
 ```bash
@@ -14,7 +53,6 @@ uvicorn main:app --reload --port 8000
 
 ### Frontend
 ```bash
-cd frontend
 npm install
 npm run dev
 ```

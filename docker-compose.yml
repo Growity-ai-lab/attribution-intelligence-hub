@@ -2,11 +2,9 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
-    environment:
-      - AUTH_SECRET_KEY=ah-secret-change-me
-      - AUTH_ADMIN_USER=admin
-      - AUTH_ADMIN_PASSWORD=attribution2026
+      - "${APP_PORT:-8000}:8000"
+    env_file:
+      - .env
     volumes:
       - ah-data:/app/data
     restart: unless-stopped
