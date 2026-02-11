@@ -3,6 +3,19 @@
 Multi-channel attribution modelling platform for PO AutoMatic Filo campaign.
 Combines **MMM** (Marketing Mix Modeling), **MTA** (Multi-Touch Attribution), and **Incrementality Testing** into a unified scoring framework.
 
+## Deploy (Render.com — ucretsiz)
+
+Hicbir kurulum gerektirmez. Render.com hesabi ile tek tikla deploy:
+
+1. [render.com/register](https://render.com/register) adresinden ucretsiz hesap olusturun
+2. Dashboard > **New** > **Blueprint** > bu GitHub repo'yu baglayin
+3. Render otomatik olarak `render.yaml` dosyasini okuyup deploy eder
+4. Birka dakika icinde URL'niz hazir olur: `https://attribution-hub.onrender.com`
+
+> Giris: `admin` / `attribution2026`
+
+---
+
 ## Quick Start (Docker)
 
 **Tek komutla calistirin:**

@@ -1,0 +1,19 @@
+## Render.com Blueprint — Attribution Intelligence Hub
+## Deploy: Dashboard > New > Blueprint > connect this repo
+## Docs: https://docs.render.com/blueprint-spec
+
+services:
+  - type: web
+    name: attribution-hub
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: AUTH_SECRET_KEY
+        generateValue: true
+      - key: AUTH_ADMIN_USER
+        value: admin
+      - key: AUTH_ADMIN_PASSWORD
+        value: attribution2026
+      - key: AUTH_TOKEN_EXPIRE_MINUTES
+        value: "480"

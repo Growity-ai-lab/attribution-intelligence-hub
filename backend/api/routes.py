@@ -48,6 +48,13 @@ from backend.models.unified import compute_unified_report, suggest_reallocation
 
 router = APIRouter()
 
+
+@router.get("/health")
+def health_check():
+    """Health check endpoint for Render / load balancers."""
+    return {"status": "ok"}
+
+
 # Channels that represent conversion events, not marketing touchpoints
 _CONVERSION_CHANNELS = {"form", "landing_page", "website", "app"}
 
