@@ -87,7 +87,7 @@ export default function UnifiedChart({ data }) {
       <div className="dark-card p-6">
         <h3 className="card-title mb-4">Unified Attribution</h3>
         <p className="text-slate-500 text-xs">
-          {'Unified scoring chart \u2014 veri yuklendiginde Chart.js ile render edilecek.'}
+          {'Unified scoring chart \u2014 veri yüklendiğinde Chart.js ile render edilecek.'}
         </p>
         <div className="h-64 flex items-center justify-center border border-dashed border-dark-border rounded-lg mt-4">
           <span className="text-slate-600 text-sm">Grafik alani</span>
@@ -104,14 +104,14 @@ export default function UnifiedChart({ data }) {
       </div>
       <div className="mt-4 p-3 bg-dark-bg rounded-lg border border-dark-border/50">
         <p className="text-xs text-slate-400 leading-relaxed">
-          <span className="text-slate-300 font-medium">Nasil yorumlanir:</span>{' '}
-          Her kanal icin toplam bar yuksekligi, o kanalin genel attribution payini gosterir.
-          Renk katmanlari uc farkli modelin katkisini temsil eder:{' '}
-          <span className="text-orange-400">DDA (Data-Driven Attribution)</span> kullanici yolculugu verisinden,{' '}
-          <span className="text-blue-400">MMM (Marketing Mix Model)</span> harcama-donusum iliskisinden,{' '}
-          <span className="text-emerald-400">Incrementality</span> ise kanallarin ek (incremental) etkisinden beslenir.
-          Agirliklar (DDA %50, MMM %35, Inc %15) modellerin veri olgunluguna ve guvenilirligine gore belirlenmistir;
-          DDA kullanici bazli veri icerdigi icin en yuksek agirligi alir.
+          <span className="text-slate-300 font-medium">Nasıl yorumlanır:</span>{' '}
+          Her kanal için toplam bar yüksekliği, o kanalın genel attribution payını gösterir.
+          Renk katmanları üç farklı modelin katkısını temsil eder:{' '}
+          <span className="text-orange-400">DDA (Data-Driven Attribution)</span> kullanıcı yolculuğu verisinden,{' '}
+          <span className="text-blue-400">MMM (Marketing Mix Model)</span> harcama-dönüşüm ilişkisinden,{' '}
+          <span className="text-emerald-400">Incrementality</span> ise kanalların ek (incremental) etkisinden beslenir.
+          Ağırlıklar (DDA %50, MMM %35, Inc %15) modellerin veri olgunluğuna ve güvenilirliğine göre belirlenmiştir;
+          DDA kullanıcı bazlı veri içerdiği için en yüksek ağırlığı alır.
         </p>
       </div>
     </div>

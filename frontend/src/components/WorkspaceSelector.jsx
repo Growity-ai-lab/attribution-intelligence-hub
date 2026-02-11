@@ -45,7 +45,7 @@ export default function WorkspaceSelector({ onSelect }) {
 
   const handleDeleteClient = async (e, clientId) => {
     e.stopPropagation()
-    if (!window.confirm('Bu musteri ve tum kampanyalari silinecek. Emin misiniz?')) return
+    if (!window.confirm('Bu müşteri ve tüm kampanyaları silinecek. Emin misiniz?')) return
     await deleteClient(clientId)
     if (selectedClient?.id === clientId) setSelectedClient(null)
     fetchClients(year)
@@ -81,7 +81,7 @@ export default function WorkspaceSelector({ onSelect }) {
           </div>
           <div className="flex-1">
             <h1 className="text-xl font-semibold text-slate-100">Attribution Intelligence Hub</h1>
-            <p className="text-xs text-slate-500">Musteri ve kampanya secimi</p>
+            <p className="text-xs text-slate-500">Müşteri ve kampanya seçimi</p>
           </div>
           <div className="flex gap-1">
             {YEARS.map(y => (
@@ -105,12 +105,12 @@ export default function WorkspaceSelector({ onSelect }) {
           {/* Client List */}
           <div className="dark-card">
             <div className="card-hdr">
-              <h3 className="card-title">Musteriler ({year})</h3>
+              <h3 className="card-title">Müşteriler ({year})</h3>
               <button
                 onClick={() => setShowNewClient(!showNewClient)}
                 className="px-3 py-1 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent-dark transition-colors"
               >
-                + Yeni Musteri
+                + Yeni Müşteri
               </button>
             </div>
 
@@ -122,7 +122,7 @@ export default function WorkspaceSelector({ onSelect }) {
                     value={newClientName}
                     onChange={e => setNewClientName(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleCreateClient()}
-                    placeholder="Musteri adi..."
+                    placeholder="Müşteri adı..."
                     className="flex-1 bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
                     autoFocus
                   />
@@ -136,12 +136,12 @@ export default function WorkspaceSelector({ onSelect }) {
               )}
 
               {loading && !clients.length && (
-                <p className="text-slate-500 text-xs py-4 text-center">Yukleniyor...</p>
+                <p className="text-slate-500 text-xs py-4 text-center">Yükleniyor...</p>
               )}
 
               {!loading && !clients.length && !showNewClient && (
                 <p className="text-slate-500 text-xs py-8 text-center">
-                  Henuz musteri eklenmedi. "Yeni Musteri" butonuna tiklayin.
+                  Henüz müşteri eklenmedi. "Yeni Müşteri" butonuna tıklayın.
                 </p>
               )}
 
@@ -194,7 +194,7 @@ export default function WorkspaceSelector({ onSelect }) {
             <div className="p-4 space-y-2">
               {!selectedClient && (
                 <p className="text-slate-500 text-xs py-8 text-center">
-                  Sol taraftan bir musteri secin.
+                  Sol taraftan bir müşteri seçin.
                 </p>
               )}
 
@@ -205,7 +205,7 @@ export default function WorkspaceSelector({ onSelect }) {
                     value={newCampaign.name}
                     onChange={e => setNewCampaign(prev => ({ ...prev, name: e.target.value }))}
                     onKeyDown={e => e.key === 'Enter' && handleCreateCampaign()}
-                    placeholder="Kampanya adi..."
+                    placeholder="Kampanya adı..."
                     className="w-full bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
                     autoFocus
                   />
@@ -214,14 +214,14 @@ export default function WorkspaceSelector({ onSelect }) {
                       type="number"
                       value={newCampaign.budget}
                       onChange={e => setNewCampaign(prev => ({ ...prev, budget: e.target.value }))}
-                      placeholder="Butce (TL)..."
+                      placeholder="Bütçe (TL)..."
                       className="flex-1 bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
                     />
                     <button
                       onClick={handleCreateCampaign}
                       className="px-4 py-2 bg-accent text-white rounded-lg text-xs font-medium"
                     >
-                      Olustur
+                      Oluştur
                     </button>
                   </div>
                 </div>
@@ -229,7 +229,7 @@ export default function WorkspaceSelector({ onSelect }) {
 
               {selectedClient && !campaigns.length && !showNewCampaign && (
                 <p className="text-slate-500 text-xs py-8 text-center">
-                  Henuz kampanya eklenmedi.
+                  Henüz kampanya eklenmedi.
                 </p>
               )}
 

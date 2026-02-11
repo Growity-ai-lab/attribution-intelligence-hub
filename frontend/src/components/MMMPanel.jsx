@@ -320,7 +320,7 @@ export default function MMMPanel() {
                 <Line data={adstockChartData} options={lineOptions} />
               ) : (
                 <div className="h-full flex items-center justify-center text-slate-600 text-sm">
-                  {loading ? 'Yukleniyor...' : 'Veri bekleniyor...'}
+                  {loading ? 'Yükleniyor...' : 'Veri bekleniyor...'}
                 </div>
               )}
             </div>
@@ -333,7 +333,7 @@ export default function MMMPanel() {
                   <p className="text-[10px] text-slate-500">W{adstockPeak.idx + 1}</p>
                 </div>
                 <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Carry-over Orani</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Carry-over Oranı</p>
                   <p className="text-sm font-mono text-accent mt-0.5">+%{adstockRationale?.carryoverPct || 0}</p>
                 </div>
                 <div className="bg-dark-bg rounded-lg p-2.5 text-center">
@@ -346,14 +346,14 @@ export default function MMMPanel() {
             {adstockRationale && (
               <div className="mt-3 p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed">
                 <strong className="text-slate-300">{channelLabel}</strong>
-                {' kanalinda '}{'\u03bb'}={decay}{' decay parametresi ile harcama etkisi '}
+                {' kanalında '}{'\u03bb'}={decay}{' decay parametresi ile harcama etkisi '}
                 <strong className="text-accent">{adstockRationale.halfLife} haftada</strong>
-                {' yarisina duser. '}
+                {' yarısına düşer. '}
                 {decay >= 0.5
-                  ? 'Yuksek carry-over: bu kanalin etkisi haftalarca devam eder, butce tasarrufu icin uygun.'
+                  ? 'Yüksek carry-over: bu kanalın etkisi haftalarca devam eder, bütçe tasarrufu için uygun.'
                   : decay >= 0.25
-                    ? 'Orta carry-over: etki birkac hafta surer, duzgun harcama ritmi onerilir.'
-                    : 'Dusuk carry-over: etki hemen sonumlenir, surekli harcama gerektirir.'}
+                    ? 'Orta carry-over: etki birkaç hafta sürer, düzgün harcama ritmi önerilir.'
+                    : 'Düşük carry-over: etki hemen sönümlenir, sürekli harcama gerektirir.'}
               </div>
             )}
           </div>
@@ -373,7 +373,7 @@ export default function MMMPanel() {
                 <Line data={saturationChartData} options={satOptions} />
               ) : (
                 <div className="h-full flex items-center justify-center text-slate-600 text-sm">
-                  {loading ? 'Yukleniyor...' : 'Veri bekleniyor...'}
+                  {loading ? 'Yükleniyor...' : 'Veri bekleniyor...'}
                 </div>
               )}
             </div>
@@ -390,7 +390,7 @@ export default function MMMPanel() {
                   <p className="text-sm font-mono text-accent mt-0.5">{satHalf.maxSat.toFixed(3)}</p>
                 </div>
                 <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Doygunluk Esigi</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Doygunluk Eşiği</p>
                   <p className="text-sm font-mono text-slate-100 mt-0.5">{fmtM(satAlpha)}</p>
                 </div>
               </div>
@@ -401,12 +401,12 @@ export default function MMMPanel() {
                 <strong className="text-slate-300">{channelLabel}</strong>
                 {' kanalinda '}
                 <strong className="text-accent">{fmtM(satHalf.spend)}</strong>
-                {' harcamada yarim doygunluga ulasilir (grafikte beyaz nokta). '}
+                {' harcamada yarım doygunluğa ulaşılır (grafikte beyaz nokta). '}
                 {satHalf.spend <= 500_000
-                  ? 'Dusuk butceyle hizla doyuma ulasiyor - butce artisi sinirli getiri saglar.'
+                  ? 'Düşük bütçeyle hızla doyuma ulaşıyor — bütçe artışı sınırlı getiri sağlar.'
                   : satHalf.spend <= 1_500_000
-                    ? 'Orta seviye doygunluk - mevcut butcede makul verimlilik.'
-                    : 'Yuksek doygunluk esigi - butce artisi hala verimli, olceklendirmeye uygun kanal.'}
+                    ? 'Orta seviye doygunluk — mevcut bütçede makul verimlilik.'
+                    : 'Yüksek doygunluk eşiği — bütçe artışı hala verimli, ölçeklendirmeye uygun kanal.'}
               </div>
             )}
           </div>
@@ -417,7 +417,7 @@ export default function MMMPanel() {
       <div className="dark-card">
         <div className="card-hdr">
           <span className="card-title">Channel Decomposition Raporu</span>
-          <span className="text-xs text-slate-500">Haftalik harcama bazli MMM katki analizi</span>
+          <span className="text-xs text-slate-500">Haftalık harcama bazlı MMM katkı analizi</span>
         </div>
         <div className="p-4 space-y-4">
           {/* KPI Summary */}
@@ -447,7 +447,7 @@ export default function MMMPanel() {
           {/* Charts: Share comparison + Efficiency */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-slate-400 mb-2 font-medium">{'Harcama vs Lead Payi'}</p>
+              <p className="text-xs text-slate-400 mb-2 font-medium">{'Harcama vs Lead Payı'}</p>
               <div className="h-64">
                 {decompChartData ? (
                   <Bar data={decompChartData} options={decompOptions} />
@@ -507,12 +507,12 @@ export default function MMMPanel() {
                       </td>
                       <td className="py-2 px-2">
                         {d.roi >= 1.5
-                          ? <span className="text-green-400 font-medium">{'Yuksek verim'}</span>
+                          ? <span className="text-green-400 font-medium">{'Yüksek verim'}</span>
                           : d.roi >= 1.0
-                            ? <span className="text-emerald-400">{'Iyi'}</span>
+                            ? <span className="text-emerald-400">{'İyi'}</span>
                             : d.roi >= 0.8
                               ? <span className="text-yellow-400">{'Ortalama'}</span>
-                              : <span className="text-red-400">{'Dusuk verim'}</span>
+                              : <span className="text-red-400">{'Düşük verim'}</span>
                         }
                       </td>
                     </tr>
@@ -520,7 +520,7 @@ export default function MMMPanel() {
                   {decompAnalysis.zeroSpend.length > 0 && (
                     <tr className="border-b border-dark-border/50">
                       <td colSpan={9} className="py-2 px-2 text-slate-500 italic">
-                        {'Harcama yapilmayan kanallar: '}
+                        {'Harcama yapılmayan kanallar: '}
                         {decompAnalysis.zeroSpend.map(d => CHANNEL_LABELS[d.channel] || d.channel).join(', ')}
                       </td>
                     </tr>
@@ -534,8 +534,8 @@ export default function MMMPanel() {
           {decompAnalysis && decompAnalysis.ranked.length > 0 && (
             <div className="p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed space-y-1.5">
               <p>
-                <strong className="text-slate-300">{'Ozet:'}</strong>
-                {' MMM modeline gore en yuksek katki saglayan kanal '}
+                <strong className="text-slate-300">{'Özet:'}</strong>
+                {' MMM modeline göre en yüksek katkı sağlayan kanal '}
                 <strong className="text-accent">{decompAnalysis.ranked[0].label}</strong>
                 {` (%${decompAnalysis.ranked[0].sharePct} pay, ${decompAnalysis.ranked[0].attributed_leads.toFixed(0)} lead). `}
                 {decompAnalysis.bestEfficiency && (
@@ -548,22 +548,22 @@ export default function MMMPanel() {
               </p>
               <p>
                 <strong className="text-slate-300">{'ROI Skoru:'}</strong>
-                {' Lead Payi / Harcama Payi orani. '}
-                {'1.0x = harcama ile orantili getiri. '}
-                <span className="text-green-400">{'1.0x ustu'}</span>
-                {' = butce payindan daha fazla lead ureten kanallar. '}
-                <span className="text-red-400">{'1.0x alti'}</span>
-                {' = harcamaya gore dusuk getiri.'}
+                {' Lead Payı / Harcama Payı oranı. '}
+                {'1.0x = harcama ile orantılı getiri. '}
+                <span className="text-green-400">{'1.0x üstü'}</span>
+                {' = bütçe payından daha fazla lead üreten kanallar. '}
+                <span className="text-red-400">{'1.0x altı'}</span>
+                {' = harcamaya göre düşük getiri.'}
               </p>
               {decompAnalysis.worstEfficiency && decompAnalysis.bestEfficiency &&
                 decompAnalysis.bestEfficiency.channel !== decompAnalysis.worstEfficiency.channel && (
                 <p>
-                  <strong className="text-slate-300">{'Oneri:'}</strong>
+                  <strong className="text-slate-300">{'Öneri:'}</strong>
                   {' '}
                   <span className="text-red-400">{decompAnalysis.worstEfficiency.label}</span>
-                  {` (${decompAnalysis.worstEfficiency.efficiency} lead/M TL) butcesinin bir kismini `}
+                  {` (${decompAnalysis.worstEfficiency.efficiency} lead/M TL) bütçesinin bir kısmını `}
                   <span className="text-green-400">{decompAnalysis.bestEfficiency.label}</span>
-                  {` (${decompAnalysis.bestEfficiency.efficiency} lead/M TL) kanalina kaydirmak toplam lead'i artirabilir.`}
+                  {` (${decompAnalysis.bestEfficiency.efficiency} lead/M TL) kanalına kaydırmak toplam lead'i artırabilir.`}
                 </p>
               )}
             </div>

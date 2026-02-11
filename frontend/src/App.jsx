@@ -10,10 +10,10 @@ import ProjectPlanPanel from './components/ProjectPlanPanel'
 
 const TABS = [
   { id: 'unified', label: 'Unified Rapor' },
-  { id: 'mmm', label: 'MMM Ciktilari' },
+  { id: 'mmm', label: 'MMM Çıktıları' },
   { id: 'mta', label: 'MTA Paths' },
   { id: 'inc', label: 'Incrementality' },
-  { id: 'plan', label: 'Proje Plani' },
+  { id: 'plan', label: 'Proje Planı' },
 ]
 
 export default function App() {
@@ -48,7 +48,7 @@ export default function App() {
               onClick={logout}
               className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700/50 text-slate-400 hover:text-red-400 transition-colors"
             >
-              Cikis
+              Çıkış
             </button>
           </div>
         </header>
@@ -72,7 +72,7 @@ export default function App() {
             <button
               onClick={handleBackToWorkspace}
               className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-orange-600 flex items-center justify-center text-white font-bold text-sm hover:opacity-80 transition-opacity"
-              title="Musteri/Kampanya secimi"
+              title="Müşteri/Kampanya seçimi"
             >
               AH
             </button>
@@ -104,7 +104,7 @@ export default function App() {
               onClick={logout}
               className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700/50 text-slate-400 hover:text-red-400 transition-colors"
             >
-              Cikis
+              Çıkış
             </button>
           </div>
         </div>

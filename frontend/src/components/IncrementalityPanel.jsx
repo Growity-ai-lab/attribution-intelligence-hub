@@ -23,7 +23,7 @@ export default function IncrementalityPanel() {
     <div className="space-y-6">
       <InfoTip>
         <strong>Incrementality Testing:</strong> Geo-lift, Holdout ve PSA (Public Service Announcement) testleri
-        ile her kanalin gercek incremental etkisi olculur. Bu sonuclar unified skorda %15 agirlikla kullanilir.
+        ile her kanalın gerçek incremental etkisi ölçülür. Bu sonuçlar unified skorda %15 ağırlıkla kullanılır.
       </InfoTip>
 
       <div className="dark-card border-t-2 border-accent">
@@ -34,14 +34,14 @@ export default function IncrementalityPanel() {
           <h3 className="text-slate-200 font-semibold mb-1">Faz 4: Incrementality Testing</h3>
           <p className="text-slate-500 text-xs max-w-md mx-auto">
             Geo-lift, holdout ve PSA test framework&apos;u bu fazda aktif olacak.
-            Simdilik asagida ornek test sonuclari ve duzeltme faktorleri gosterilmektedir.
+            Şimdilik aşağıda örnek test sonuçları ve düzeltme faktörleri gösterilmektedir.
           </p>
         </div>
       </div>
 
       <div className="dark-card">
         <div className="card-hdr">
-          <span className="card-title">Test Sonuclari (Ornek)</span>
+          <span className="card-title">Test Sonuçları (Örnek)</span>
           <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-amber-500/15 text-amber-400">MOCK</span>
         </div>
         <div className="overflow-x-auto">
@@ -68,8 +68,8 @@ export default function IncrementalityPanel() {
                       test.status === 'marginal' ? 'bg-amber-500/15 text-amber-400' :
                       'bg-slate-500/15 text-slate-400'
                     }`}>
-                      {test.status === 'significant' ? 'Anlamli' :
-                       test.status === 'marginal' ? 'Marjinal' : 'Anlamsiz'}
+                      {test.status === 'significant' ? 'Anlamlı' :
+                       test.status === 'marginal' ? 'Marjinal' : 'Anlamsız'}
                     </span>
                   </td>
                 </tr>
@@ -81,15 +81,15 @@ export default function IncrementalityPanel() {
 
       <div className="dark-card">
         <div className="card-hdr">
-          <span className="card-title">Duzeltme Faktorleri</span>
-          <span className="text-xs text-slate-500">{'Inc. \u00d7 Unified skor carpani'}</span>
+          <span className="card-title">Düzeltme Faktörleri</span>
+          <span className="text-xs text-slate-500">{'Inc. \u00d7 Unified skor çarpanı'}</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-dark-border">
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Kanal</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Carpan</th>
+                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Çarpan</th>
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Not</th>
               </tr>
             </thead>

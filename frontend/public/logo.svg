@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f97316"/>
+      <stop offset="100%" style="stop-color:#ea580c"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" style="stop-color:#fff;stop-opacity:0.15"/>
+      <stop offset="100%" style="stop-color:#fff;stop-opacity:0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#bg)"/>
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#glow)"/>
+
+  <!-- Connection lines (attribution paths) -->
+  <g stroke="#fff" stroke-opacity="0.25" stroke-width="3" stroke-linecap="round">
+    <!-- Top node to center -->
+    <line x1="256" y1="128" x2="256" y2="256"/>
+    <!-- Left node to center -->
+    <line x1="148" y1="320" x2="256" y2="256"/>
+    <!-- Right node to center -->
+    <line x1="364" y1="320" x2="256" y2="256"/>
+    <!-- Top to left -->
+    <line x1="256" y1="128" x2="148" y2="320"/>
+    <!-- Top to right -->
+    <line x1="256" y1="128" x2="364" y2="320"/>
+    <!-- Left to right -->
+    <line x1="148" y1="320" x2="364" y2="320"/>
+  </g>
+
+  <!-- Center hub (unified score) -->
+  <circle cx="256" cy="256" r="44" fill="#fff" fill-opacity="0.95"/>
+  <circle cx="256" cy="256" r="36" fill="url(#bg)"/>
+  <!-- Bar chart icon inside hub -->
+  <rect x="240" y="250" width="8" height="22" rx="2" fill="#fff"/>
+  <rect x="252" y="240" width="8" height="32" rx="2" fill="#fff"/>
+  <rect x="264" y="246" width="8" height="26" rx="2" fill="#fff"/>
+
+  <!-- Channel nodes (3 model pillars) -->
+  <!-- DDA node (top) -->
+  <circle cx="256" cy="128" r="30" fill="#fff" fill-opacity="0.9"/>
+  <text x="256" y="134" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="22" fill="#ea580c">D</text>
+
+  <!-- MMM node (bottom-left) -->
+  <circle cx="148" cy="320" r="30" fill="#fff" fill-opacity="0.9"/>
+  <text x="148" y="326" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="22" fill="#ea580c">M</text>
+
+  <!-- Incrementality node (bottom-right) -->
+  <circle cx="364" cy="320" r="30" fill="#fff" fill-opacity="0.9"/>
+  <text x="364" y="326" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="22" fill="#ea580c">I</text>
+
+  <!-- Small orbiting dots (channels) -->
+  <circle cx="190" cy="170" r="8" fill="#fff" fill-opacity="0.5"/>
+  <circle cx="322" cy="170" r="8" fill="#fff" fill-opacity="0.5"/>
+  <circle cx="110" cy="260" r="6" fill="#fff" fill-opacity="0.35"/>
+  <circle cx="402" cy="260" r="6" fill="#fff" fill-opacity="0.35"/>
+  <circle cx="200" cy="380" r="7" fill="#fff" fill-opacity="0.4"/>
+  <circle cx="312" cy="380" r="7" fill="#fff" fill-opacity="0.4"/>
+
+  <!-- "AH" text at bottom -->
+  <text x="256" y="430" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="36" fill="#fff" opacity="0.9" letter-spacing="4">AH</text>
+</svg>

@@ -73,7 +73,7 @@ export default function Dashboard({ onDdaResult }) {
           <div>
             <h3 className="card-title">DDA Analizi</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Markov Chain + Shapley ensemble ile unified attribution skorlamasi
+              Markov Chain + Shapley ensemble ile unified attribution skorlaması
             </p>
           </div>
           <button
@@ -81,7 +81,7 @@ export default function Dashboard({ onDdaResult }) {
             disabled={analyzing}
             className="px-4 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {analyzing ? 'Analiz ediliyor...' : 'Ornek Veri ile Analiz Et'}
+            {analyzing ? 'Analiz ediliyor...' : 'Örnek Veri ile Analiz Et'}
           </button>
         </div>
 
@@ -128,7 +128,7 @@ export default function Dashboard({ onDdaResult }) {
           <div className="dark-card p-6">
             <h3 className="card-title mb-4">Unified Scoring Table</h3>
             <p className="text-slate-500 text-xs">
-              Analiz calistirildiktan sonra kanal bazli unified skorlar burada gorunecek.
+              Analiz çalıştırıldıktan sonra kanal bazlı unified skorlar burada görünecek.
             </p>
           </div>
         )}

@@ -79,7 +79,7 @@ export default function MTAPanel({ ddaResult }) {
     <div className="space-y-6">
       <InfoTip>
         <strong>DDA (Data-Driven Attribution):</strong> {'Markov Chain (\u00d70.65) + Shapley Value (\u00d70.35) blend.'}
-        {' CRM touchpoint verisi uzerinden kanal bazli atif dagilimi hesaplar.'}
+        {' CRM touchpoint verisi üzerinden kanal bazlı atıf dağılımı hesaplar.'}
       </InfoTip>
 
       {/* Journey Paths */}
@@ -115,7 +115,7 @@ export default function MTAPanel({ ddaResult }) {
       {!ddaResult && (
         <div className="dark-card p-6 text-center">
           <p className="text-slate-500 text-sm">
-            DDA sonuclari icin Unified Rapor sekmesinden &quot;Ornek Veri ile Analiz Et&quot; butonunu kullanin.
+            DDA sonuçları için Unified Rapor sekmesinden &quot;Örnek Veri ile Analiz Et&quot; butonunu kullanın.
           </p>
         </div>
       )}

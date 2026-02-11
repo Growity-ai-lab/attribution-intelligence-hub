@@ -35,7 +35,7 @@ export default function DataUpload() {
 
   return (
     <div className="dark-card p-6 max-w-2xl">
-      <h2 className="card-title mb-4">Veri Yukle</h2>
+      <h2 className="card-title mb-4">Veri Yükle</h2>
 
       <div className="flex flex-wrap gap-3 mb-4">
         <button
@@ -46,7 +46,7 @@ export default function DataUpload() {
               : 'bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200'
           }`}
         >
-          Haftalik Veri
+          Haftalık Veri
         </button>
         <button
           onClick={() => { setMode('crm'); setResult(null); setDdaResult(null); setError(null) }}
@@ -62,12 +62,12 @@ export default function DataUpload() {
 
       <p className="text-slate-500 text-xs mb-4">
         {mode === 'weekly'
-          ? 'CSV veya Excel formatinda haftalik kanal verilerini yukleyin.'
-          : 'CRM touchpoint CSV yukleyin. DDA pipeline otomatik calisacak.'}
+          ? 'CSV veya Excel formatında haftalık kanal verilerini yükleyin.'
+          : 'CRM touchpoint CSV yükleyin. DDA pipeline otomatik çalışacak.'}
       </p>
 
       <label className="block">
-        <span className="sr-only">CSV/Excel dosyasi sec</span>
+        <span className="sr-only">CSV/Excel dosyası seç</span>
         <input
           type="file"
           accept=".csv,.xlsx,.xls"
@@ -77,7 +77,7 @@ export default function DataUpload() {
         />
       </label>
 
-      {uploading && <p className="mt-4 text-accent text-xs">Yukleniyor...</p>}
+      {uploading && <p className="mt-4 text-accent text-xs">Yükleniyor...</p>}
 
       {error && (
         <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs">
@@ -87,7 +87,7 @@ export default function DataUpload() {
 
       {result && (
         <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs">
-          <p className="font-medium text-emerald-400">Yukleme basarili!</p>
+          <p className="font-medium text-emerald-400">Yükleme başarılı!</p>
           <ul className="mt-2 text-emerald-300/80 space-y-1">
             <li>Dosya: {result.filename}</li>
             <li>Satir: {result.rows}</li>
@@ -100,12 +100,12 @@ export default function DataUpload() {
       {ddaResult && (
         <div className="mt-4 space-y-3">
           <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs">
-            <p className="font-medium text-emerald-400">DDA Analizi Tamamlandi!</p>
+            <p className="font-medium text-emerald-400">DDA Analizi Tamamlandı!</p>
           </div>
 
           {ddaResult.journey_stats && (
             <div className="p-3 bg-dark-bg rounded-lg text-xs">
-              <p className="font-medium text-slate-300 mb-2">Journey Istatistikleri</p>
+              <p className="font-medium text-slate-300 mb-2">Journey İstatistikleri</p>
               <div className="grid grid-cols-2 gap-2 text-slate-400">
                 <span>Toplam Journey: {ddaResult.journey_stats.total_journeys}</span>
                 <span>Conversion: {ddaResult.journey_stats.converted}</span>
@@ -133,10 +133,10 @@ export default function DataUpload() {
 
           {ddaResult.cross_validation?.some(cv => cv.flagged) && (
             <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs">
-              <p className="font-medium text-amber-400 mb-2">Cross-Validation Uyarilari</p>
+              <p className="font-medium text-amber-400 mb-2">Cross-Validation Uyarıları</p>
               {ddaResult.cross_validation.filter(cv => cv.flagged).map(cv => (
                 <p key={cv.channel} className="text-amber-300/80">
-                  {cv.channel}: DDA-MMM sapmasi %{(cv.deviation * 100).toFixed(0)} (&gt;20%)
+                  {cv.channel}: DDA-MMM sapması %{(cv.deviation * 100).toFixed(0)} (&gt;20%)
                 </p>
               ))}
             </div>

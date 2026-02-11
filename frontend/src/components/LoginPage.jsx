@@ -13,7 +13,7 @@ export default function LoginPage({ onLogin }) {
     try {
       await onLogin(username, password)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Giris basarisiz')
+      setError(err.response?.data?.detail || 'Giriş başarısız')
     } finally {
       setLoading(false)
     }
@@ -24,17 +24,15 @@ export default function LoginPage({ onLogin }) {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-accent to-orange-600 flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
-            AH
-          </div>
+          <img src="/logo.svg" alt="AH" className="w-16 h-16 mx-auto mb-4" />
           <h1 className="text-lg font-semibold text-slate-100">Attribution Intelligence Hub</h1>
-          <p className="text-xs text-slate-500 mt-1">PO AutoMatic Filo — Multi-Channel Attribution</p>
+          <p className="text-xs text-slate-500 mt-1">Growity — Multi-Channel Attribution</p>
         </div>
 
         {/* Login Card */}
         <form onSubmit={handleSubmit} className="dark-card p-6 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Kullanici Adi</label>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">Kullanıcı Adı</label>
             <input
               type="text"
               value={username}
@@ -47,7 +45,7 @@ export default function LoginPage({ onLogin }) {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Sifre</label>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">Şifre</label>
             <input
               type="password"
               value={password}
@@ -69,12 +67,12 @@ export default function LoginPage({ onLogin }) {
             disabled={loading}
             className="w-full py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-dark transition-colors disabled:opacity-50"
           >
-            {loading ? 'Giris yapiliyor...' : 'Giris Yap'}
+            {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
           </button>
         </form>
 
         <p className="text-center text-xs text-slate-600 mt-6">
-          {'Growity \u00d7 Atlas'} &mdash; Guvenli Erisim
+          {'Growity \u00d7 Atlas'} &mdash; Güvenli Erişim
         </p>
       </div>
     </div>

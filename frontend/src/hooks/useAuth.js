@@ -1,29 +1,9 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import axios from 'axios'
-
-const TOKEN_KEY = 'ah_token'
 
 export function useAuth() {
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  // On mount, check if there's a stored token
-  useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY)
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      // Validate token
-      axios.get('/api/auth/me')
-        .then(res => setUser(res.data))
-        .catch(() => {
-          localStorage.removeItem(TOKEN_KEY)
-          delete axios.defaults.headers.common['Authorization']
-        })
-        .finally(() => setLoading(false))
-    } else {
-      setLoading(false)
-    }
-  }, [])
+  const [loading, setLoading] = useState(false)
 
   const login = useCallback(async (username, password) => {
     const params = new URLSearchParams()
@@ -35,7 +15,6 @@ export function useAuth() {
     })
 
     const { access_token } = res.data
-    localStorage.setItem(TOKEN_KEY, access_token)
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
 
     const meRes = await axios.get('/api/auth/me')
@@ -44,7 +23,6 @@ export function useAuth() {
   }, [])
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY)
     delete axios.defaults.headers.common['Authorization']
     setUser(null)
   }, [])

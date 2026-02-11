@@ -1,13 +1,13 @@
 const PHASES = [
   {
     id: 1,
-    title: 'Veri Altyapisi',
+    title: 'Veri Altyapısı',
     status: 'completed',
     color: 'border-emerald-500',
     statusColor: 'bg-emerald-500/15 text-emerald-400',
     tasks: [
-      'Haftalik kanal veri girisi (CSV/Excel)',
-      'CRM touchpoint veri yukleme',
+      'Haftalık kanal veri girişi (CSV/Excel)',
+      'CRM touchpoint veri yükleme',
       'Adstock & Saturation modelleri',
       'API endpoint\'leri',
     ],
@@ -33,7 +33,7 @@ const PHASES = [
     statusColor: 'bg-orange-500/15 text-orange-400',
     tasks: [
       'Unified skor: DDA\u00d70.50 + MMM\u00d70.35 + Inc\u00d70.15',
-      'Butce reallocation motoru',
+      'Bütçe reallocation motoru',
       'Dashboard & reporting',
       'Security hardening',
     ],
@@ -48,13 +48,13 @@ const PHASES = [
       'Geo-lift test framework',
       'Holdout group analizi',
       'PSA (Public Service Announcement) test',
-      'Incrementality duzeltme faktorleri',
+      'Incrementality düzeltme faktörleri',
     ],
   },
 ]
 
 const STATUS_LABELS = {
-  completed: 'Tamamlandi',
+  completed: 'Tamamlandı',
   active: 'Devam Ediyor',
   pending: 'Bekliyor',
 }
@@ -99,7 +99,7 @@ export default function ProjectPlanPanel() {
           <div className="bg-dark-bg rounded-lg p-3">
             <p className="text-accent font-mono text-xs font-bold mb-1">MMM Engine</p>
             <p className="text-xs text-slate-400">Adstock + Hill Saturation + Response</p>
-            <p className="text-xs text-slate-500 mt-1">10 kanal, haftalik cozunurluk</p>
+            <p className="text-xs text-slate-500 mt-1">10 kanal, haftalık çözünürlük</p>
           </div>
           <div className="bg-dark-bg rounded-lg p-3">
             <p className="text-accent font-mono text-xs font-bold mb-1">MTA Engine</p>

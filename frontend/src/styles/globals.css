@@ -27,7 +27,7 @@
   }
 
   .card-title {
-    @apply text-xs font-semibold uppercase tracking-wider text-slate-300;
+    @apply text-xs font-semibold tracking-wider text-slate-300;
   }
 
   .info-tip {

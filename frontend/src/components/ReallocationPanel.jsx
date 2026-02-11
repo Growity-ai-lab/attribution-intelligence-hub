@@ -14,9 +14,9 @@ export default function ReallocationPanel({ data, totalBudget }) {
     <div className="dark-card">
       <div className="card-hdr">
         <div>
-          <span className="card-title">Butce Reallocation Onerisi</span>
+          <span className="card-title">Bütçe Reallocation Önerisi</span>
           <p className="text-xs text-slate-500 mt-0.5">
-            Toplam butce: {totalBudget ? formatCurrency(totalBudget) : '\u2014'} {'\u2014'} Unified skora gore dagilim
+            Toplam bütçe: {totalBudget ? formatCurrency(totalBudget) : '\u2014'} {'\u2014'} Unified skora göre dağılım
           </p>
         </div>
       </div>
@@ -26,7 +26,7 @@ export default function ReallocationPanel({ data, totalBudget }) {
             <tr className="border-b border-dark-border">
               <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Kanal</th>
               <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Mevcut</th>
-              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Onerilen</th>
+              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Önerilen</th>
               <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Fark</th>
               <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Pay</th>
             </tr>
@@ -56,14 +56,14 @@ export default function ReallocationPanel({ data, totalBudget }) {
       </div>
       <div className="mx-4 mb-4 p-3 bg-dark-bg rounded-lg border border-dark-border/50">
         <p className="text-xs text-slate-400 leading-relaxed">
-          <span className="text-slate-300 font-medium">Oneri rasyoneli:</span>{' '}
-          Butce onerisi, her kanalin Unified skoruna oranla toplam butcenin yeniden dagitilmasiyla hesaplanir.
-          Yuksek unified skora sahip kanallar (ornegin guclu DDA + MMM sinyali verenler) daha fazla butce alirken,
-          dusuk performansli kanallardan butce aktarilir.{' '}
-          <span className="text-emerald-400">{'\u2191'} Yesil</span> degerler butce artisi,{' '}
-          <span className="text-red-400">{'\u2193'} Kirmizi</span> degerler azalis onerisini gosterir.
-          Bu oneriler otomatik bir optimizasyon degil, karar destek amacidir —
-          nihai kararda segment stratejisi, kampanya hedefleri ve mevsimsellik de goz onunde bulundurulmalidir.
+          <span className="text-slate-300 font-medium">Öneri rasyoneli:</span>{' '}
+          Bütçe önerisi, her kanalın Unified skoruna oranla toplam bütçenin yeniden dağıtılmasıyla hesaplanır.
+          Yüksek unified skora sahip kanallar (örneğin güçlü DDA + MMM sinyali verenler) daha fazla bütçe alırken,
+          düşük performanslı kanallardan bütçe aktarılır.{' '}
+          <span className="text-emerald-400">{'\u2191'} Yeşil</span> değerler bütçe artışı önerisi,{' '}
+          <span className="text-red-400">{'\u2193'} Kırmızı</span> değerler azalış önerisini gösterir.
+          Bu öneriler otomatik bir optimizasyon değil, karar destek amacıdır —
+          nihai kararda segment stratejisi, kampanya hedefleri ve mevsimsellik de göz önünde bulundurulmalıdır.
         </p>
       </div>
     </div>

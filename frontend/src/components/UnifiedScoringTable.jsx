@@ -52,7 +52,7 @@ export default function UnifiedScoringTable({ data, crossValidation = [] }) {
                     />
                     <span className="text-xs text-slate-300">{CHANNEL_LABELS[row.channel] || row.channel}</span>
                     {isFlagged && (
-                      <span className="text-red-400 text-xs font-medium ml-1" title="DDA-MMM sapmasi >20%">
+                      <span className="text-red-400 text-xs font-medium ml-1" title="DDA-MMM sapması >20%">
                         !
                       </span>
                     )}
@@ -72,15 +72,15 @@ export default function UnifiedScoringTable({ data, crossValidation = [] }) {
       </div>
       <div className="mx-4 mb-4 p-3 bg-dark-bg rounded-lg border border-dark-border/50">
         <p className="text-xs text-slate-400 leading-relaxed">
-          <span className="text-slate-300 font-medium">Skorlama mantigi:</span>{' '}
-          Her kanalin Unified skoru <span className="text-accent font-mono">DDA×0.50 + MMM×0.35 + Inc×0.15</span> formuluyle hesaplanir.
-          DDA skoru, Markov Chain (%65) ve Shapley Value (%35) ensemble sonucudur ve kullanici journey verisine dayanir.
-          MMM skoru, adstock + saturation modeli ile harcama-lead iliskisini olcer.
-          Incrementality skoru, her kanalin saf (net) ek etkisini tahmin eder.{' '}
+          <span className="text-slate-300 font-medium">Skorlama mantığı:</span>{' '}
+          Her kanalın Unified skoru <span className="text-accent font-mono">DDA×0.50 + MMM×0.35 + Inc×0.15</span> formülüyle hesaplanır.
+          DDA skoru, Markov Chain (%65) ve Shapley Value (%35) ensemble sonucudur ve kullanıcı journey verisine dayanır.
+          MMM skoru, adstock + saturation modeli ile harcama-lead ilişkisini ölçer.
+          Incrementality skoru, her kanalın saf (net) ek etkisini tahmin eder.{' '}
           <span className="text-slate-300 font-medium">Sapma (Deviation):</span>{' '}
-          DDA ile MMM arasindaki fark %20&apos;yi astiginda kanal bayraklanir{' '}
-          <span className="text-red-400 font-medium">(!)</span> — bu, iki modelin farkli sinyal vermesi anlamina gelir ve
-          kanala ozel inceleme yapilmasi onerilir.
+          DDA ile MMM arasındaki fark %20&apos;yi aştığında kanal bayraklanır{' '}
+          <span className="text-red-400 font-medium">(!)</span> — bu, iki modelin farklı sinyal vermesi anlamına gelir ve
+          kanala özel inceleme yapılması önerilir.
         </p>
       </div>
     </div>

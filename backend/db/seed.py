@@ -11,29 +11,29 @@ SEED_DATA: dict[str, list[dict]] = {
         {"name": "AutoMatic Filo", "budget": 55_000_000, "channels": "meta,google,tiktok,linkedin,dv360,youtube,tv_match,tv_news,radio,dooh"},
     ],
     "EnerjiSA": [
-        {"name": "30.Yil Iletisimi", "budget": 8_500_000, "channels": "meta,google,youtube,tv_match,tv_news,radio,dooh"},
+        {"name": "30.Yıl İletişimi", "budget": 8_500_000, "channels": "meta,google,youtube,tv_match,tv_news,radio,dooh"},
     ],
-    "Uludag Icecek": [
+    "Uludağ İçecek": [
         {"name": "Limonata", "budget": 15_000_000, "channels": "meta,google,tiktok,youtube,tv_match,tv_news,radio,dooh"},
         {"name": "Premium Su", "budget": 7_000_000, "channels": "meta,google,youtube,dv360,dooh"},
         {"name": "Soda", "budget": 6_500_000, "channels": "meta,google,tiktok,youtube,tv_match,radio"},
         {"name": "Frutti", "budget": 10_000_000, "channels": "meta,google,tiktok,youtube,tv_match,tv_news,radio"},
-        {"name": "Portakalli", "budget": 4_500_000, "channels": "meta,google,tiktok,youtube,radio"},
+        {"name": "Portakallı", "budget": 4_500_000, "channels": "meta,google,tiktok,youtube,radio"},
     ],
     "UNICEF": [
-        {"name": "6 Subat Deprem", "budget": 3_000_000, "channels": "meta,google,youtube,dv360,linkedin"},
-        {"name": "Dunya Kiz Cocuklari Gunu", "budget": 1_500_000, "channels": "meta,google,youtube,linkedin"},
-        {"name": "Dunya Gunu", "budget": 2_000_000, "channels": "meta,google,youtube,linkedin,dv360"},
+        {"name": "6 Şubat Deprem", "budget": 3_000_000, "channels": "meta,google,youtube,dv360,linkedin"},
+        {"name": "Dünya Kız Çocukları Günü", "budget": 1_500_000, "channels": "meta,google,youtube,linkedin"},
+        {"name": "Dünya Günü", "budget": 2_000_000, "channels": "meta,google,youtube,linkedin,dv360"},
     ],
     "Hayhay": [
-        {"name": "POS Cihazi", "budget": 5_000_000, "channels": "meta,google,linkedin,dv360,youtube"},
-        {"name": "Dijital Cuzdan", "budget": 4_000_000, "channels": "meta,google,tiktok,youtube,dv360"},
-        {"name": "Tuketici Finansmani", "budget": 6_000_000, "channels": "meta,google,linkedin,youtube,dv360,dooh"},
+        {"name": "POS Cihazı", "budget": 5_000_000, "channels": "meta,google,linkedin,dv360,youtube"},
+        {"name": "Dijital Cüzdan", "budget": 4_000_000, "channels": "meta,google,tiktok,youtube,dv360"},
+        {"name": "Tüketici Finansmanı", "budget": 6_000_000, "channels": "meta,google,linkedin,youtube,dv360,dooh"},
     ],
     "TLC/Gree Klima": [
-        {"name": "Sevgililer Gunu", "budget": 3_500_000, "channels": "meta,google,tiktok,youtube"},
+        {"name": "Sevgililer Günü", "budget": 3_500_000, "channels": "meta,google,tiktok,youtube"},
         {"name": "Yaz'a Merhaba", "budget": 8_000_000, "channels": "meta,google,tiktok,youtube,tv_match,tv_news,radio,dooh"},
-        {"name": "Kis Kampanyasi", "budget": 5_500_000, "channels": "meta,google,youtube,dv360,tv_news,radio"},
+        {"name": "Kış Kampanyası", "budget": 5_500_000, "channels": "meta,google,youtube,dv360,tv_news,radio"},
     ],
 }
 
