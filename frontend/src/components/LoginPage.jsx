@@ -13,7 +13,7 @@ function LogoBg() {
   return (
     <svg
       className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-      style={{ width: '110vh', height: '110vh', maxWidth: '900px', maxHeight: '900px' }}
+      style={{ width: '130vh', height: '130vh', maxWidth: '1100px', maxHeight: '1100px' }}
       viewBox="0 0 512 512"
       fill="none"
       aria-hidden="true"
