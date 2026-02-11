@@ -31,3 +31,7 @@ Thumbs.db
 # Data files (keep templates, ignore actual data)
 data/uploads/
 *.sqlite3
+
+# Auto-update script runtime files
+.auto-update.pid
+.auto-update.log
