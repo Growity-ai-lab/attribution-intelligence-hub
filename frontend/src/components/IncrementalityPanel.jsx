@@ -77,6 +77,15 @@ export default function IncrementalityPanel() {
             </tbody>
           </table>
         </div>
+        <div className="px-4 pb-4">
+          <div className="p-3 bg-dark-bg rounded-lg border border-dark-border/50">
+            <p className="text-xs text-slate-400 leading-relaxed">
+              <span className="text-slate-300 font-medium">Nasıl yorumlanır:</span> Lift değeri, test grubundaki dönüşüm artışını kontrol grubuna kıyasla gösterir.
+              p-value {'<'} 0.05 ise sonuç istatistiksel olarak anlamlıdır ve kanalın gerçek bir incremental etkisi vardır.
+              p-value 0.05–0.10 arası marjinal, {'>'} 0.10 ise anlamsız kabul edilir; bu kanalların atıf skoru aşağı yönlü düzeltilir.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="dark-card">
@@ -103,6 +112,15 @@ export default function IncrementalityPanel() {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="px-4 pb-4">
+          <div className="p-3 bg-dark-bg rounded-lg border border-dark-border/50">
+            <p className="text-xs text-slate-400 leading-relaxed">
+              <span className="text-slate-300 font-medium">Rasyonel:</span> Düzeltme faktörü, incrementality test sonucuna göre unified skora uygulanan çarpandır.
+              Test anlamlı ise çarpan 1.0 (Baseline) kalır. Anlamsız sonuç veren kanallarda çarpan {'<'} 1.0&apos;a düşürülerek,
+              DDA ve MMM&apos;in o kanala atfettiği kredi aşağı yönlü kalibre edilir. Böylece gerçek incrementality yaratmayan harcamalar tespit edilir.
+            </p>
+          </div>
         </div>
       </div>
     </div>
