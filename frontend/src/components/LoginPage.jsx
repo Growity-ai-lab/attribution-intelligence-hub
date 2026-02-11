@@ -1,41 +1,63 @@
 import { useState } from 'react'
 
-/* Large background silhouette of the D-M-I triangle network */
-function NetworkBg() {
+/*
+ * Full logo silhouette as background — rounded square with D-M-I network,
+ * center hub, bar chart, orbiting dots and labels. Centered, contained,
+ * very low opacity so it reads as a watermark behind the login card.
+ */
+function LogoBg() {
+  const o = 0.07          // base stroke opacity
+  const fo = 0.045        // fill opacity for nodes
+  const to = 0.09         // text opacity
+
   return (
     <svg
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      viewBox="0 0 800 800"
-      preserveAspectRatio="xMidYMid slice"
+      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+      style={{ width: '110vh', height: '110vh', maxWidth: '900px', maxHeight: '900px' }}
+      viewBox="0 0 512 512"
       fill="none"
       aria-hidden="true"
     >
+      {/* Rounded square frame */}
+      <rect x="32" y="32" width="448" height="448" rx="96"
+        stroke="#f97316" strokeOpacity={o} strokeWidth="1.2" fill="none" />
+
       {/* Connection lines */}
-      <g stroke="#f97316" strokeOpacity="0.06" strokeWidth="1.5" strokeLinecap="round">
-        <line x1="400" y1="160" x2="400" y2="400" />
-        <line x1="180" y1="560" x2="400" y2="400" />
-        <line x1="620" y1="560" x2="400" y2="400" />
-        <line x1="400" y1="160" x2="180" y2="560" />
-        <line x1="400" y1="160" x2="620" y2="560" />
-        <line x1="180" y1="560" x2="620" y2="560" />
+      <g stroke="#f97316" strokeOpacity={o * 0.7} strokeWidth="1" strokeLinecap="round">
+        <line x1="256" y1="128" x2="256" y2="256" />
+        <line x1="148" y1="320" x2="256" y2="256" />
+        <line x1="364" y1="320" x2="256" y2="256" />
+        <line x1="256" y1="128" x2="148" y2="320" />
+        <line x1="256" y1="128" x2="364" y2="320" />
+        <line x1="148" y1="320" x2="364" y2="320" />
       </g>
 
-      {/* Center hub */}
-      <circle cx="400" cy="400" r="48" stroke="#f97316" strokeOpacity="0.08" strokeWidth="1.5" />
-      <circle cx="400" cy="400" r="28" stroke="#f97316" strokeOpacity="0.05" strokeWidth="1" />
+      {/* Center hub — double ring + bar chart */}
+      <circle cx="256" cy="256" r="44" stroke="#f97316" strokeOpacity={o} strokeWidth="1" />
+      <circle cx="256" cy="256" r="36" stroke="#f97316" strokeOpacity={o * 0.6} strokeWidth="0.8" />
+      <rect x="240" y="250" width="8" height="22" rx="2" fill="#f97316" fillOpacity={fo} />
+      <rect x="252" y="240" width="8" height="32" rx="2" fill="#f97316" fillOpacity={fo} />
+      <rect x="264" y="246" width="8" height="26" rx="2" fill="#f97316" fillOpacity={fo} />
 
-      {/* Three pillar nodes */}
-      <circle cx="400" cy="160" r="36" stroke="#f97316" strokeOpacity="0.07" strokeWidth="1.5" />
-      <circle cx="180" cy="560" r="36" stroke="#f97316" strokeOpacity="0.07" strokeWidth="1.5" />
-      <circle cx="620" cy="560" r="36" stroke="#f97316" strokeOpacity="0.07" strokeWidth="1.5" />
+      {/* DDA node (top) */}
+      <circle cx="256" cy="128" r="30" stroke="#f97316" strokeOpacity={o} strokeWidth="1" fill="#f97316" fillOpacity={fo * 0.4} />
+      <text x="256" y="134" textAnchor="middle" fontFamily="Sora,Arial,sans-serif" fontWeight="600" fontSize="14" fill="#f97316" fillOpacity={to}>DDA</text>
 
-      {/* Orbiting dots */}
-      <circle cx="270" cy="300" r="6" fill="#f97316" fillOpacity="0.04" />
-      <circle cx="530" cy="300" r="6" fill="#f97316" fillOpacity="0.04" />
-      <circle cx="120" cy="420" r="5" fill="#f97316" fillOpacity="0.03" />
-      <circle cx="680" cy="420" r="5" fill="#f97316" fillOpacity="0.03" />
-      <circle cx="260" cy="640" r="5" fill="#f97316" fillOpacity="0.03" />
-      <circle cx="540" cy="640" r="5" fill="#f97316" fillOpacity="0.03" />
+      {/* MMM node (bottom-left) */}
+      <circle cx="148" cy="320" r="30" stroke="#f97316" strokeOpacity={o} strokeWidth="1" fill="#f97316" fillOpacity={fo * 0.4} />
+      <text x="148" y="326" textAnchor="middle" fontFamily="Sora,Arial,sans-serif" fontWeight="600" fontSize="14" fill="#f97316" fillOpacity={to}>MMM</text>
+
+      {/* INC node (bottom-right) */}
+      <circle cx="364" cy="320" r="30" stroke="#f97316" strokeOpacity={o} strokeWidth="1" fill="#f97316" fillOpacity={fo * 0.4} />
+      <text x="364" y="326" textAnchor="middle" fontFamily="Sora,Arial,sans-serif" fontWeight="600" fontSize="14" fill="#f97316" fillOpacity={to}>INC</text>
+
+      {/* Orbiting channel dots */}
+      <circle cx="190" cy="170" r="6" fill="#f97316" fillOpacity={fo * 0.6} />
+      <circle cx="322" cy="170" r="6" fill="#f97316" fillOpacity={fo * 0.6} />
+      <circle cx="110" cy="260" r="5" fill="#f97316" fillOpacity={fo * 0.4} />
+      <circle cx="402" cy="260" r="5" fill="#f97316" fillOpacity={fo * 0.4} />
+      <circle cx="200" cy="380" r="5" fill="#f97316" fillOpacity={fo * 0.5} />
+      <circle cx="312" cy="380" r="5" fill="#f97316" fillOpacity={fo * 0.5} />
     </svg>
   )
 }
@@ -61,7 +83,7 @@ export default function LoginPage({ onLogin }) {
 
   return (
     <div className="relative min-h-screen bg-dark-bg bg-grid-overlay flex items-center justify-center px-4 overflow-hidden">
-      <NetworkBg />
+      <LogoBg />
 
       <div className="relative z-10 w-full max-w-sm">
         {/* Title */}
