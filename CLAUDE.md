@@ -1,9 +1,9 @@
-# CLAUDE.md — Attribution Intelligence Hub
+# CLAUDE.md — Time's Hub | Attribution Intelligence
 
 ## Proje Özeti
-PO AutoMatic Filo kampanyası için multi-channel attribution modelling platformu.
+Multi-channel attribution modelling platformu.
 MMM (Marketing Mix Modeling) + MTA (Multi-Touch Attribution) + Incrementality Testing hibrit framework.
-Growity × Atlas tarafından geliştirilir.
+Time × Growity tarafından geliştirilir.
 
 ## Kampanya Bağlamı
 - Marka: Petrol Ofisi AutoMatic Filo (araç filo yönetim hizmeti)

@@ -1,4 +1,4 @@
-"""Shared test fixtures for Attribution Intelligence Hub."""
+"""Shared test fixtures for Time's Hub | Attribution Intelligence."""
 
 import io
 

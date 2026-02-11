@@ -24,9 +24,10 @@ export default function LoginPage({ onLogin }) {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src="/logo.svg" alt="AH" className="w-16 h-16 mx-auto mb-4" />
-          <h1 className="text-lg font-semibold text-slate-100">Attribution Intelligence Hub</h1>
-          <p className="text-xs text-slate-500 mt-1">Growity — Multi-Channel Attribution</p>
+          <img src="/logo.svg" alt="TH" className="w-16 h-16 mx-auto mb-4" />
+          <h1 className="text-lg font-semibold text-slate-100">Time's Hub</h1>
+          <p className="text-xs text-slate-400 mt-1">Attribution Intelligence</p>
+          <p className="text-xs text-slate-500 mt-0.5">Time × Growity</p>
         </div>
 
         {/* Login Card */}
@@ -72,7 +73,7 @@ export default function LoginPage({ onLogin }) {
         </form>
 
         <p className="text-center text-xs text-slate-600 mt-6">
-          {'Growity \u00d7 Atlas'} &mdash; Güvenli Erişim
+          {'Time \u00d7 Growity'} &mdash; Güvenli Erişim
         </p>
       </div>
     </div>

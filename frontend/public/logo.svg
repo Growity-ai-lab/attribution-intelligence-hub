@@ -59,6 +59,6 @@
   <circle cx="200" cy="380" r="7" fill="#fff" fill-opacity="0.4"/>
   <circle cx="312" cy="380" r="7" fill="#fff" fill-opacity="0.4"/>
 
-  <!-- "AH" text at bottom -->
-  <text x="256" y="430" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="36" fill="#fff" opacity="0.9" letter-spacing="4">AH</text>
+  <!-- "TH" text at bottom -->
+  <text x="256" y="430" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="36" fill="#fff" opacity="0.9" letter-spacing="4">TH</text>
 </svg>

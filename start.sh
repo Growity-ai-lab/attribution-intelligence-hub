@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Attribution Intelligence Hub — Full-Stack Startup
+# Time's Hub | Attribution Intelligence — Full-Stack Startup
 # Usage: ./start.sh [--build] [--port 8000]
 
 set -e
@@ -33,7 +33,7 @@ if [ "$BUILD" = true ] || [ ! -f "frontend/dist/index.html" ]; then
 fi
 
 echo ""
-echo "  Attribution Intelligence Hub"
+echo "  Time's Hub | Attribution Intelligence"
 echo "  http://localhost:${PORT}"
 echo ""
 

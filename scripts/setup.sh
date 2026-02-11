@@ -30,7 +30,7 @@ fail()  { echo -e "${RED}[FAIL]${NC}  $1"; }
 
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║   Attribution Intelligence Hub — Setup       ║${NC}"
+echo -e "${CYAN}║   Time's Hub — Setup                         ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 

@@ -1,4 +1,4 @@
-# Attribution Intelligence Hub — Multi-stage Dockerfile
+# Time's Hub | Attribution Intelligence — Multi-stage Dockerfile
 # Stage 1: Build React frontend with Vite
 # Stage 2: Python runtime serving API + SPA
 

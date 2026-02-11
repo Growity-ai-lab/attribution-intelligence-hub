@@ -74,7 +74,7 @@ export default function App() {
               className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-orange-600 flex items-center justify-center text-white font-bold text-sm hover:opacity-80 transition-opacity"
               title="Müşteri/Kampanya seçimi"
             >
-              AH
+              TH
             </button>
             <div>
               <h1 className="text-base font-semibold text-slate-100 tracking-tight">

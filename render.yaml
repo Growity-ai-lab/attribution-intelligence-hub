@@ -1,10 +1,10 @@
-## Render.com Blueprint — Attribution Intelligence Hub
+## Render.com Blueprint — Time's Hub | Attribution Intelligence
 ## Deploy: Dashboard > New > Blueprint > connect this repo
 ## Docs: https://docs.render.com/blueprint-spec
 
 services:
   - type: web
-    name: attribution-hub
+    name: times-hub
     runtime: docker
     plan: free
     healthCheckPath: /api/health

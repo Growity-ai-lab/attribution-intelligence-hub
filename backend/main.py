@@ -1,4 +1,4 @@
-"""FastAPI application entry point for Attribution Intelligence Hub."""
+"""FastAPI application entry point for Time's Hub | Attribution Intelligence."""
 
 from pathlib import Path
 
@@ -37,7 +37,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app = FastAPI(
-    title="Attribution Intelligence Hub",
+    title="Time's Hub | Attribution Intelligence",
     description="Multi-channel attribution modelling API for PO AutoMatic Filo",
     version="0.1.0",
 )
@@ -76,6 +76,6 @@ else:
     def root() -> dict[str, str]:
         return {
             "status": "ok",
-            "service": "Attribution Intelligence Hub",
+            "service": "Time's Hub | Attribution Intelligence",
             "hint": "Run 'npm run build' to enable the web UI",
         }

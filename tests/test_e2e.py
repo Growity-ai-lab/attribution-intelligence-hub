@@ -1,4 +1,4 @@
-"""End-to-end integration tests for Attribution Intelligence Hub.
+"""End-to-end integration tests for Time's Hub | Attribution Intelligence.
 
 These tests exercise the full API pipeline from HTTP request through to
 model computation and response serialization.

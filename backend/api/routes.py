@@ -1,4 +1,4 @@
-"""API routes for Attribution Intelligence Hub."""
+"""API routes for Time's Hub | Attribution Intelligence."""
 
 from datetime import datetime, timezone
 from io import BytesIO

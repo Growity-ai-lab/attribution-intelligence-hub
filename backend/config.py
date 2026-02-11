@@ -1,4 +1,4 @@
-"""Configuration constants for Attribution Intelligence Hub."""
+"""Configuration constants for Time's Hub | Attribution Intelligence."""
 
 from pathlib import Path
 
