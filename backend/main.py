@@ -11,9 +11,13 @@ from starlette.responses import FileResponse, Response
 
 from backend.api.routes import router
 from backend.db.database import Base, engine
+from backend.db.seed import seed_clients_and_campaigns
 
 # Create all tables on startup
 Base.metadata.create_all(bind=engine)
+
+# Seed demo clients & campaigns (no-op if data already exists)
+seed_clients_and_campaigns()
 
 # Resolve paths relative to project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
