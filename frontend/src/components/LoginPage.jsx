@@ -6,9 +6,9 @@ import { useState } from 'react'
  * very low opacity so it reads as a watermark behind the login card.
  */
 function LogoBg() {
-  const o = 0.07          // base stroke opacity
-  const fo = 0.045        // fill opacity for nodes
-  const to = 0.09         // text opacity
+  const o = 0.14          // base stroke opacity
+  const fo = 0.09         // fill opacity for nodes
+  const to = 0.16         // text opacity
 
   return (
     <svg
