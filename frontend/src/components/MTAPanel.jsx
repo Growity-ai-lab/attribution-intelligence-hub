@@ -110,6 +110,15 @@ export default function MTAPanel({ ddaResult }) {
             </div>
           ))}
         </div>
+        <div className="px-4 pb-4">
+          <div className="p-3 bg-dark-bg rounded-lg border border-dark-border/50">
+            <p className="text-xs text-slate-400 leading-relaxed">
+              <span className="text-slate-300 font-medium">Nasıl yorumlanır:</span> Her satır, lead'lerin dönüşüm öncesinde izlediği kanal sırasını gösterir.
+              Yüksek dönüşüm oranına sahip path'ler, o kanal kombinasyonunun birlikte etkili çalıştığını işaret eder.
+              Örneğin Meta {'\u2192'} Google {'\u2192'} Meta path'i, retargeting stratejisinin dönüşümü desteklediğini gösterir.
+            </p>
+          </div>
+        </div>
       </div>
 
       {!ddaResult && (
@@ -135,6 +144,15 @@ export default function MTAPanel({ ddaResult }) {
                 )}
               </div>
             </div>
+            <div className="px-4 pb-4">
+              <div className="p-3 bg-dark-bg rounded-lg border border-dark-border/50">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  <span className="text-slate-300 font-medium">Rasyonel:</span> Markov zincirinden her kanal sırayla çıkarılır;
+                  kalan dönüşüm oranındaki düşüş o kanalın &quot;removal effect&quot; değeridir.
+                  Yüksek removal effect = o kanal olmadan dönüşüm oranı ciddi şekilde düşer, yani kanal kritik bir role sahiptir.
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="dark-card">
@@ -148,6 +166,15 @@ export default function MTAPanel({ ddaResult }) {
                 ) : (
                   <div className="h-full flex items-center justify-center text-slate-600 text-sm">Veri yok</div>
                 )}
+              </div>
+            </div>
+            <div className="px-4 pb-4">
+              <div className="p-3 bg-dark-bg rounded-lg border border-dark-border/50">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  <span className="text-slate-300 font-medium">Rasyonel:</span> Shapley değeri, oyun teorisinden türetilmiş adil bir kredi dağılım yöntemidir.
+                  Her kanalın tüm olası koalisyonlardaki marjinal katkısının ortalamasını alarak,
+                  hiçbir kanalı haksız yere ödüllendirmez veya cezalandırmaz.
+                </p>
               </div>
             </div>
           </div>
@@ -192,6 +219,16 @@ export default function MTAPanel({ ddaResult }) {
                   ))}
               </tbody>
             </table>
+          </div>
+          <div className="px-4 pb-4">
+            <div className="p-3 bg-dark-bg rounded-lg border border-dark-border/50">
+              <p className="text-xs text-slate-400 leading-relaxed">
+                <span className="text-slate-300 font-medium">Nasıl yorumlanır:</span> Blend sütunu,
+                Markov ({'\u00d7'}0.65) ve Shapley ({'\u00d7'}0.35) ağırlıklı ortalamasıdır.
+                Markov, yolculuk sırasına dayalı geçiş olasılıklarını; Shapley ise koalisyon bazlı adil dağılımı temsil eder.
+                İki yöntemin birleşimi, hem sıra etkisini hem de marjinal katkıyı dengeli şekilde yansıtır.
+              </p>
+            </div>
           </div>
         </div>
       )}

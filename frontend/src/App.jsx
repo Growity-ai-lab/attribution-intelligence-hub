@@ -71,10 +71,10 @@ export default function App() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleBackToWorkspace}
-              className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-orange-600 flex items-center justify-center text-white font-bold text-sm hover:opacity-80 transition-opacity"
+              className="w-8 h-8 rounded-lg overflow-hidden hover:opacity-80 transition-opacity"
               title="Müşteri/Kampanya seçimi"
             >
-              TH
+              <img src="/logo.svg" alt="Time's Hub" className="w-full h-full" />
             </button>
             <div>
               <h1 className="text-base font-semibold text-slate-100 tracking-tight">

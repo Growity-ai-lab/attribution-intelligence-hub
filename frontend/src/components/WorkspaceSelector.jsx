@@ -76,9 +76,7 @@ export default function WorkspaceSelector({ onSelect }) {
 
         {/* Year Selector */}
         <div className="flex items-center gap-4 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-orange-600 flex items-center justify-center text-white font-bold text-lg">
-            TH
-          </div>
+          <img src="/logo.svg" alt="Time's Hub" className="w-10 h-10 rounded-xl" />
           <div className="flex-1">
             <h1 className="text-xl font-semibold text-slate-100">Time's Hub <span className="text-slate-500 font-normal">|</span> <span className="text-slate-400 font-normal text-base">Attribution Intelligence</span></h1>
             <p className="text-xs text-slate-500">Müşteri ve kampanya seçimi</p>
