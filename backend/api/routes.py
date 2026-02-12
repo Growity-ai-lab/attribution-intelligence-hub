@@ -29,6 +29,7 @@ from backend.config import (
     PRIOR_ALPHA_MIN,
     SAMPLE_DIR,
     SATURATION_PARAMS,
+    TEMPLATE_DIR,
     UNIFIED_WEIGHTS,
 )
 from backend.data.loader import load_crm_touchpoints, load_weekly_csv
@@ -630,6 +631,33 @@ async def get_sample_journeys():
     if not sample_path.exists():
         raise HTTPException(status_code=404, detail="Sample file not found")
     return FileResponse(sample_path, media_type="text/csv", filename="journeys_sample.csv")
+
+
+@router.get("/data/sample/weekly")
+async def get_sample_weekly():
+    """Serve the sample weekly CSV file."""
+    sample_path = SAMPLE_DIR / "week_01.csv"
+    if not sample_path.exists():
+        raise HTTPException(status_code=404, detail="Sample file not found")
+    return FileResponse(sample_path, media_type="text/csv", filename="week_01_sample.csv")
+
+
+@router.get("/data/template/weekly")
+async def get_template_weekly():
+    """Serve the weekly input template CSV file."""
+    template_path = TEMPLATE_DIR / "weekly_input_template.csv"
+    if not template_path.exists():
+        raise HTTPException(status_code=404, detail="Template file not found")
+    return FileResponse(template_path, media_type="text/csv", filename="weekly_input_template.csv")
+
+
+@router.get("/data/template/crm")
+async def get_template_crm():
+    """Serve the CRM touchpoints template CSV file."""
+    template_path = TEMPLATE_DIR / "crm_touchpoints_template.csv"
+    if not template_path.exists():
+        raise HTTPException(status_code=404, detail="Template file not found")
+    return FileResponse(template_path, media_type="text/csv", filename="crm_touchpoints_template.csv")
 
 
 # --------------- Config ---------------

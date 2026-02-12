@@ -90,6 +90,16 @@ export function useAttribution() {
     return new File([res.data], 'journeys_sample.csv', { type: 'text/csv' })
   }, [])
 
+  const downloadFile = useCallback(async (url, filename) => {
+    const res = await axios.get(`${API_BASE}${url}`, { responseType: 'blob' })
+    const blobUrl = window.URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = filename
+    a.click()
+    window.URL.revokeObjectURL(blobUrl)
+  }, [])
+
   useEffect(() => {
     fetchConfig()
   }, [fetchConfig])
@@ -107,6 +117,7 @@ export function useAttribution() {
     runDDA,
     getReallocation,
     fetchSampleJourneys,
+    downloadFile,
     refetch: fetchConfig,
   }
 }
