@@ -572,8 +572,62 @@
     </div>
   </div>
 
-  <!-- ═══════════════ SLIDE 10: VALUE ═══════════════ -->
+  <!-- ═══════════════ SLIDE 10: COMPETITIVE ═══════════════ -->
   <div class="slide" data-slide="9">
+    <div class="max-w">
+      <p class="small accent mb" style="letter-spacing:2px; text-transform:uppercase;">Neden Time's Hub?</p>
+      <h2>Google Meridian &amp; Meta Robyn ile karşılaştırma</h2>
+
+      <div class="grid-2">
+        <div class="card card-sm">
+          <h3 style="color:#ef4444;">Meridian / Robyn problemi</h3>
+          <ul>
+            <li><strong>Sadece MMM</strong> &mdash; 3 ayaklı sistemin yalnızca 1 ayağı</li>
+            <li>Meridian <strong>Google'ın</strong>, Robyn <strong>Meta'nın</strong> aracı &mdash; futbolcuya hakemlik yaptırmak gibi</li>
+            <li>CRM journey analizi, user-level attribution <strong>yok</strong></li>
+            <li>Incrementality / causal test katmanı <strong>yok</strong></li>
+            <li>Cross-validation mekanizması <strong>yok</strong> &mdash; tek modele körü körüne güven</li>
+          </ul>
+        </div>
+
+        <div class="card card-sm card-accent">
+          <h3 class="accent">Time's Hub farkı</h3>
+          <ul>
+            <li><strong>3 model</strong> birbirini doğrular &mdash; tek boyutlu değil</li>
+            <li><strong>Platform bağımsız</strong>, tarafsız ölçüm</li>
+            <li>DDA ile <strong>kullanıcı yolculuğu</strong> analizi</li>
+            <li>Incrementality ile <strong>gerçek causal etki</strong> doğrulaması</li>
+            <li>Sapma &gt;%20 olduğunda <strong>otomatik uyarı</strong></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card card-sm mt" style="max-width:1000px;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:25%;">Özellik</th>
+              <th style="width:20%;">Meridian</th>
+              <th style="width:20%;">Robyn</th>
+              <th style="width:20%;">Time's Hub</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>MMM</td><td>&#10003; Bayesian</td><td>&#10003; Ridge</td><td>&#10003; Adstock + Hill</td></tr>
+            <tr><td>DDA (Multi-Touch)</td><td style="color:#ef4444;">&#10007;</td><td style="color:#ef4444;">&#10007;</td><td style="color:#4ade80;">&#10003; Markov + Shapley</td></tr>
+            <tr><td>Incrementality Test</td><td style="color:#ef4444;">&#10007;</td><td style="color:#ef4444;">&#10007;</td><td style="color:#4ade80;">&#10003; Geo-lift, Holdout, PSA</td></tr>
+            <tr><td>Cross-Validation</td><td style="color:#ef4444;">&#10007;</td><td style="color:#ef4444;">&#10007;</td><td style="color:#4ade80;">&#10003; DDA vs MMM sapma uyarısı</td></tr>
+            <tr><td>Tarafsızlık</td><td style="color:#ef4444;">Google bias</td><td style="color:#ef4444;">Meta bias</td><td style="color:#4ade80;">&#10003; Bağımsız</td></tr>
+            <tr><td>CRM Journey Analizi</td><td style="color:#ef4444;">&#10007;</td><td style="color:#ef4444;">&#10007;</td><td style="color:#4ade80;">&#10003; Touchpoint bazlı</td></tr>
+            <tr><td>Multi-Client Workspace</td><td style="color:#ef4444;">&#10007;</td><td style="color:#ef4444;">&#10007;</td><td style="color:#4ade80;">&#10003; 6 müşteri, 16 kampanya</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ SLIDE 11: VALUE ═══════════════ -->
+  <div class="slide" data-slide="10">
     <div class="max-w">
       <p class="small accent mb" style="letter-spacing:2px; text-transform:uppercase;">Katma Değer</p>
       <h2>Time's Hub ne kazandırır?</h2>
@@ -619,8 +673,8 @@
     </div>
   </div>
 
-  <!-- ═══════════════ SLIDE 11: MULTI-CLIENT ═══════════════ -->
-  <div class="slide" data-slide="10">
+  <!-- ═══════════════ SLIDE 12: MULTI-CLIENT ═══════════════ -->
+  <div class="slide" data-slide="11">
     <div class="max-w">
       <p class="small accent mb" style="letter-spacing:2px; text-transform:uppercase;">Ölçeklenebilirlik</p>
       <h2>Tek platform, tüm müşteriler</h2>
@@ -657,8 +711,8 @@
     </div>
   </div>
 
-  <!-- ═══════════════ SLIDE 12: ROADMAP ═══════════════ -->
-  <div class="slide" data-slide="11">
+  <!-- ═══════════════ SLIDE 13: ROADMAP ═══════════════ -->
+  <div class="slide" data-slide="12">
     <div class="max-w">
       <p class="small accent mb" style="letter-spacing:2px; text-transform:uppercase;">Yol Haritası</p>
       <h2>Geliştirme fazları</h2>
@@ -703,8 +757,8 @@
     </div>
   </div>
 
-  <!-- ═══════════════ SLIDE 13: CLOSE ═══════════════ -->
-  <div class="slide" data-slide="12">
+  <!-- ═══════════════ SLIDE 14: CLOSE ═══════════════ -->
+  <div class="slide" data-slide="13">
     <div class="text-center">
       <h1 style="margin-bottom:0.5rem;">Time's Hub</h1>
       <p style="font-size:clamp(1rem,1.8vw,1.5rem); color:var(--accent); font-weight:500;">
@@ -740,7 +794,7 @@
 </div>
 
 <!-- Navigation -->
-<div class="page-num"><span id="pageNum">1</span> / <span id="totalPages">13</span></div>
+<div class="page-num"><span id="pageNum">1</span> / <span id="totalPages">14</span></div>
 <div class="nav">
   <button onclick="prev()" title="Önceki (←)">&#8592;</button>
   <button onclick="next()" title="Sonraki (→)">&#8594;</button>

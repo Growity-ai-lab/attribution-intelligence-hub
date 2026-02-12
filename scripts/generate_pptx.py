@@ -105,7 +105,7 @@ def add_tag(slide, left, top, text, color=ACCENT):
     return shape
 
 
-def slide_number(slide, num, total=13):
+def slide_number(slide, num, total=14):
     add_text(slide, 0.5, 7.0, 2, 0.35, f"{num} / {total}", size=10, color=DIM)
 
 
@@ -486,7 +486,68 @@ slide_number(sl, 9)
 
 
 # ═══════════════════════════════════════════════
-# SLIDE 10 — VALUE
+# SLIDE 10 — COMPETITIVE COMPARISON
+# ═══════════════════════════════════════════════
+sl = prs.slides.add_slide(prs.slide_layouts[6])
+set_bg(sl)
+add_text(sl, 0.8, 0.5, 8, 0.4, "REKABET ANALİZİ", size=12, color=ACCENT, bold=True)
+add_text(sl, 0.8, 1.0, 11, 0.7, "Google Meridian / Meta Robyn vs Time's Hub", size=30, color=WHITE, bold=True)
+
+# Left card — Meridian/Robyn problems
+add_card(sl, 0.8, 2.0, 5.6, 3.0)
+add_text(sl, 1.2, 2.15, 5, 0.4, "Meridian / Robyn Problemi", size=17, color=RED_WARN, bold=True)
+meridian_problems = [
+    "Sadece MMM katmanı — DDA ve Incrementality yok",
+    "Platform yanlılığı: kendi kanalını iyi gösterir",
+    "Offline (TV, radyo, DOOH) entegrasyonu sınırlı",
+    "CRM journey verisi kullanmaz",
+    "Cross-validation mekanizması yok",
+]
+tf = add_text(sl, 1.2, 2.7, 5, 2.2, "", size=13)
+for prob in meridian_problems:
+    add_para(tf, f"•  {prob}", size=13, color=MUTED, space_before=Pt(6))
+
+# Right card — Time's Hub difference
+add_card(sl, 6.9, 2.0, 5.6, 3.0)
+add_accent_line(sl, 6.9, 2.0, 5.6)
+add_text(sl, 7.3, 2.15, 5, 0.4, "Time's Hub Farkı", size=17, color=ACCENT, bold=True)
+hub_diffs = [
+    "3 model katmanı: MMM + DDA + Incrementality",
+    "Platform bağımsız, tarafsız ölçüm",
+    "Online + offline tüm kanallar tek çatıda",
+    "CRM touchpoint verisiyle user-level attribution",
+    "Cross-validation: DDA vs MMM sapma uyarısı",
+]
+tf = add_text(sl, 7.3, 2.7, 5, 2.2, "", size=13)
+for diff in hub_diffs:
+    add_para(tf, f"•  {diff}", size=13, color=WHITE, space_before=Pt(6))
+
+# Bottom — comparison table
+add_card(sl, 0.8, 5.2, 11.7, 2.0)
+# Table header
+for hx, htxt in [(1.2, "Özellik"), (4.5, "Meridian"), (7.0, "Robyn"), (9.5, "Time's Hub")]:
+    add_text(sl, hx, 5.3, 2.5, 0.3, htxt, size=11, color=DIM, bold=True)
+
+comp_rows = [
+    ("MMM", "✓ Bayesian", "✓ Ridge", "✓ Adstock + Hill"),
+    ("DDA (Markov + Shapley)", "✗", "✗", "✓"),
+    ("Incrementality", "✗", "✗", "✓ (Faz 4)"),
+    ("Cross-Validation", "✗", "✗", "✓ >%20 uyarı"),
+    ("CRM Journey Analizi", "✗", "✗", "✓"),
+    ("Tarafsızlık", "Google yanlı", "Meta yanlı", "✓ Bağımsız"),
+]
+for j, (feat, mer, rob, hub) in enumerate(comp_rows):
+    yy = 5.65 + j * 0.23
+    add_text(sl, 1.2, yy, 3, 0.23, feat, size=10, color=WHITE)
+    add_text(sl, 4.5, yy, 2, 0.23, mer, size=10, color=MUTED if "✗" not in mer else RED_WARN)
+    add_text(sl, 7.0, yy, 2, 0.23, rob, size=10, color=MUTED if "✗" not in rob else RED_WARN)
+    add_text(sl, 9.5, yy, 2.5, 0.23, hub, size=10, color=GREEN if "✓" in hub else MUTED)
+
+slide_number(sl, 10)
+
+
+# ═══════════════════════════════════════════════
+# SLIDE 11 — VALUE
 # ═══════════════════════════════════════════════
 sl = prs.slides.add_slide(prs.slide_layouts[6])
 set_bg(sl)
@@ -532,11 +593,11 @@ client = [
 tf = add_text(sl, 7.3, 5.55, 5, 1.5, "", size=12)
 for c in client:
     add_para(tf, f"•  {c}", size=12, color=MUTED, space_before=Pt(4))
-slide_number(sl, 10)
+slide_number(sl, 11)
 
 
 # ═══════════════════════════════════════════════
-# SLIDE 11 — MULTI-CLIENT
+# SLIDE 12 — MULTI-CLIENT
 # ═══════════════════════════════════════════════
 sl = prs.slides.add_slide(prs.slide_layouts[6])
 set_bg(sl)
@@ -579,11 +640,11 @@ for wf in ws_features:
 add_text(sl, 8.6, 5.8, 3.6, 0.7,
     "6 müşteri × 16 kampanya halihazırda tanımlı. Yeni müşteri eklemek tek tıklama.",
     size=11, color=DIM)
-slide_number(sl, 11)
+slide_number(sl, 12)
 
 
 # ═══════════════════════════════════════════════
-# SLIDE 12 — ROADMAP
+# SLIDE 13 — ROADMAP
 # ═══════════════════════════════════════════════
 sl = prs.slides.add_slide(prs.slide_layouts[6])
 set_bg(sl)
@@ -613,11 +674,11 @@ for j, (phase, title, col, status, desc) in enumerate(phases):
     add_text(sl, 3.2, yy + 0.1, 4, 0.35, title, size=16, color=WHITE, bold=True)
     add_text(sl, 3.2, yy + 0.47, 5.5, 0.3, desc, size=11, color=MUTED)
     add_text(sl, 9.3, yy + 0.27, 2.2, 0.3, status, size=13, color=col, bold=True)
-slide_number(sl, 12)
+slide_number(sl, 13)
 
 
 # ═══════════════════════════════════════════════
-# SLIDE 13 — CLOSING
+# SLIDE 14 — CLOSING
 # ═══════════════════════════════════════════════
 sl = prs.slides.add_slide(prs.slide_layouts[6])
 set_bg(sl)
@@ -635,7 +696,7 @@ for i, (num, label) in enumerate([("3", "Model Katmanı"), ("10", "Kanal Desteğ
     add_text(sl, x, 5.75, 1.5, 0.4, label, size=12, color=MUTED, align=PP_ALIGN.CENTER)
 
 add_text(sl, 0, 6.6, 13.333, 0.4, "TIME × GROWITY", size=12, color=DIM, align=PP_ALIGN.CENTER)
-slide_number(sl, 13)
+slide_number(sl, 14)
 
 
 # ── Save ──
