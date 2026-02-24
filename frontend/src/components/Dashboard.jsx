@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useAttribution } from '../hooks/useAttribution'
 import KPICards from './KPICards'
 import ChannelTable from './ChannelTable'
@@ -7,29 +7,81 @@ import UnifiedScoringTable from './UnifiedScoringTable'
 import ReallocationPanel from './ReallocationPanel'
 import DataUpload from './DataUpload'
 
-const SAMPLE_KPI = {
-  totalSpend: 55_000_000,
-  totalLeads: 4280,
-  costPerLead: 12_850,
-  activeCampaigns: 4,
-  conversionRate: 0.065,
-  totalBudget: 55_000_000,
+/* ── Per-channel typical budget allocation weights (relative) ── */
+const CHANNEL_ALLOC_WEIGHT = {
+  meta: 0.28,
+  google: 0.18,
+  tiktok: 0.10,
+  linkedin: 0.06,
+  dv360: 0.08,
+  youtube: 0.10,
+  tv_match: 0.10,
+  tv_news: 0.04,
+  radio: 0.03,
+  dooh: 0.03,
 }
 
-const SAMPLE_CHANNELS = [
-  { channel: 'meta', spend: 2_600_000, leads: 1050, share: 0.32 },
-  { channel: 'google', spend: 300_000, leads: 520, share: 0.16 },
-  { channel: 'tiktok', spend: 800_000, leads: 280, share: 0.09 },
-  { channel: 'linkedin', spend: 500_000, leads: 85, share: 0.03 },
-  { channel: 'dv360', spend: 400_000, leads: 120, share: 0.04 },
-  { channel: 'youtube', spend: 600_000, leads: 180, share: 0.06 },
-  { channel: 'tv_match', spend: 1_500_000, leads: 450, share: 0.14 },
-  { channel: 'tv_news', spend: 600_000, leads: 200, share: 0.06 },
-  { channel: 'radio', spend: 200_000, leads: 100, share: 0.03 },
-  { channel: 'dooh', spend: 150_000, leads: 45, share: 0.01 },
-]
+/* ── Per-channel typical CPL (TL) for lead estimation ── */
+const CHANNEL_CPL = {
+  meta: 2_500,
+  google: 580,
+  tiktok: 2_850,
+  linkedin: 5_900,
+  dv360: 3_300,
+  youtube: 3_300,
+  tv_match: 3_300,
+  tv_news: 3_000,
+  radio: 2_000,
+  dooh: 3_300,
+}
 
-export default function Dashboard({ onDdaResult }) {
+/**
+ * Build campaign-specific KPI and channel data from campaign object.
+ * Distributes budget across active channels weighted by typical allocation,
+ * then estimates leads from typical CPL.
+ */
+function buildCampaignData(campaign) {
+  const budget = campaign?.budget || 0
+  const channels = campaign?.channels || []
+
+  if (!budget || channels.length === 0) {
+    return { kpi: null, channels: [] }
+  }
+
+  // Normalize weights to active channels only
+  const rawWeights = {}
+  let totalWeight = 0
+  for (const ch of channels) {
+    const w = CHANNEL_ALLOC_WEIGHT[ch] || 0.05
+    rawWeights[ch] = w
+    totalWeight += w
+  }
+
+  const channelData = channels.map(ch => {
+    const share = rawWeights[ch] / totalWeight
+    const spend = Math.round(budget * share)
+    const cpl = CHANNEL_CPL[ch] || 3_000
+    const leads = Math.max(1, Math.round(spend / cpl))
+    return { channel: ch, spend, leads, share }
+  })
+
+  const totalSpend = channelData.reduce((s, c) => s + c.spend, 0)
+  const totalLeads = channelData.reduce((s, c) => s + c.leads, 0)
+
+  const kpi = {
+    totalSpend,
+    totalLeads,
+    costPerLead: totalLeads > 0 ? Math.round(totalSpend / totalLeads) : 0,
+    activeCampaigns: 1,
+    conversionRate: totalLeads > 0 ? Math.min(totalLeads / (totalLeads * 12), 0.085) : 0,
+    totalBudget: budget,
+  }
+
+  return { kpi, channels: channelData }
+}
+
+
+export default function Dashboard({ onDdaResult, campaign }) {
   const { fetchSampleJourneys, runDDAFromCSV, getReallocation } = useAttribution()
   const [unifiedData, setUnifiedData] = useState(null)
   const [crossValidation, setCrossValidation] = useState([])
@@ -37,6 +89,8 @@ export default function Dashboard({ onDdaResult }) {
   const [reallocationData, setReallocationData] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisError, setAnalysisError] = useState(null)
+
+  const { kpi, channels: channelData } = useMemo(() => buildCampaignData(campaign), [campaign])
 
   const handleAnalyzeSample = async () => {
     setAnalyzing(true)
@@ -51,7 +105,7 @@ export default function Dashboard({ onDdaResult }) {
 
       if (result.unified_report) {
         const currentBudgets = {}
-        SAMPLE_CHANNELS.forEach(ch => { currentBudgets[ch.channel] = ch.spend })
+        channelData.forEach(ch => { currentBudgets[ch.channel] = ch.spend })
         const reallocResult = await getReallocation(result.unified_report, currentBudgets)
         setReallocationData(reallocResult)
       }
@@ -64,8 +118,8 @@ export default function Dashboard({ onDdaResult }) {
 
   return (
     <div className="space-y-6">
-      <KPICards data={SAMPLE_KPI} />
-      <ChannelTable channels={SAMPLE_CHANNELS} />
+      {kpi && <KPICards data={kpi} />}
+      {channelData.length > 0 && <ChannelTable channels={channelData} />}
 
       {/* DDA Analysis Section */}
       <div className="dark-card">
