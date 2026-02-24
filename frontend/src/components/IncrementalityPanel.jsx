@@ -1,24 +1,68 @@
+import { useMemo } from 'react'
 import InfoTip from './InfoTip'
+import { CHANNEL_LABELS } from '../utils/colors'
 
-const MOCK_TESTS = [
-  { channel: 'Meta Ads', type: 'Geo-lift', lift: 12.5, pValue: 0.003, status: 'significant' },
-  { channel: 'Google Ads', type: 'Holdout', lift: 8.2, pValue: 0.012, status: 'significant' },
-  { channel: 'TikTok', type: 'PSA', lift: 15.8, pValue: 0.001, status: 'significant' },
-  { channel: 'LinkedIn', type: 'Geo-lift', lift: 3.1, pValue: 0.142, status: 'not_significant' },
-  { channel: 'YouTube', type: 'Holdout', lift: 6.7, pValue: 0.038, status: 'significant' },
-  { channel: 'DV360', type: 'PSA', lift: 4.2, pValue: 0.089, status: 'marginal' },
+const TEST_TYPES = ['Geo-lift', 'Holdout', 'PSA']
+const MOCK_RESULTS = [
+  { lift: 12.5, pValue: 0.003, status: 'significant' },
+  { lift: 8.2, pValue: 0.012, status: 'significant' },
+  { lift: 15.8, pValue: 0.001, status: 'significant' },
+  { lift: 3.1, pValue: 0.142, status: 'not_significant' },
+  { lift: 6.7, pValue: 0.038, status: 'significant' },
+  { lift: 4.2, pValue: 0.089, status: 'marginal' },
 ]
 
-const CORRECTION_FACTORS = [
-  { channel: 'Meta Ads', factor: 1.0, note: 'Baseline' },
-  { channel: 'Google Ads', factor: 1.0, note: 'Baseline' },
-  { channel: 'TikTok', factor: 1.0, note: 'Baseline' },
-  { channel: 'LinkedIn', factor: 1.0, note: 'Baseline' },
-  { channel: 'YouTube', factor: 1.0, note: 'Baseline' },
-  { channel: 'DV360', factor: 1.0, note: 'Baseline' },
-]
+function buildMockTests(campaign) {
+  const channels = campaign?.channels || []
+  if (channels.length === 0) {
+    return {
+      tests: [
+        { channel: 'Meta Ads', type: 'Geo-lift', lift: 12.5, pValue: 0.003, status: 'significant' },
+        { channel: 'Google Ads', type: 'Holdout', lift: 8.2, pValue: 0.012, status: 'significant' },
+        { channel: 'TikTok', type: 'PSA', lift: 15.8, pValue: 0.001, status: 'significant' },
+        { channel: 'LinkedIn', type: 'Geo-lift', lift: 3.1, pValue: 0.142, status: 'not_significant' },
+        { channel: 'YouTube', type: 'Holdout', lift: 6.7, pValue: 0.038, status: 'significant' },
+        { channel: 'DV360', type: 'PSA', lift: 4.2, pValue: 0.089, status: 'marginal' },
+      ],
+      corrections: [
+        { channel: 'Meta Ads', factor: 1.0, note: 'Baseline' },
+        { channel: 'Google Ads', factor: 1.0, note: 'Baseline' },
+        { channel: 'TikTok', factor: 1.0, note: 'Baseline' },
+        { channel: 'LinkedIn', factor: 1.0, note: 'Baseline' },
+        { channel: 'YouTube', factor: 1.0, note: 'Baseline' },
+        { channel: 'DV360', factor: 1.0, note: 'Baseline' },
+      ],
+    }
+  }
 
-export default function IncrementalityPanel() {
+  const tests = channels.map((ch, i) => {
+    const mock = MOCK_RESULTS[i % MOCK_RESULTS.length]
+    return {
+      channel: CHANNEL_LABELS[ch] || ch,
+      type: TEST_TYPES[i % TEST_TYPES.length],
+      lift: mock.lift,
+      pValue: mock.pValue,
+      status: mock.status,
+    }
+  })
+
+  const corrections = channels.map((ch, i) => {
+    const mock = MOCK_RESULTS[i % MOCK_RESULTS.length]
+    const factor = mock.status === 'significant' ? 1.0
+      : mock.status === 'marginal' ? 0.85
+      : 0.70
+    const note = mock.status === 'significant' ? 'Baseline'
+      : mock.status === 'marginal' ? 'Marjinal düzeltme'
+      : 'Düşük güven düzeltmesi'
+    return { channel: CHANNEL_LABELS[ch] || ch, factor, note }
+  })
+
+  return { tests, corrections }
+}
+
+export default function IncrementalityPanel({ campaign }) {
+  const { tests, corrections } = useMemo(() => buildMockTests(campaign), [campaign])
+
   return (
     <div className="space-y-6">
       <InfoTip>
@@ -56,7 +100,7 @@ export default function IncrementalityPanel() {
               </tr>
             </thead>
             <tbody>
-              {MOCK_TESTS.map(test => (
+              {tests.map(test => (
                 <tr key={test.channel} className="border-b border-dark-border/50 hover:bg-dark-hover transition-colors">
                   <td className="px-4 py-2.5 text-xs text-slate-300">{test.channel}</td>
                   <td className="px-4 py-2.5 text-xs font-mono text-slate-400">{test.type}</td>
@@ -103,7 +147,7 @@ export default function IncrementalityPanel() {
               </tr>
             </thead>
             <tbody>
-              {CORRECTION_FACTORS.map(cf => (
+              {corrections.map(cf => (
                 <tr key={cf.channel} className="border-b border-dark-border/50 hover:bg-dark-hover transition-colors">
                   <td className="px-4 py-2.5 text-xs text-slate-300">{cf.channel}</td>
                   <td className="px-4 py-2.5 text-right text-xs font-mono text-slate-300">{cf.factor.toFixed(2)}</td>

@@ -17,23 +17,48 @@ import { CHANNEL_LABELS, CHANNEL_COLORS } from '../utils/colors'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
-const CHANNELS = ['meta', 'google', 'tiktok', 'linkedin', 'dv360', 'youtube', 'tv_match', 'tv_news', 'radio', 'dooh']
+const ALL_CHANNELS = ['meta', 'google', 'tiktok', 'linkedin', 'dv360', 'youtube', 'tv_match', 'tv_news', 'radio', 'dooh']
 const SAMPLE_SPEND = [1_000_000, 800_000, 600_000, 400_000, 200_000, 100_000, 50_000, 25_000]
 const SAT_INPUTS = Array.from({ length: 30 }, (_, i) => i * 100_000)
 
-// Default weekly spend values (matches backend _compute_default_mmm_shares)
-const DEFAULT_SPEND = {
-  meta: 2_600_000, google: 300_000, tiktok: 800_000,
-  linkedin: 500_000, dv360: 400_000, youtube: 600_000,
-  tv_match: 0, tv_news: 0, radio: 0, dooh: 150_000,
+/* Per-channel typical budget allocation weights (same as Dashboard) */
+const CHANNEL_ALLOC_WEIGHT = {
+  meta: 0.28, google: 0.18, tiktok: 0.10, linkedin: 0.06, dv360: 0.08,
+  youtube: 0.10, tv_match: 0.10, tv_news: 0.04, radio: 0.03, dooh: 0.03,
+}
+
+function buildSpendMap(campaign) {
+  const budget = campaign?.budget || 0
+  const channels = campaign?.channels || ALL_CHANNELS
+  if (!budget) {
+    // Fallback to original defaults
+    return {
+      meta: 2_600_000, google: 300_000, tiktok: 800_000,
+      linkedin: 500_000, dv360: 400_000, youtube: 600_000,
+      tv_match: 0, tv_news: 0, radio: 0, dooh: 150_000,
+    }
+  }
+  let totalW = 0
+  for (const ch of channels) totalW += (CHANNEL_ALLOC_WEIGHT[ch] || 0.05)
+  const spend = {}
+  for (const ch of ALL_CHANNELS) {
+    if (channels.includes(ch)) {
+      spend[ch] = Math.round(budget * (CHANNEL_ALLOC_WEIGHT[ch] || 0.05) / totalW)
+    } else {
+      spend[ch] = 0
+    }
+  }
+  return spend
 }
 
 const fmtM = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(2)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}K` : `${v}`
 const fmtTL = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${(v / 1_000).toFixed(0)}K` : v.toFixed(0)
 
-export default function MMMPanel() {
+export default function MMMPanel({ campaign }) {
+  const campaignChannels = campaign?.channels || ALL_CHANNELS
+  const spendMap = useMemo(() => buildSpendMap(campaign), [campaign])
   const { getAdstock, getSaturation, getDecomposition, config } = useAttribution()
-  const [selectedChannel, setSelectedChannel] = useState('meta')
+  const [selectedChannel, setSelectedChannel] = useState(campaignChannels[0] || 'meta')
   const [adstockData, setAdstockData] = useState(null)
   const [saturationData, setSaturationData] = useState(null)
   const [decomposition, setDecomposition] = useState(null)
@@ -65,13 +90,13 @@ export default function MMMPanel() {
     let cancelled = false
     const loadDecomp = async () => {
       try {
-        const res = await getDecomposition(DEFAULT_SPEND)
+        const res = await getDecomposition(spendMap)
         if (!cancelled) setDecomposition(res)
       } catch { /* silently handle */ }
     }
     loadDecomp()
     return () => { cancelled = true }
-  }, [getDecomposition])
+  }, [getDecomposition, spendMap])
 
   // --- Adstock: find peak carry-over point ---
   const adstockPeak = useMemo(() => {
@@ -289,7 +314,7 @@ export default function MMMPanel() {
     <div className="space-y-6">
       {/* Channel Selector */}
       <div className="flex flex-wrap gap-2">
-        {CHANNELS.map(ch => (
+        {campaignChannels.map(ch => (
           <button
             key={ch}
             onClick={() => setSelectedChannel(ch)}

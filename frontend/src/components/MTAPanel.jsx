@@ -16,7 +16,7 @@ import SegmentPill from './SegmentPill'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
-const SAMPLE_PATHS = [
+const DEFAULT_PATHS = [
   { path: ['meta', 'google', 'meta'], conversions: 45, rate: 0.72, segment: 'S1' },
   { path: ['google', 'linkedin', 'google'], conversions: 32, rate: 0.65, segment: 'S1' },
   { path: ['tiktok', 'meta', 'google'], conversions: 28, rate: 0.58, segment: 'S2' },
@@ -24,7 +24,27 @@ const SAMPLE_PATHS = [
   { path: ['dv360', 'google', 'meta', 'google'], conversions: 18, rate: 0.48, segment: 'S3' },
 ]
 
-export default function MTAPanel({ ddaResult }) {
+const PATH_TEMPLATES = [
+  { pathFn: (chs) => [chs[0], chs[1] || chs[0], chs[0]], conversions: 45, rate: 0.72, segment: 'S1' },
+  { pathFn: (chs) => [chs[1] || chs[0], chs[2] || chs[0], chs[1] || chs[0]], conversions: 32, rate: 0.65, segment: 'S1' },
+  { pathFn: (chs) => [chs[2] || chs[1] || chs[0], chs[0], chs[1] || chs[0]], conversions: 28, rate: 0.58, segment: 'S2' },
+  { pathFn: (chs) => [chs[3] || chs[1] || chs[0], chs[0]], conversions: 22, rate: 0.55, segment: 'S2' },
+  { pathFn: (chs) => [chs[4] || chs[2] || chs[0], chs[1] || chs[0], chs[0], chs[1] || chs[0]], conversions: 18, rate: 0.48, segment: 'S3' },
+]
+
+function buildSamplePaths(campaign) {
+  const channels = campaign?.channels
+  if (!channels || channels.length === 0) return DEFAULT_PATHS
+  return PATH_TEMPLATES.map(t => ({
+    path: t.pathFn(channels),
+    conversions: t.conversions,
+    rate: t.rate,
+    segment: t.segment,
+  }))
+}
+
+export default function MTAPanel({ ddaResult, campaign }) {
+  const samplePaths = useMemo(() => buildSamplePaths(campaign), [campaign])
   const markovData = ddaResult?.markov
   const shapleyData = ddaResult?.shapley_dda
   const hybridData = ddaResult?.hybrid_attribution
@@ -88,7 +108,7 @@ export default function MTAPanel({ ddaResult }) {
           <span className="card-title">Top Conversion Paths</span>
         </div>
         <div className="p-4 space-y-3">
-          {SAMPLE_PATHS.map((p, i) => (
+          {samplePaths.map((p, i) => (
             <div key={i} className="flex items-center gap-3 text-xs">
               <span className="text-slate-500 font-mono w-5">#{i + 1}</span>
               <div className="flex items-center gap-1 flex-wrap flex-1">

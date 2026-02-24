@@ -130,9 +130,9 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         {activeTab === 'unified' && <Dashboard onDdaResult={setDdaResult} campaign={workspace.campaign} />}
-        {activeTab === 'mmm' && <MMMPanel />}
-        {activeTab === 'mta' && <MTAPanel ddaResult={ddaResult} />}
-        {activeTab === 'inc' && <IncrementalityPanel />}
+        {activeTab === 'mmm' && <MMMPanel campaign={workspace.campaign} />}
+        {activeTab === 'mta' && <MTAPanel ddaResult={ddaResult} campaign={workspace.campaign} />}
+        {activeTab === 'inc' && <IncrementalityPanel campaign={workspace.campaign} />}
         {activeTab === 'plan' && <ProjectPlanPanel />}
       </main>
     </div>
