@@ -660,6 +660,24 @@ async def get_template_crm():
     return FileResponse(template_path, media_type="text/csv", filename="crm_touchpoints_template.csv")
 
 
+@router.get("/data/sample/bitaksi/journeys")
+async def get_bitaksi_sample_journeys():
+    """Serve the BiTaksi sample journeys CSV file."""
+    sample_path = SAMPLE_DIR / "bitaksi_journeys.csv"
+    if not sample_path.exists():
+        raise HTTPException(status_code=404, detail="Sample file not found")
+    return FileResponse(sample_path, media_type="text/csv", filename="bitaksi_journeys.csv")
+
+
+@router.get("/data/sample/bitaksi/weekly")
+async def get_bitaksi_sample_weekly():
+    """Serve the BiTaksi sample weekly CSV file."""
+    sample_path = SAMPLE_DIR / "bitaksi_week_01.csv"
+    if not sample_path.exists():
+        raise HTTPException(status_code=404, detail="Sample file not found")
+    return FileResponse(sample_path, media_type="text/csv", filename="bitaksi_week_01.csv")
+
+
 # --------------- Config ---------------
 
 

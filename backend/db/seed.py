@@ -35,6 +35,12 @@ SEED_DATA: dict[str, list[dict]] = {
         {"name": "Yaz'a Merhaba", "budget": 8_000_000, "channels": "meta,google,tiktok,youtube,tv_match,tv_news,radio,dooh"},
         {"name": "Kış Kampanyası", "budget": 5_500_000, "channels": "meta,google,youtube,dv360,tv_news,radio"},
     ],
+    "BiTaksi": [
+        {"name": "App Install Q1", "budget": 3_000_000, "channels": "meta,google,tiktok,dv360,youtube,dooh"},
+        {"name": "Reaktivasyon Q1", "budget": 1_200_000, "channels": "meta,google,dv360"},
+        {"name": "Kurumsal Filo", "budget": 800_000, "channels": "linkedin,google,meta"},
+        {"name": "Havalimanı Geo", "budget": 600_000, "channels": "dv360,google,meta,dooh"},
+    ],
 }
 
 SEED_YEAR = 2026
