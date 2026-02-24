@@ -8,6 +8,7 @@ export default function ReallocationPanel({ data, totalBudget }) {
 
   const rows = Object.entries(data)
     .map(([channel, info]) => ({ channel, ...info }))
+    .filter(row => row.current > 0)
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
 
   return (

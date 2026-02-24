@@ -92,6 +92,30 @@ export default function Dashboard({ onDdaResult, campaign }) {
 
   const { kpi, channels: channelData } = useMemo(() => buildCampaignData(campaign), [campaign])
 
+  // Filter unified + reallocation data to campaign channels only
+  const campaignChannels = campaign?.channels || []
+
+  const filteredUnified = useMemo(() => {
+    if (!unifiedData || campaignChannels.length === 0) return unifiedData
+    const filtered = {}
+    for (const ch of campaignChannels) {
+      if (unifiedData[ch]) filtered[ch] = unifiedData[ch]
+    }
+    return Object.keys(filtered).length > 0 ? filtered : unifiedData
+  }, [unifiedData, campaignChannels])
+
+  const filteredReallocation = useMemo(() => {
+    if (!reallocationData?.suggestions || campaignChannels.length === 0) return reallocationData
+    const filtered = {}
+    for (const ch of campaignChannels) {
+      if (reallocationData.suggestions[ch]) filtered[ch] = reallocationData.suggestions[ch]
+    }
+    return {
+      ...reallocationData,
+      suggestions: Object.keys(filtered).length > 0 ? filtered : reallocationData.suggestions,
+    }
+  }, [reallocationData, campaignChannels])
+
   const handleAnalyzeSample = async () => {
     setAnalyzing(true)
     setAnalysisError(null)
@@ -177,8 +201,8 @@ export default function Dashboard({ onDdaResult, campaign }) {
 
       {/* Unified Scoring */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <UnifiedChart data={unifiedData} />
-        {!unifiedData && (
+        <UnifiedChart data={filteredUnified} />
+        {!filteredUnified && (
           <div className="dark-card p-6">
             <h3 className="card-title mb-4">Unified Scoring Table</h3>
             <p className="text-slate-500 text-xs">
@@ -188,8 +212,8 @@ export default function Dashboard({ onDdaResult, campaign }) {
         )}
       </div>
 
-      <UnifiedScoringTable data={unifiedData} crossValidation={crossValidation} />
-      <ReallocationPanel data={reallocationData?.suggestions} totalBudget={reallocationData?.total_budget} />
+      <UnifiedScoringTable data={filteredUnified} crossValidation={crossValidation} />
+      <ReallocationPanel data={filteredReallocation?.suggestions} totalBudget={filteredReallocation?.total_budget} />
     </div>
   )
 }
