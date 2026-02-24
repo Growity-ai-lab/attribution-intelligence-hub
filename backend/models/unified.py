@@ -57,12 +57,25 @@ def compute_unified_report(
         incrementality_scores = {}
 
     all_channels = set(mmm_scores.keys()) | set(dda_scores.keys())
+
+    # Collect raw incrementality values (default 1.0 = neutral/no data).
+    raw_inc = {ch: incrementality_scores.get(ch, 1.0) for ch in all_channels}
+    total_inc = sum(raw_inc.values())
+
+    # Normalize to proportional shares (sum → 1.0) so incrementality
+    # lives on the same scale as DDA / MMM attribution shares.
+    if total_inc > 0:
+        norm_inc = {ch: v / total_inc for ch, v in raw_inc.items()}
+    else:
+        n = len(all_channels) or 1
+        norm_inc = {ch: 1.0 / n for ch in all_channels}
+
     report: dict[str, dict[str, float]] = {}
 
     for ch in all_channels:
         mmm = mmm_scores.get(ch, 0.0)
         dda = dda_scores.get(ch, 0.0)
-        inc = incrementality_scores.get(ch, 1.0)
+        inc = norm_inc[ch]
 
         unified = compute_unified_score(mmm, dda, inc, weights)
         report[ch] = {

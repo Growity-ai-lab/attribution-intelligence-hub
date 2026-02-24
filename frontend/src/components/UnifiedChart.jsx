@@ -22,9 +22,10 @@ export default function UnifiedChart({ data }) {
       .sort((a, b) => (b.unified_score || 0) - (a.unified_score || 0))
 
     const labels = sorted.map(r => CHANNEL_LABELS[r.channel] || r.channel)
-    const ddaValues = sorted.map(r => ((r.dda_score || 0) * 100))
-    const mmmValues = sorted.map(r => ((r.mmm_score || 0) * 100))
-    const incValues = sorted.map(r => ((r.incrementality_score || 0) * 100))
+    // Apply unified weights so stacked bar total = unified_score
+    const ddaValues = sorted.map(r => ((r.dda_score || 0) * 0.50 * 100))
+    const mmmValues = sorted.map(r => ((r.mmm_score || 0) * 0.35 * 100))
+    const incValues = sorted.map(r => ((r.incrementality_score || 0) * 0.15 * 100))
 
     return {
       labels,
