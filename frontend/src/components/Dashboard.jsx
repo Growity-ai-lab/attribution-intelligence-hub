@@ -81,7 +81,7 @@ function buildCampaignData(campaign) {
 }
 
 
-export default function Dashboard({ onDdaResult, campaign }) {
+export default function Dashboard({ onDdaResult, campaign, isDemo }) {
   const { fetchSampleJourneys, runDDAFromCSV, getReallocation } = useAttribution()
   const [unifiedData, setUnifiedData] = useState(null)
   const [crossValidation, setCrossValidation] = useState([])
@@ -197,7 +197,7 @@ export default function Dashboard({ onDdaResult, campaign }) {
         </div>
       </div>
 
-      <DataUpload />
+      {!isDemo && <DataUpload />}
 
       {/* Unified Scoring */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

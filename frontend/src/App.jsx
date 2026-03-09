@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import axios from 'axios'
 import { useAuth } from './hooks/useAuth'
 import LoginPage from './components/LoginPage'
 import WorkspaceSelector from './components/WorkspaceSelector'
@@ -17,10 +18,38 @@ const TABS = [
 ]
 
 export default function App() {
-  const { user, loading, login, logout } = useAuth()
+  const { user, loading, login, loginAsDemo, logout } = useAuth()
   const [activeTab, setActiveTab] = useState('unified')
   const [ddaResult, setDdaResult] = useState(null)
   const [workspace, setWorkspace] = useState(null) // { client, campaign }
+
+  const isDemo = user?.role === 'demo'
+
+  // Auto-select first workspace for demo users
+  useEffect(() => {
+    if (!isDemo || workspace) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await axios.get('/api/clients')
+        const clients = res.data
+        if (cancelled || !clients.length) return
+        // Pick first client with campaigns (prefer "Petrol Ofisi")
+        const po = clients.find(c => c.name === 'Petrol Ofisi') || clients[0]
+        const campRes = await axios.get(`/api/clients/${po.id}/campaigns`)
+        const campaigns = campRes.data
+        if (cancelled || !campaigns.length) return
+        // Prefer "AutoMatic Filo" or first available
+        const camp = campaigns.find(c => c.name.includes('AutoMatic')) || campaigns[0]
+        const channels = camp.channels ? camp.channels.split(',').map(c => c.trim()) : []
+        setWorkspace({
+          client: po,
+          campaign: { ...camp, channels },
+        })
+      } catch { /* ignore — user will see workspace selector */ }
+    })()
+    return () => { cancelled = true }
+  }, [isDemo, workspace])
 
   if (loading) {
     return (
@@ -31,7 +60,7 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginPage onLogin={login} />
+    return <LoginPage onLogin={login} onDemoLogin={loginAsDemo} />
   }
 
   // No workspace selected yet — show selector
@@ -65,6 +94,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-dark-bg bg-grid-overlay">
+      {/* Demo Banner */}
+      {isDemo && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center">
+          <p className="text-xs text-amber-300">
+            <span className="font-semibold">Demo Modu</span> &mdash; Örnek verilerle platformu keşfediyorsunuz. Gerçek kampanya verinizle çalışmak için{' '}
+            <button onClick={logout} className="underline hover:text-amber-200 font-medium transition-colors">
+              giriş yapın
+            </button>.
+          </p>
+        </div>
+      )}
       {/* Header */}
       <header className="border-b border-dark-border bg-dark-bg/80 backdrop-blur-sm sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -86,25 +126,32 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleBackToWorkspace}
-              className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
-            >
-              &larr; Kampanyalar
-            </button>
+            {!isDemo && (
+              <button
+                onClick={handleBackToWorkspace}
+                className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+              >
+                &larr; Kampanyalar
+              </button>
+            )}
             {workspace.campaign.budget > 0 && (
               <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-accent/15 text-accent">
                 {(workspace.campaign.budget / 1_000_000).toFixed(1)}M &#8378;
               </span>
             )}
-            <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-emerald-500/15 text-emerald-400">
+            {isDemo && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                DEMO
+              </span>
+            )}
+            <span className={`px-2 py-0.5 rounded-full text-xs font-mono ${isDemo ? 'bg-amber-500/10 text-amber-300' : 'bg-emerald-500/15 text-emerald-400'}`}>
               {user.username}
             </span>
             <button
               onClick={logout}
               className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700/50 text-slate-400 hover:text-red-400 transition-colors"
             >
-              Çıkış
+              {isDemo ? 'Çıkış' : 'Çıkış'}
             </button>
           </div>
         </div>
@@ -129,7 +176,7 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {activeTab === 'unified' && <Dashboard onDdaResult={setDdaResult} campaign={workspace.campaign} />}
+        {activeTab === 'unified' && <Dashboard onDdaResult={setDdaResult} campaign={workspace.campaign} isDemo={isDemo} />}
         {activeTab === 'mmm' && <MMMPanel campaign={workspace.campaign} />}
         {activeTab === 'mta' && <MTAPanel ddaResult={ddaResult} campaign={workspace.campaign} />}
         {activeTab === 'inc' && <IncrementalityPanel campaign={workspace.campaign} />}

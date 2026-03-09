@@ -73,6 +73,13 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
     return {"access_token": token, "token_type": "bearer"}
 
 
+@router.post("/auth/demo")
+async def demo_login() -> dict:
+    """Generate a demo access token — no credentials required."""
+    token = create_access_token(data={"sub": "demo", "role": "demo"})
+    return {"access_token": token, "token_type": "bearer"}
+
+
 @router.get("/auth/me")
 async def get_me(current_user: dict = Depends(get_current_user)) -> dict:
     """Return the current authenticated user."""

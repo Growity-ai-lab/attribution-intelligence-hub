@@ -141,11 +141,12 @@ function LogoBg() {
   )
 }
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, onDemoLogin }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [demoLoading, setDemoLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -157,6 +158,18 @@ export default function LoginPage({ onLogin }) {
       setError(err.response?.data?.detail || 'Giriş başarısız')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDemo = async () => {
+    setError(null)
+    setDemoLoading(true)
+    try {
+      await onDemoLogin()
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Demo girişi başarısız')
+    } finally {
+      setDemoLoading(false)
     }
   }
 
@@ -213,6 +226,26 @@ export default function LoginPage({ onLogin }) {
           >
             {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
           </button>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-dark-border" />
+            <span className="text-xs text-slate-600">veya</span>
+            <div className="flex-1 h-px bg-dark-border" />
+          </div>
+
+          {/* Demo Button */}
+          <button
+            type="button"
+            onClick={handleDemo}
+            disabled={demoLoading}
+            className="w-full py-2.5 bg-dark-bg border border-emerald-500/30 text-emerald-400 rounded-lg text-sm font-medium hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-colors disabled:opacity-50"
+          >
+            {demoLoading ? 'Hazırlanıyor...' : 'Demo ile Dene'}
+          </button>
+          <p className="text-center text-xs text-slate-600 -mt-1">
+            Kayıt gerektirmez &mdash; örnek verilerle platformu keşfedin
+          </p>
         </form>
 
         <p className="text-center text-xs text-slate-600 mt-6">

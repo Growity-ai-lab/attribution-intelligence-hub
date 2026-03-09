@@ -22,10 +22,20 @@ export function useAuth() {
     return meRes.data
   }, [])
 
+  const loginAsDemo = useCallback(async () => {
+    const res = await axios.post('/api/auth/demo')
+    const { access_token } = res.data
+    axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
+
+    const meRes = await axios.get('/api/auth/me')
+    setUser(meRes.data)
+    return meRes.data
+  }, [])
+
   const logout = useCallback(() => {
     delete axios.defaults.headers.common['Authorization']
     setUser(null)
   }, [])
 
-  return { user, loading, login, logout }
+  return { user, loading, login, loginAsDemo, logout }
 }
