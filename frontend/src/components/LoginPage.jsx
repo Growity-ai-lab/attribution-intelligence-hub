@@ -177,61 +177,67 @@ export default function LoginPage({ onLogin, onDemoLogin }) {
     <div className="relative min-h-screen bg-dark-bg bg-grid-overlay flex items-center justify-center px-4 overflow-hidden">
       <LogoBg />
 
-      <div className="relative z-10 w-full max-w-sm">
+      <div className="relative z-10 w-full max-w-md">
         {/* Title */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">
-            Time's Hub
+          <h1 className="text-3xl font-bold text-slate-100 tracking-tight">
+            Time{'\u2019'}s Hub
           </h1>
           <p className="text-sm text-slate-400 mt-1 font-medium">Attribution Intelligence</p>
         </div>
 
-        {/* Login Card */}
-        <form onSubmit={handleSubmit} className="dark-card p-6 space-y-4 backdrop-blur-sm">
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Kullanıcı Adı</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              autoFocus
-              className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-accent transition-colors"
-              placeholder="admin"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Şifre</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-accent transition-colors"
-              placeholder="********"
-            />
-          </div>
-
-          {error && (
-            <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs">
-              {error}
+        {/* Card */}
+        <div className="rounded-2xl bg-[#141822] border border-slate-700/50 shadow-2xl shadow-black/40 p-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* E-posta */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">E-posta</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoFocus
+                className="w-full px-4 py-3 bg-[#0d1017] border border-slate-600/60 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 transition-all"
+                placeholder="E-posta adresiniz"
+              />
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-dark transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
-          </button>
+            {/* Parola */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Parola</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full px-4 py-3 bg-[#0d1017] border border-slate-600/60 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 transition-all"
+                placeholder="Parolanız"
+              />
+            </div>
+
+            {error && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">
+                {error}
+              </div>
+            )}
+
+            {/* Gradient Login Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 rounded-xl text-sm font-bold tracking-widest uppercase text-white transition-all disabled:opacity-50 hover:brightness-110 active:scale-[0.98]"
+              style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
+            >
+              {loading ? 'Giriş yapılıyor...' : 'GİRİŞ YAP'}
+            </button>
+          </form>
 
           {/* Divider */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-dark-border" />
-            <span className="text-xs text-slate-600">veya</span>
-            <div className="flex-1 h-px bg-dark-border" />
+          <div className="flex items-center gap-4 my-7">
+            <div className="flex-1 h-px bg-slate-700/60" />
+            <span className="text-sm text-slate-500 font-medium">veya</span>
+            <div className="flex-1 h-px bg-slate-700/60" />
           </div>
 
           {/* Demo Button */}
@@ -239,17 +245,18 @@ export default function LoginPage({ onLogin, onDemoLogin }) {
             type="button"
             onClick={handleDemo}
             disabled={demoLoading}
-            className="w-full py-2.5 bg-dark-bg border border-emerald-500/30 text-emerald-400 rounded-lg text-sm font-medium hover:bg-emerald-500/10 hover:border-emerald-500/50 transition-colors disabled:opacity-50"
+            className="w-full py-3.5 rounded-xl text-sm font-semibold text-slate-400 bg-[#0d1017] border border-slate-600/40 hover:border-slate-500/60 hover:text-slate-200 transition-all disabled:opacity-50 active:scale-[0.98]"
           >
-            {demoLoading ? 'Hazırlanıyor...' : 'Demo ile Dene'}
+            {demoLoading ? 'Hazırlanıyor...' : 'Demo Modunda Keşfet'}
           </button>
-          <p className="text-center text-xs text-slate-600 -mt-1">
-            Kayıt gerektirmez &mdash; örnek verilerle platformu keşfedin
+          <p className="text-center text-xs text-slate-600 mt-3">
+            {'Kayıt gerektirmez \u2014 tüm özellikler örnek verilerle çalışır'}
           </p>
-        </form>
+        </div>
 
-        <p className="text-center text-xs text-slate-600 mt-6">
-          {'Time \u00d7 Growity'} &mdash; Güvenli Erişim
+        {/* Footer */}
+        <p className="text-center text-xs text-slate-500 mt-8">
+          powered by <span className="text-accent font-medium">Growity AI Studio</span>
         </p>
       </div>
     </div>
