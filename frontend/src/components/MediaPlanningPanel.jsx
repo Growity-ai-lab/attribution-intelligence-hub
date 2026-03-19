@@ -37,6 +37,7 @@ export default function MediaPlanningPanel({ campaign }) {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [activeChartTab, setActiveChartTab] = useState('adstock')
+  const [reachFilter, setReachFilter] = useState('all') // 'all', 'r1', 'r2', 'r3'
   const debounceRef = useRef(null)
 
   // Load presets when channel changes
@@ -161,36 +162,34 @@ export default function MediaPlanningPanel({ campaign }) {
     }
   }, [result, channelColor])
 
+  const REACH_SERIES = {
+    r1: { label: '1+ Reach %', color: '#3b82f6' },
+    r2: { label: '2+ Reach %', color: '#f97316' },
+    r3: { label: '3+ Reach %', color: '#10b981' },
+  }
+
   const reachChartData = useMemo(() => {
     if (!result?.reach_curve?.length) return null
     const rc = result.reach_curve
-    return {
-      labels: rc.map(d => `W${rc.indexOf(d) + 1}`),
-      datasets: [
-        {
-          label: '1+ Reach %',
-          data: rc.map(d => d.r1),
-          borderColor: '#3b82f6',
-          backgroundColor: '#3b82f620',
-          fill: true, tension: 0.3, pointRadius: 3,
-        },
-        {
-          label: '2+ Reach %',
-          data: rc.map(d => d.r2),
-          borderColor: '#f97316',
-          backgroundColor: '#f9731620',
-          fill: true, tension: 0.3, pointRadius: 3,
-        },
-        {
-          label: '3+ Reach %',
-          data: rc.map(d => d.r3),
-          borderColor: '#10b981',
-          backgroundColor: '#10b98120',
-          fill: true, tension: 0.3, pointRadius: 3,
-        },
-      ],
-    }
-  }, [result])
+    const labels = rc.map((_, i) => `W${i + 1}`)
+
+    const visibleKeys = reachFilter === 'all'
+      ? ['r1', 'r2', 'r3']
+      : [reachFilter]
+
+    const datasets = visibleKeys.map(key => ({
+      label: REACH_SERIES[key].label,
+      data: rc.map(d => d[key]),
+      borderColor: REACH_SERIES[key].color,
+      backgroundColor: REACH_SERIES[key].color + '20',
+      fill: visibleKeys.length === 1,
+      tension: 0.3,
+      pointRadius: 4,
+      borderWidth: visibleKeys.length === 1 ? 2.5 : 2,
+    }))
+
+    return { labels, datasets }
+  }, [result, reachFilter])
 
   const responseChartData = useMemo(() => {
     if (!result) return null
@@ -456,36 +455,70 @@ export default function MediaPlanningPanel({ campaign }) {
               {/* Reach Tab */}
               {activeChartTab === 'reach' && (
                 <>
+                  {/* Reach filter buttons */}
+                  <div className="flex items-center gap-1.5 mb-3">
+                    {[
+                      { id: 'all', label: 'Hepsi' },
+                      { id: 'r1', label: '1+ Reach' },
+                      { id: 'r2', label: '2+ Reach' },
+                      { id: 'r3', label: '3+ Reach' },
+                    ].map(f => (
+                      <button
+                        key={f.id}
+                        onClick={() => setReachFilter(f.id)}
+                        className={`px-3 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                          reachFilter === f.id
+                            ? 'text-white'
+                            : 'bg-dark-bg border border-dark-border text-slate-500 hover:text-slate-300'
+                        }`}
+                        style={reachFilter === f.id
+                          ? { backgroundColor: f.id === 'all' ? '#64748b' : REACH_SERIES[f.id]?.color || '#64748b' }
+                          : undefined
+                        }
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
                   <div className="h-72">
                     {reachChartData && <Line data={reachChartData} options={reachOpts} />}
                   </div>
-                  {result.reach_curve?.length > 0 && (
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">Kümülatif GRP</p>
-                        <p className="text-sm font-mono text-slate-100 mt-0.5">
-                          {result.reach_curve[result.reach_curve.length - 1].cumulative_grp.toLocaleString('tr-TR')}
-                        </p>
+
+                  {/* Dynamic KPI cards based on filter */}
+                  {result.reach_curve?.length > 0 && (() => {
+                    const last = result.reach_curve[result.reach_curve.length - 1]
+                    const cards = [
+                      { label: 'Kümülatif GRP', value: last.cumulative_grp.toLocaleString('tr-TR'), color: 'text-slate-100' },
+                    ]
+                    if (reachFilter === 'all' || reachFilter === 'r1') {
+                      cards.push({ label: '1+ Reach', value: `%${last.r1.toFixed(1)}`, color: 'text-blue-400' })
+                    }
+                    if (reachFilter === 'all' || reachFilter === 'r2') {
+                      cards.push({ label: '2+ Reach', value: `%${last.r2.toFixed(1)}`, color: 'text-orange-400' })
+                    }
+                    if (reachFilter === 'all' || reachFilter === 'r3') {
+                      cards.push({ label: '3+ Reach', value: `%${last.r3.toFixed(1)}`, color: 'text-emerald-400' })
+                    }
+                    return (
+                      <div className={`mt-3 grid gap-2`} style={{ gridTemplateColumns: `repeat(${cards.length}, minmax(0, 1fr))` }}>
+                        {cards.map(c => (
+                          <div key={c.label} className="bg-dark-bg rounded-lg p-2.5 text-center">
+                            <p className="text-[10px] text-slate-500 uppercase tracking-wide">{c.label}</p>
+                            <p className={`text-sm font-mono mt-0.5 ${c.color}`}>{c.value}</p>
+                          </div>
+                        ))}
                       </div>
-                      <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">1+ Reach</p>
-                        <p className="text-sm font-mono text-blue-400 mt-0.5">
-                          %{result.reach_curve[result.reach_curve.length - 1].r1.toFixed(1)}
-                        </p>
-                      </div>
-                      <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">3+ Reach</p>
-                        <p className="text-sm font-mono text-emerald-400 mt-0.5">
-                          %{result.reach_curve[result.reach_curve.length - 1].r3.toFixed(1)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                    )
+                  })()}
+
                   <div className="mt-3 p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed">
                     <strong className="text-slate-300">GRP & Reach:</strong>
-                    {' Coverguide verisine dayalı erişim tahmini. 1+ Reach: en az 1 kez gören kitle oranı, '}
-                    {'3+ Reach: en az 3 kez gören kitle (efektif erişim). '}
-                    {'Hedef: 2+ Reach %45-55 aralığında optimal maliyet-etkinlik dengesi.'}
+                    {' Coverguide verisine dayalı erişim tahmini. '}
+                    {reachFilter === 'r1' && '1+ Reach: en az 1 kez gören kitle oranı. Geniş bilinirlik kampanyaları için hedefleyin.'}
+                    {reachFilter === 'r2' && '2+ Reach: en az 2 kez gören kitle. Maliyet-etkinlik açısından en dengeli metrik — hedef %45-55 arası.'}
+                    {reachFilter === 'r3' && '3+ Reach: en az 3 kez gören kitle (efektif erişim). Mesajın yerleşmesi için minimum frekans eşiği.'}
+                    {reachFilter === 'all' && '1+ Reach: geniş bilinirlik, 2+ Reach: optimal denge (%45-55 hedef), 3+ Reach: efektif erişim (mesaj yerleşimi).'}
                   </div>
                 </>
               )}
