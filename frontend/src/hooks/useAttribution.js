@@ -90,6 +90,19 @@ export function useAttribution() {
     return new File([res.data], 'journeys_sample.csv', { type: 'text/csv' })
   }, [])
 
+  const simulateMediaPlan = useCallback(async (channel, weeklyGrps) => {
+    const res = await axios.post(`${API_BASE}/media-planning/simulate`, {
+      channel,
+      weekly_grps: weeklyGrps,
+    })
+    return res.data
+  }, [])
+
+  const getMediaPlanPresets = useCallback(async (channel) => {
+    const res = await axios.get(`${API_BASE}/media-planning/presets/${channel}`)
+    return res.data
+  }, [])
+
   const downloadFile = useCallback(async (url, filename) => {
     const res = await axios.get(`${API_BASE}${url}`, { responseType: 'blob' })
     const blobUrl = window.URL.createObjectURL(res.data)
@@ -118,6 +131,8 @@ export function useAttribution() {
     getReallocation,
     fetchSampleJourneys,
     downloadFile,
+    simulateMediaPlan,
+    getMediaPlanPresets,
     refetch: fetchConfig,
   }
 }

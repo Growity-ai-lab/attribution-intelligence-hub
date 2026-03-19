@@ -20,13 +20,18 @@ from backend.config import (
     BASELINE_LEADS,
     CHANNELS,
     DDA_BLEND_WEIGHTS,
+    GRP_MAX_LIFT,
+    GRP_PRESETS,
+    GRP_SATURATION_PARAMS,
     MARKOV_PRIOR_ALPHA,
     MAX_ARRAY_SIZE,
     MAX_JOURNEY_COUNT,
     MAX_LIFT,
     MAX_UPLOAD_SIZE_BYTES,
+    OFFLINE_CHANNELS,
     PRIOR_ALPHA_MAX,
     PRIOR_ALPHA_MIN,
+    REACH_LOOKUP,
     SAMPLE_DIR,
     SATURATION_PARAMS,
     TEMPLATE_DIR,
@@ -36,7 +41,12 @@ from backend.data.loader import load_crm_touchpoints, load_weekly_csv
 from backend.data.schemas import (
     AdstockResult,
     ChannelDecomposition,
+    MediaPlanningRequest,
+    MediaPlanningResponse,
+    OptimalGRPResult,
+    ReachDataPoint,
     SaturationResult,
+    WeeklySimDetail,
 )
 from backend.models.dda.data_prep import Journey, _is_truthy, extract_journeys, journey_stats
 from backend.models.dda.ensemble import run_full_dda_pipeline
@@ -699,4 +709,203 @@ def get_channels() -> dict:
         "unified_weights": UNIFIED_WEIGHTS,
         "dda_blend_weights": DDA_BLEND_WEIGHTS,
         "markov_prior_alpha": MARKOV_PRIOR_ALPHA,
+    }
+
+
+# --------------- Media Planning ---------------
+
+
+def _find_optimal_grp(alpha: float, gamma: float, max_lift: float) -> tuple[float, float]:
+    """Find optimal and saturation-threshold GRP levels.
+
+    Returns (optimal_grp, threshold_grp) where:
+    - optimal: GRP where marginal gain drops below 50% of initial marginal gain
+    - threshold: GRP where marginal gain drops below 10% of initial marginal gain
+    """
+    step = 10
+    test_grps = list(range(0, 1501, step))
+    responses = []
+    for g in test_grps:
+        sat = compute_saturation(float(g), alpha, gamma)
+        resp = compute_response(sat, 0.0, max_lift)
+        responses.append(resp)
+
+    marginal_ref = responses[1] - responses[0] if len(responses) > 1 else 1.0
+    if marginal_ref <= 0:
+        return float(test_grps[-1]), float(test_grps[-1])
+
+    optimal_grp = float(test_grps[-1])
+    threshold_grp = float(test_grps[-1])
+    found_optimal = False
+    for i in range(2, len(test_grps)):
+        marginal = responses[i] - responses[i - 1]
+        if not found_optimal and marginal < marginal_ref * 0.5:
+            optimal_grp = float(test_grps[i])
+            found_optimal = True
+        if marginal < marginal_ref * 0.1:
+            threshold_grp = float(test_grps[i])
+            break
+
+    return optimal_grp, threshold_grp
+
+
+def _generate_recommendation(channel: str, avg_grp: float, optimal: float, threshold: float) -> str:
+    """Generate Turkish-language GRP recommendation."""
+    label = {
+        "tv_match": "TV Maç", "tv_news": "TV Haber",
+        "radio": "Radyo", "dooh": "DOOH",
+    }.get(channel, channel)
+
+    if avg_grp < optimal * 0.8:
+        return (
+            f"{label} kanalında mevcut ortalama GRP ({avg_grp:.0f}) optimal seviyenin "
+            f"({optimal:.0f}) altında. GRP artışı ile lead kazanımı artırılabilir."
+        )
+    if avg_grp > threshold:
+        return (
+            f"{label} kanalında mevcut ortalama GRP ({avg_grp:.0f}) doygunluk eşiğini "
+            f"({threshold:.0f}) aşıyor. GRP azaltılarak verimlilik artırılabilir."
+        )
+    return (
+        f"{label} kanalında mevcut GRP seviyesi ({avg_grp:.0f}) optimal aralıkta "
+        f"({optimal:.0f}–{threshold:.0f}). Mevcut plana devam edilmesi önerilir."
+    )
+
+
+def _interpolate_reach(cumulative_grp: float) -> dict[str, float]:
+    """Interpolate reach values from lookup table."""
+    grp_keys = sorted(REACH_LOOKUP.keys())
+    if cumulative_grp <= grp_keys[0]:
+        entry = REACH_LOOKUP[grp_keys[0]]
+        ratio = cumulative_grp / grp_keys[0] if grp_keys[0] > 0 else 0
+        return {"r1": entry["r1"] * ratio, "r2": entry["r2"] * ratio, "r3": entry["r3"] * ratio}
+    if cumulative_grp >= grp_keys[-1]:
+        return REACH_LOOKUP[grp_keys[-1]]
+
+    for i in range(len(grp_keys) - 1):
+        lo, hi = grp_keys[i], grp_keys[i + 1]
+        if lo <= cumulative_grp <= hi:
+            t = (cumulative_grp - lo) / (hi - lo)
+            lo_v, hi_v = REACH_LOOKUP[lo], REACH_LOOKUP[hi]
+            return {
+                "r1": lo_v["r1"] + t * (hi_v["r1"] - lo_v["r1"]),
+                "r2": lo_v["r2"] + t * (hi_v["r2"] - lo_v["r2"]),
+                "r3": lo_v["r3"] + t * (hi_v["r3"] - lo_v["r3"]),
+            }
+    return REACH_LOOKUP[grp_keys[-1]]
+
+
+@router.post("/media-planning/simulate")
+def simulate_media_plan(
+    request: MediaPlanningRequest,
+    _user: dict = Depends(get_current_user),
+) -> MediaPlanningResponse:
+    """Simulate offline media plan given weekly GRP values."""
+    channel = request.channel
+    if channel not in OFFLINE_CHANNELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Channel must be offline: {', '.join(sorted(OFFLINE_CHANNELS))}",
+        )
+
+    decay = ADSTOCK_PARAMS[channel]
+    alpha, gamma = GRP_SATURATION_PARAMS[channel]
+    max_lift = GRP_MAX_LIFT[channel]
+    baseline_per_ch = BASELINE_LEADS / len(CHANNELS)
+
+    # 1. Adstock
+    adstocked = compute_adstock(list(request.weekly_grps), decay)
+
+    # 2. Saturation + Response per week
+    weekly_details: list[WeeklySimDetail] = []
+    for i, (grp, adst) in enumerate(zip(request.weekly_grps, adstocked)):
+        sat = compute_saturation(adst, alpha, gamma)
+        leads = compute_response(sat, baseline_per_ch, max_lift)
+        weekly_details.append(WeeklySimDetail(
+            week=i + 1,
+            grp=round(grp, 1),
+            adstocked_grp=round(adst, 1),
+            saturated=round(sat, 4),
+            estimated_leads=round(leads, 1),
+            marginal_leads=round(leads - baseline_per_ch, 1),
+        ))
+
+    # 3. Summary
+    total_grp = sum(request.weekly_grps)
+    total_leads = sum(d.estimated_leads for d in weekly_details)
+    avg_grp = total_grp / len(request.weekly_grps) if request.weekly_grps else 0
+    peak_week = max(weekly_details, key=lambda d: d.estimated_leads).week if weekly_details else 1
+    leads_per_100 = (total_leads / total_grp * 100) if total_grp > 0 else 0
+
+    summary = {
+        "total_grp": round(total_grp, 0),
+        "avg_grp": round(avg_grp, 1),
+        "total_leads": round(total_leads, 1),
+        "leads_per_100_grp": round(leads_per_100, 2),
+        "peak_week": peak_week,
+    }
+
+    # 4. Optimal GRP
+    opt_grp, sat_threshold = _find_optimal_grp(alpha, gamma, max_lift)
+    recommendation = _generate_recommendation(channel, avg_grp, opt_grp, sat_threshold)
+    optimal = OptimalGRPResult(
+        optimal_weekly_grp=opt_grp,
+        saturation_threshold_grp=sat_threshold,
+        current_avg_grp=round(avg_grp, 1),
+        recommendation=recommendation,
+    )
+
+    # 5. Saturation curve for chart
+    max_grp_chart = max(max(request.weekly_grps, default=400) * 2, 800)
+    curve_count = 50
+    curve_grps = [round(i * (max_grp_chart / curve_count), 1) for i in range(curve_count + 1)]
+    curve_sat = [round(compute_saturation(g, alpha, gamma), 4) for g in curve_grps]
+    saturation_curve = {"grp_values": curve_grps, "saturated_values": curve_sat}
+
+    # 6. Reach curve
+    reach_curve: list[ReachDataPoint] = []
+    cum_grp = 0.0
+    for d in weekly_details:
+        cum_grp += d.grp
+        r = _interpolate_reach(cum_grp)
+        reach_curve.append(ReachDataPoint(
+            cumulative_grp=round(cum_grp, 0),
+            r1=round(r["r1"], 1),
+            r2=round(r["r2"], 1),
+            r3=round(r["r3"], 1),
+        ))
+
+    return MediaPlanningResponse(
+        channel=channel,
+        decay=decay,
+        alpha=alpha,
+        gamma=gamma,
+        max_lift=max_lift,
+        weekly_details=weekly_details,
+        summary=summary,
+        optimal=optimal,
+        saturation_curve=saturation_curve,
+        reach_curve=reach_curve,
+    )
+
+
+@router.get("/media-planning/presets/{channel}")
+def get_media_planning_presets(
+    channel: str,
+    _user: dict = Depends(get_current_user),
+) -> dict:
+    """Return default GRP presets and parameters for a channel."""
+    if channel not in OFFLINE_CHANNELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Channel must be offline: {', '.join(sorted(OFFLINE_CHANNELS))}",
+        )
+    alpha, gamma = GRP_SATURATION_PARAMS[channel]
+    return {
+        "channel": channel,
+        "preset_grps": GRP_PRESETS.get(channel, []),
+        "decay": ADSTOCK_PARAMS[channel],
+        "alpha": alpha,
+        "gamma": gamma,
+        "max_lift": GRP_MAX_LIFT[channel],
     }

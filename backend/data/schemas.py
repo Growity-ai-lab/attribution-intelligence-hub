@@ -97,3 +97,57 @@ class WeeklyReport(BaseModel):
     total_leads: int
     baseline_leads: float
     channel_scores: list[UnifiedScore]
+
+
+# --------------- Media Planning ---------------
+
+
+class MediaPlanningRequest(BaseModel):
+    """Request for media planning simulation."""
+
+    channel: str = Field(..., description="Offline channel: tv_match, tv_news, radio, dooh")
+    weekly_grps: list[float] = Field(..., description="GRP values per week", min_length=1, max_length=52)
+
+
+class WeeklySimDetail(BaseModel):
+    """Per-week simulation result."""
+
+    week: int
+    grp: float
+    adstocked_grp: float
+    saturated: float
+    estimated_leads: float
+    marginal_leads: float
+
+
+class OptimalGRPResult(BaseModel):
+    """Optimal GRP recommendation."""
+
+    optimal_weekly_grp: float
+    saturation_threshold_grp: float
+    current_avg_grp: float
+    recommendation: str
+
+
+class ReachDataPoint(BaseModel):
+    """Single GRP-to-reach data point."""
+
+    cumulative_grp: float
+    r1: float
+    r2: float
+    r3: float
+
+
+class MediaPlanningResponse(BaseModel):
+    """Full media planning simulation response."""
+
+    channel: str
+    decay: float
+    alpha: float
+    gamma: float
+    max_lift: float
+    weekly_details: list[WeeklySimDetail]
+    summary: dict
+    optimal: OptimalGRPResult
+    saturation_curve: dict
+    reach_curve: list[ReachDataPoint]

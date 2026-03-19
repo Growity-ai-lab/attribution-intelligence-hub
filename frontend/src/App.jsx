@@ -8,12 +8,14 @@ import MMMPanel from './components/MMMPanel'
 import MTAPanel from './components/MTAPanel'
 import IncrementalityPanel from './components/IncrementalityPanel'
 import ProjectPlanPanel from './components/ProjectPlanPanel'
+import MediaPlanningPanel from './components/MediaPlanningPanel'
 
 const TABS = [
   { id: 'unified', label: 'Unified Rapor' },
   { id: 'mmm', label: 'MMM Çıktıları' },
   { id: 'mta', label: 'MTA Paths' },
   { id: 'inc', label: 'Incrementality' },
+  { id: 'media', label: 'Medya Planlama' },
   { id: 'plan', label: 'Proje Planı' },
 ]
 
@@ -180,6 +182,7 @@ export default function App() {
         {activeTab === 'mmm' && <MMMPanel campaign={workspace.campaign} />}
         {activeTab === 'mta' && <MTAPanel ddaResult={ddaResult} campaign={workspace.campaign} />}
         {activeTab === 'inc' && <IncrementalityPanel campaign={workspace.campaign} />}
+        {activeTab === 'media' && <MediaPlanningPanel campaign={workspace.campaign} />}
         {activeTab === 'plan' && <ProjectPlanPanel />}
       </main>
     </div>
