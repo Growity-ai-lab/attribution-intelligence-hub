@@ -12,10 +12,11 @@ import {
   Filler,
 } from 'chart.js'
 import { Line, Bar } from 'react-chartjs-2'
+import annotationPlugin from 'chartjs-plugin-annotation'
 import { useAttribution } from '../hooks/useAttribution'
 import { CHANNEL_LABELS, CHANNEL_COLORS } from '../utils/colors'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, Filler)
+ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, Filler, annotationPlugin)
 
 const OFFLINE = ['tv_match', 'tv_news', 'radio', 'dooh']
 const WEEK_OPTIONS = [4, 8, 12, 16, 20, 24]
@@ -26,10 +27,22 @@ const SCENARIO_PRESETS = {
   maksimum: { label: 'Maksimum', icon: '↑', decay_mult: 1.2, grp_mult: 1.5 },
 }
 
+const DEFAULT_CPP = {
+  tv_match: 25000, tv_news: 15000, radio: 5000, dooh: 3000,
+}
+
 const fmtN = v => v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0)
+const fmtMoney = v => {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`
+  return v.toFixed(0)
+}
 
 export default function MediaPlanningPanel({ campaign }) {
-  const { simulateMediaPlan, getMediaPlanPresets } = useAttribution()
+  const {
+    simulateMediaPlan, getMediaPlanPresets,
+    saveMediaPlan, listSavedMediaPlans, getSavedMediaPlan, deleteSavedMediaPlan,
+  } = useAttribution()
   const [selectedChannel, setSelectedChannel] = useState('tv_match')
   const [numWeeks, setNumWeeks] = useState(12)
   const [weeklyGrps, setWeeklyGrps] = useState(Array(12).fill(0))
@@ -40,8 +53,18 @@ export default function MediaPlanningPanel({ campaign }) {
   const [reachFilter, setReachFilter] = useState('all') // 'all', 'r1', 'r2', 'r3'
   const debounceRef = useRef(null)
 
+  // CPP state
+  const [cpp, setCpp] = useState(DEFAULT_CPP.tv_match)
+
+  // Save/Load state
+  const [savedPlans, setSavedPlans] = useState([])
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [showSavedList, setShowSavedList] = useState(false)
+
   // Load presets when channel changes
   useEffect(() => {
+    setCpp(DEFAULT_CPP[selectedChannel] || 5000)
     let cancelled = false
     ;(async () => {
       try {
@@ -103,6 +126,78 @@ export default function MediaPlanningPanel({ campaign }) {
       setWeeklyGrps(Array(numWeeks).fill(0).map((_, i) => grps[i] || 0))
     } catch { /* ignore */ }
   }
+
+  // Save simulation
+  const handleSave = async () => {
+    if (!saveName.trim() || !result) return
+    try {
+      await saveMediaPlan(saveName.trim(), selectedChannel, weeklyGrps, result, campaign?.id || null)
+      setShowSaveModal(false)
+      setSaveName('')
+      refreshSavedPlans()
+    } catch { /* ignore */ }
+  }
+
+  const refreshSavedPlans = async () => {
+    try {
+      const plans = await listSavedMediaPlans(campaign?.id || null)
+      setSavedPlans(plans)
+    } catch { /* ignore */ }
+  }
+
+  const handleLoadPlan = async (id) => {
+    try {
+      const plan = await getSavedMediaPlan(id)
+      setSelectedChannel(plan.channel)
+      const grps = plan.weekly_grps || []
+      setNumWeeks(grps.length)
+      setWeeklyGrps(grps)
+      setShowSavedList(false)
+    } catch { /* ignore */ }
+  }
+
+  const handleDeletePlan = async (id) => {
+    try {
+      await deleteSavedMediaPlan(id)
+      refreshSavedPlans()
+    } catch { /* ignore */ }
+  }
+
+  // CSV Export
+  const exportCSV = () => {
+    if (!result) return
+    const headers = ['Hafta', 'GRP', 'Adstocked GRP', 'Carry-over', 'Saturation', 'Tahmini Lead', 'Marjinal Lead']
+    if (result.reach_curve?.length) headers.push('1+ Reach %', '2+ Reach %', '3+ Reach %')
+    if (cpp > 0) headers.push('Tahmini Harcama (TL)')
+
+    const rows = result.weekly_details.map((d, i) => {
+      const row = [
+        `W${d.week}`, d.grp, d.adstocked_grp.toFixed(1),
+        Math.max(0, d.adstocked_grp - d.grp).toFixed(1),
+        d.saturated.toFixed(4), d.estimated_leads.toFixed(1), d.marginal_leads.toFixed(1),
+      ]
+      if (result.reach_curve?.length) {
+        const rc = result.reach_curve[i]
+        row.push(rc?.r1.toFixed(1) || '', rc?.r2.toFixed(1) || '', rc?.r3.toFixed(1) || '')
+      }
+      if (cpp > 0) row.push((d.grp * cpp).toFixed(0))
+      return row
+    })
+
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `medya_plan_${selectedChannel}_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // CPP derived values
+  const totalSpend = cpp > 0 ? totalGrp * cpp : 0
+  const cpl = result && totalSpend > 0 && result.summary.total_leads > 0
+    ? totalSpend / result.summary.total_leads : 0
 
   // Derived data
   const channelColor = CHANNEL_COLORS[selectedChannel] || '#f97316'
@@ -218,6 +313,33 @@ export default function MediaPlanningPanel({ campaign }) {
     },
   }
 
+  // D2: Adstock chart options with effective level reference lines
+  const adstockOpts = useMemo(() => {
+    if (!result?.optimal) return lineOpts
+    const optGrp = result.optimal.optimal_weekly_grp
+    const satGrp = result.optimal.saturation_threshold_grp
+    return {
+      ...lineOpts,
+      plugins: {
+        ...lineOpts.plugins,
+        annotation: {
+          annotations: {
+            optimalLine: {
+              type: 'line', yMin: optGrp, yMax: optGrp,
+              borderColor: 'rgba(74, 222, 128, 0.6)', borderWidth: 1.5, borderDash: [6, 3],
+              label: { display: true, content: `Optimal: ${optGrp}`, position: 'start', backgroundColor: 'rgba(74, 222, 128, 0.15)', color: '#4ade80', font: { size: 10 }, padding: 3 },
+            },
+            saturationLine: {
+              type: 'line', yMin: satGrp, yMax: satGrp,
+              borderColor: 'rgba(250, 204, 21, 0.5)', borderWidth: 1.5, borderDash: [6, 3],
+              label: { display: true, content: `Doygunluk: ${satGrp}`, position: 'end', backgroundColor: 'rgba(250, 204, 21, 0.15)', color: '#facc15', font: { size: 10 }, padding: 3 },
+            },
+          },
+        },
+      },
+    }
+  }, [result, lineOpts])
+
   const satOpts = {
     ...lineOpts,
     plugins: {
@@ -302,6 +424,16 @@ export default function MediaPlanningPanel({ campaign }) {
             <span className="text-xs text-slate-500 font-mono">
               Toplam: {totalGrp.toLocaleString('tr-TR')} GRP
             </span>
+            <div className="flex items-center gap-1.5">
+              <label className="text-[10px] text-slate-500">CPP</label>
+              <input
+                type="number"
+                value={cpp || ''}
+                onChange={e => setCpp(Math.max(0, Number(e.target.value) || 0))}
+                className="w-20 bg-dark-bg border border-dark-border rounded-lg px-2 py-1 text-xs font-mono text-slate-300 text-right focus:outline-none focus:border-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <span className="text-[10px] text-slate-600">TL</span>
+            </div>
             <select
               value={numWeeks}
               onChange={e => setNumWeeks(Number(e.target.value))}
@@ -313,10 +445,73 @@ export default function MediaPlanningPanel({ campaign }) {
               onClick={loadPresets}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200 transition-colors"
             >
-              Preset Yükle
+              Preset
             </button>
+            <button
+              onClick={() => { refreshSavedPlans(); setShowSavedList(!showSavedList) }}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              Yükle
+            </button>
+            {result && (
+              <button
+                onClick={() => setShowSaveModal(true)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/15 border border-accent/30 text-accent hover:bg-accent/25 transition-colors"
+              >
+                Kaydet
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Save Modal */}
+        {showSaveModal && (
+          <div className="px-4 py-3 bg-dark-bg/50 border-b border-dark-border flex items-center gap-2">
+            <input
+              type="text"
+              value={saveName}
+              onChange={e => setSaveName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSave()}
+              placeholder="Simülasyon adı..."
+              className="flex-1 bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
+              autoFocus
+            />
+            <button onClick={handleSave} className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium">
+              Kaydet
+            </button>
+            <button onClick={() => setShowSaveModal(false)} className="px-3 py-1.5 bg-dark-card border border-dark-border text-slate-400 rounded-lg text-xs">
+              İptal
+            </button>
+          </div>
+        )}
+
+        {/* Saved Plans List */}
+        {showSavedList && (
+          <div className="px-4 py-3 bg-dark-bg/50 border-b border-dark-border">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Kayıtlı Planlar</p>
+            {savedPlans.length === 0 ? (
+              <p className="text-xs text-slate-500">Henüz kayıtlı plan yok.</p>
+            ) : (
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {savedPlans.map(p => (
+                  <div key={p.id} className="flex items-center justify-between px-3 py-2 bg-dark-card rounded-lg border border-dark-border group">
+                    <button onClick={() => handleLoadPlan(p.id)} className="flex-1 text-left">
+                      <span className="text-xs text-slate-200 font-medium">{p.name}</span>
+                      <span className="ml-2 text-[10px] text-slate-500 font-mono">{CHANNEL_LABELS[p.channel] || p.channel}</span>
+                      <span className="ml-2 text-[10px] text-slate-600">{p.created_at?.slice(0, 10)}</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeletePlan(p.id)}
+                      className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 text-xs transition-all ml-2"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="p-4">
           {/* GRP inputs grid */}
           <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12 gap-2">
@@ -351,7 +546,7 @@ export default function MediaPlanningPanel({ campaign }) {
       {result && (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${cpp > 0 ? 'lg:grid-cols-7' : 'lg:grid-cols-5'}`}>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
               <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam GRP</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">{result.summary.total_grp.toLocaleString('tr-TR')}</p>
@@ -372,6 +567,18 @@ export default function MediaPlanningPanel({ campaign }) {
               <p className="text-[10px] text-slate-500 uppercase tracking-wide">Peak Hafta</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">W{result.summary.peak_week}</p>
             </div>
+            {cpp > 0 && (
+              <>
+                <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Tahmini Harcama</p>
+                  <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtMoney(totalSpend)} &#8378;</p>
+                </div>
+                <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">CPL</p>
+                  <p className="text-lg font-mono text-slate-100 mt-0.5">{cpl > 0 ? `${fmtMoney(cpl)} ₺` : '-'}</p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Chart Tabs */}
@@ -406,7 +613,7 @@ export default function MediaPlanningPanel({ campaign }) {
               {activeChartTab === 'adstock' && (
                 <>
                   <div className="h-72">
-                    {adstockChartData && <Line data={adstockChartData} options={lineOpts} />}
+                    {adstockChartData && <Line data={adstockChartData} options={adstockOpts} />}
                   </div>
                   <div className="mt-3 p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed">
                     <strong className="text-slate-300">{channelLabel}</strong>
@@ -573,6 +780,12 @@ export default function MediaPlanningPanel({ campaign }) {
           <div className="dark-card">
             <div className="card-hdr">
               <span className="card-title">Haftalık Detay</span>
+              <button
+                onClick={exportCSV}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                CSV İndir
+              </button>
             </div>
             <div className="p-4 overflow-x-auto">
               <table className="w-full text-xs">
@@ -587,6 +800,9 @@ export default function MediaPlanningPanel({ campaign }) {
                     <th className="text-right py-2 px-2">Marjinal Lead</th>
                     {result.reach_curve?.length > 0 && (
                       <th className="text-right py-2 px-2">1+ Reach</th>
+                    )}
+                    {cpp > 0 && (
+                      <th className="text-right py-2 px-2">Harcama</th>
                     )}
                   </tr>
                 </thead>
@@ -615,6 +831,11 @@ export default function MediaPlanningPanel({ campaign }) {
                         {result.reach_curve?.length > 0 && (
                           <td className="py-2 px-2 text-right font-mono text-blue-400">
                             %{result.reach_curve[i]?.r1.toFixed(1) || '-'}
+                          </td>
+                        )}
+                        {cpp > 0 && (
+                          <td className="py-2 px-2 text-right font-mono text-slate-400">
+                            {fmtMoney(d.grp * cpp)} ₺
                           </td>
                         )}
                       </tr>
