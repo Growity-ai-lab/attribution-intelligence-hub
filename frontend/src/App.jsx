@@ -24,6 +24,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('unified')
   const [ddaResult, setDdaResult] = useState(null)
   const [workspace, setWorkspace] = useState(null) // { client, campaign }
+  const [standaloneTool, setStandaloneTool] = useState(null) // 'media' | null
 
   const isDemo = user?.role === 'demo'
 
@@ -65,8 +66,60 @@ export default function App() {
     return <LoginPage onLogin={login} onDemoLogin={loginAsDemo} />
   }
 
-  // No workspace selected yet — show selector
+  const handleBackToSelector = () => {
+    setStandaloneTool(null)
+  }
+
+  // No workspace selected yet — show selector or standalone tool
   if (!workspace) {
+    // Standalone tool mode
+    if (standaloneTool === 'media') {
+      return (
+        <div className="min-h-screen bg-dark-bg bg-grid-overlay">
+          <header className="border-b border-dark-border bg-dark-bg/80 backdrop-blur-sm sticky top-0 z-30">
+            <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleBackToSelector}
+                  className="w-8 h-8 rounded-lg overflow-hidden hover:opacity-80 transition-opacity"
+                  title="Ana Sayfa"
+                >
+                  <img src="/logo.svg" alt="Time's Hub" className="w-full h-full" />
+                </button>
+                <div className="flex items-center gap-2 text-sm">
+                  <button onClick={handleBackToSelector} className="text-slate-400 hover:text-slate-200 transition-colors">
+                    Ana Sayfa
+                  </button>
+                  <span className="text-slate-600">/</span>
+                  <span className="text-accent font-medium">Medya Planlama</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleBackToSelector}
+                  className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                >
+                  &larr; Geri
+                </button>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-emerald-500/15 text-emerald-400">
+                  {user.username}
+                </span>
+                <button
+                  onClick={logout}
+                  className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700/50 text-slate-400 hover:text-red-400 transition-colors"
+                >
+                  Çıkış
+                </button>
+              </div>
+            </div>
+          </header>
+          <main className="max-w-7xl mx-auto px-4 py-6">
+            <MediaPlanningPanel />
+          </main>
+        </div>
+      )
+    }
+
     return (
       <div>
         {/* Mini header with user badge */}
@@ -83,7 +136,7 @@ export default function App() {
             </button>
           </div>
         </header>
-        <WorkspaceSelector onSelect={setWorkspace} />
+        <WorkspaceSelector onSelect={setWorkspace} onStandaloneTool={setStandaloneTool} />
       </div>
     )
   }

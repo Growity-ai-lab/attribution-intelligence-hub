@@ -46,6 +46,19 @@ class WeeklyData(Base):
     spot_count = Column(Integer, default=0)
 
 
+class MediaPlanSimulation(Base):
+    __tablename__ = "media_plan_simulations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True)
+    name = Column(String, nullable=False)
+    channel = Column(String, nullable=False)
+    weekly_grps = Column(String, nullable=False)  # JSON array
+    response_snapshot = Column(String, nullable=False)  # JSON blob
+    created_at = Column(String, nullable=False)
+    created_by = Column(String, default="")
+
+
 class TouchpointData(Base):
     __tablename__ = "touchpoint_data"
 

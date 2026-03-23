@@ -103,6 +103,30 @@ export function useAttribution() {
     return res.data
   }, [])
 
+  const saveMediaPlan = useCallback(async (name, channel, weeklyGrps, responseSnapshot, campaignId = null) => {
+    const res = await axios.post(`${API_BASE}/media-planning/save`, {
+      name, channel, weekly_grps: weeklyGrps, response_snapshot: responseSnapshot, campaign_id: campaignId,
+    })
+    return res.data
+  }, [])
+
+  const listSavedMediaPlans = useCallback(async (campaignId = null) => {
+    const params = {}
+    if (campaignId !== null) params.campaign_id = campaignId
+    const res = await axios.get(`${API_BASE}/media-planning/saved`, { params })
+    return res.data
+  }, [])
+
+  const getSavedMediaPlan = useCallback(async (id) => {
+    const res = await axios.get(`${API_BASE}/media-planning/saved/${id}`)
+    return res.data
+  }, [])
+
+  const deleteSavedMediaPlan = useCallback(async (id) => {
+    const res = await axios.delete(`${API_BASE}/media-planning/saved/${id}`)
+    return res.data
+  }, [])
+
   const downloadFile = useCallback(async (url, filename) => {
     const res = await axios.get(`${API_BASE}${url}`, { responseType: 'blob' })
     const blobUrl = window.URL.createObjectURL(res.data)
@@ -133,6 +157,10 @@ export function useAttribution() {
     downloadFile,
     simulateMediaPlan,
     getMediaPlanPresets,
+    saveMediaPlan,
+    listSavedMediaPlans,
+    getSavedMediaPlan,
+    deleteSavedMediaPlan,
     refetch: fetchConfig,
   }
 }

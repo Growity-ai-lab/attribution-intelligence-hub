@@ -1,5 +1,6 @@
 """API routes for Time's Hub | Attribution Intelligence."""
 
+import json
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import PurePosixPath
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.api.deps import get_current_user
 from backend.auth import authenticate_user, create_access_token
 from backend.db.database import get_db
-from backend.db.models import Campaign, Client
+from backend.db.models import Campaign, Client, MediaPlanSimulation
 
 from backend.config import (
     ADSTOCK_PARAMS,
@@ -909,3 +910,98 @@ def get_media_planning_presets(
         "gamma": gamma,
         "max_lift": GRP_MAX_LIFT[channel],
     }
+
+
+# --------------- Media Plan Simulations (Save/Load) ---------------
+
+
+@router.post("/media-planning/save")
+def save_media_plan(
+    name: str = Body(..., embed=True),
+    channel: str = Body(..., embed=True),
+    weekly_grps: list[float] = Body(..., embed=True),
+    response_snapshot: dict = Body(..., embed=True),
+    campaign_id: int | None = Body(None, embed=True),
+    user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Save a media plan simulation."""
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="Simulation name is required")
+    if channel not in OFFLINE_CHANNELS:
+        raise HTTPException(status_code=400, detail=f"Invalid channel: {channel}")
+
+    sim = MediaPlanSimulation(
+        campaign_id=campaign_id,
+        name=name.strip(),
+        channel=channel,
+        weekly_grps=json.dumps(weekly_grps),
+        response_snapshot=json.dumps(response_snapshot),
+        created_at=datetime.now(timezone.utc).isoformat(),
+        created_by=user.get("username", ""),
+    )
+    db.add(sim)
+    db.commit()
+    db.refresh(sim)
+    return {"id": sim.id, "name": sim.name, "channel": sim.channel, "created_at": sim.created_at}
+
+
+@router.get("/media-planning/saved")
+def list_saved_media_plans(
+    campaign_id: int | None = Query(None),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """List saved media plan simulations."""
+    q = db.query(MediaPlanSimulation)
+    if campaign_id is not None:
+        q = q.filter(MediaPlanSimulation.campaign_id == campaign_id)
+    sims = q.order_by(MediaPlanSimulation.created_at.desc()).all()
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "channel": s.channel,
+            "campaign_id": s.campaign_id,
+            "created_at": s.created_at,
+            "created_by": s.created_by,
+        }
+        for s in sims
+    ]
+
+
+@router.get("/media-planning/saved/{sim_id}")
+def get_saved_media_plan(
+    sim_id: int,
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Get a single saved media plan simulation."""
+    sim = db.query(MediaPlanSimulation).filter(MediaPlanSimulation.id == sim_id).first()
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    return {
+        "id": sim.id,
+        "name": sim.name,
+        "channel": sim.channel,
+        "campaign_id": sim.campaign_id,
+        "weekly_grps": json.loads(sim.weekly_grps),
+        "response_snapshot": json.loads(sim.response_snapshot),
+        "created_at": sim.created_at,
+        "created_by": sim.created_by,
+    }
+
+
+@router.delete("/media-planning/saved/{sim_id}")
+def delete_saved_media_plan(
+    sim_id: int,
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Delete a saved media plan simulation."""
+    sim = db.query(MediaPlanSimulation).filter(MediaPlanSimulation.id == sim_id).first()
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    db.delete(sim)
+    db.commit()
+    return {"deleted": True, "id": sim_id}
