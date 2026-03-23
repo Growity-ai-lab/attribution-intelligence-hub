@@ -13,3 +13,6 @@ aiosqlite==0.20.0
 pytest==8.3.4
 httpx==0.28.1
 ruff==0.8.6
+scipy==1.14.1
+scikit-learn==1.6.1
+matplotlib==3.9.3
