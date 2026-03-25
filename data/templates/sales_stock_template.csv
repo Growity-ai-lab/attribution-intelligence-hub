@@ -1,9 +1,9 @@
-week,channel,product,region,sales_units,sales_revenue,stock_units,stock_value,returns,new_customers,repeat_customers
-2026-W06,meta,AutoMatic Filo Standart,Istanbul,45,675000,120,1800000,2,38,7
-2026-W06,google,AutoMatic Filo Standart,Istanbul,28,420000,120,1800000,1,22,6
-2026-W06,meta,AutoMatic Filo Premium,Istanbul,12,360000,50,1500000,0,10,2
-2026-W06,google,AutoMatic Filo Premium,Ankara,8,240000,35,1050000,1,6,2
-2026-W06,tv_match,AutoMatic Filo Standart,Turkiye,15,225000,500,7500000,0,12,3
-2026-W06,linkedin,AutoMatic Filo Premium,Istanbul,5,150000,50,1500000,0,4,1
-2026-W06,,AutoMatic Filo Standart,Izmir,10,150000,80,1200000,1,8,2
-2026-W06,,AutoMatic Filo Premium,Izmir,3,90000,20,600000,0,2,1
+week,channel,product,region,segment,sales_units,sales_revenue,stock_units,stock_value,returns,new_customers,repeat_customers
+2026-W06,meta,AutoMatic Filo Standart,Istanbul,S1,45,675000,120,1800000,2,38,7
+2026-W06,google,AutoMatic Filo Standart,Istanbul,S1,28,420000,120,1800000,1,22,6
+2026-W06,meta,AutoMatic Filo Premium,Istanbul,S1,12,360000,50,1500000,0,10,2
+2026-W06,google,AutoMatic Filo Premium,Ankara,S2,8,240000,35,1050000,1,6,2
+2026-W06,tv_match,AutoMatic Filo Standart,Turkiye,,15,225000,500,7500000,0,12,3
+2026-W06,linkedin,AutoMatic Filo Premium,Istanbul,S2,5,150000,50,1500000,0,4,1
+2026-W06,,AutoMatic Filo Standart,Izmir,S3,10,150000,80,1200000,1,8,2
+2026-W06,,AutoMatic Filo Premium,Izmir,S3,3,90000,20,600000,0,2,1

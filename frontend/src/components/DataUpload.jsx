@@ -11,6 +11,7 @@ const WEEKLY_COLUMNS = [
   { name: 'leads', type: 'int', required: true, desc: 'Lead (başvuru) sayısı', example: '1050' },
   { name: 'grp', type: 'float', required: false, desc: 'TV GRP değeri', example: '450' },
   { name: 'spot_count', type: 'int', required: false, desc: 'TV/Radyo spot sayısı', example: '12' },
+  { name: 'segment', type: 'string', required: false, desc: 'Segment kodu (S1-S4)', example: 'S1' },
 ]
 
 const CRM_COLUMNS = [
@@ -36,6 +37,7 @@ const SALES_STOCK_COLUMNS = [
   { name: 'returns', type: 'int', required: false, desc: 'İade adedi', example: '2' },
   { name: 'new_customers', type: 'int', required: false, desc: 'Yeni müşteri', example: '38' },
   { name: 'repeat_customers', type: 'int', required: false, desc: 'Tekrar müşteri', example: '7' },
+  { name: 'segment', type: 'string', required: false, desc: 'Segment kodu (S1-S4)', example: 'S1' },
 ]
 
 const VALID_CHANNELS = ['meta', 'google', 'tiktok', 'linkedin', 'dv360', 'youtube', 'tv_match', 'tv_news', 'radio', 'dooh']
@@ -300,12 +302,12 @@ export default function DataUpload() {
             <div className="bg-dark-bg rounded-lg p-3 overflow-x-auto">
               {mode === 'weekly' ? (
                 <pre className="text-[11px] text-slate-400 font-mono leading-relaxed">{
-`week,channel,spend,impressions,clicks,leads,grp,spot_count
-2026-W05,meta,2600000,4500000,85000,1050,0,0
-2026-W05,google,300000,800000,24000,520,0,0
-2026-W05,tiktok,800000,3200000,48000,280,0,0
-2026-W05,tv_match,0,0,0,0,450,12
-2026-W05,radio,0,0,0,0,0,36`
+`week,channel,spend,impressions,clicks,leads,grp,spot_count,segment
+2026-W05,meta,2600000,4500000,85000,1050,0,0,S1
+2026-W05,google,300000,800000,24000,520,0,0,S1
+2026-W05,meta,800000,1500000,28000,320,0,0,S2
+2026-W05,tv_match,0,0,0,0,450,12,
+2026-W05,radio,0,0,0,0,0,36,`
                 }</pre>
               ) : mode === 'crm' ? (
                 <pre className="text-[11px] text-slate-400 font-mono leading-relaxed">{
@@ -352,6 +354,7 @@ L002,2026-01-17 11:30,meta,click,S1_retarget,S1,0,s004`
                 <li>Hafta formatı ISO 8601: <code className="text-accent/80">YYYY-Www</code> (ör. 2026-W06)</li>
                 <li>Birden fazla hafta aynı dosyada olabilir (ör. W05 + W06 = 20 satır)</li>
                 <li>Maksimum dosya boyutu: 10 MB, maksimum satır: 50.000</li>
+                <li><code className="text-accent/80">segment</code> opsiyonel: S1, S2, S3, S4. Doldurulursa segment bazlı doygunluk analizi yapılır</li>
               </ul>
             ) : mode === 'crm' ? (
               <ul className="text-[11px] text-slate-400 space-y-1 list-disc list-inside">

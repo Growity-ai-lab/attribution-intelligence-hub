@@ -44,6 +44,7 @@ class WeeklyData(Base):
     leads = Column(Integer, default=0)
     grp = Column(Float, default=0.0)
     spot_count = Column(Integer, default=0)
+    segment = Column(String, default="", index=True)
 
 
 class MediaPlanSimulation(Base):
@@ -81,6 +82,7 @@ class SalesStockData(Base):
     channel = Column(String, default="")
     product = Column(String, default="")
     region = Column(String, default="", index=True)
+    segment = Column(String, default="", index=True)
     sales_units = Column(Integer, default=0)
     sales_revenue = Column(Float, default=0.0)
     stock_units = Column(Integer, default=0)

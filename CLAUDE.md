@@ -179,6 +179,8 @@ week,channel,product,region,sales_units,sales_revenue,stock_units,stock_value,re
 - `GET /api/sales-stock/summary` — satış/stok özet raporu
 - `GET /api/sales-stock/weekly` — haftalık satış/stok kırılımı
 - `GET /api/data/template/sales-stock` — satış/stok şablon indir
+- `GET /api/segments/decomposition` — segment×kanal katkı analizi + doygunluk uyarısı
+- `GET /api/segments/period-comparison` — dönemler arası performans karşılaştırması
 
 ## Kodlama Kuralları
 - Python: type hints kullan, docstring yaz, pytest ile test et

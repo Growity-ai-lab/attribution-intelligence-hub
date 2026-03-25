@@ -14,6 +14,7 @@ class WeeklyChannelInput(BaseModel):
     leads: int = Field(ge=0)
     grp: float = Field(ge=0, default=0)
     spot_count: int = Field(ge=0, default=0)
+    segment: str = Field(default="", description="Segment code, e.g. S1, S2, S3, S4")
 
 
 class CRMTouchpoint(BaseModel):
@@ -109,6 +110,7 @@ class SalesStockInput(BaseModel):
     channel: str = Field(default="", description="Attribution channel (optional)")
     product: str = Field(default="", description="Product or SKU name")
     region: str = Field(default="", description="Geographic region / city")
+    segment: str = Field(default="", description="Segment code, e.g. S1, S2, S3, S4")
     sales_units: int = Field(ge=0, default=0, description="Units sold")
     sales_revenue: float = Field(ge=0, default=0.0, description="Revenue in TL")
     stock_units: int = Field(ge=0, default=0, description="Stock on hand (units)")
@@ -132,6 +134,47 @@ class SalesStockSummary(BaseModel):
     total_repeat_customers: int
     products: list[str]
     regions: list[str]
+
+
+# --------------- Segment Analytics ---------------
+
+
+class SegmentChannelScore(BaseModel):
+    """Per-segment, per-channel attribution score."""
+
+    segment: str
+    channel: str
+    spend: float = 0.0
+    leads: int = 0
+    sales_units: int = 0
+    sales_revenue: float = 0.0
+    cost_per_lead: float = 0.0
+    cost_per_sale: float = 0.0
+    saturation_pct: float = Field(
+        default=0.0, description="Current saturation level (0-100%)"
+    )
+    saturation_alert: str = Field(
+        default="", description="Alert: 'saturated', 'near_saturation', or ''"
+    )
+
+
+class PeriodComparison(BaseModel):
+    """Period-over-period comparison for a segment+channel."""
+
+    segment: str
+    channel: str
+    period_a: str
+    period_b: str
+    spend_a: float
+    spend_b: float
+    leads_a: int
+    leads_b: int
+    sales_a: int = 0
+    sales_b: int = 0
+    cpl_a: float = 0.0
+    cpl_b: float = 0.0
+    cpl_change_pct: float = 0.0
+    recommendation: str = ""
 
 
 # --------------- Media Planning ---------------
