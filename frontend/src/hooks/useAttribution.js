@@ -127,6 +127,27 @@ export function useAttribution() {
     return res.data
   }, [])
 
+  const uploadSalesStock = useCallback(async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await axios.post(`${API_BASE}/sales-stock/upload`, formData)
+    return res.data
+  }, [])
+
+  const getSalesStockSummary = useCallback(async (campaignId = null) => {
+    const params = {}
+    if (campaignId !== null) params.campaign_id = campaignId
+    const res = await axios.get(`${API_BASE}/sales-stock/summary`, { params })
+    return res.data
+  }, [])
+
+  const getSalesStockWeekly = useCallback(async (campaignId = null) => {
+    const params = {}
+    if (campaignId !== null) params.campaign_id = campaignId
+    const res = await axios.get(`${API_BASE}/sales-stock/weekly`, { params })
+    return res.data
+  }, [])
+
   const downloadFile = useCallback(async (url, filename) => {
     const res = await axios.get(`${API_BASE}${url}`, { responseType: 'blob' })
     const blobUrl = window.URL.createObjectURL(res.data)
@@ -161,6 +182,9 @@ export function useAttribution() {
     listSavedMediaPlans,
     getSavedMediaPlan,
     deleteSavedMediaPlan,
+    uploadSalesStock,
+    getSalesStockSummary,
+    getSalesStockWeekly,
     refetch: fetchConfig,
   }
 }

@@ -77,7 +77,8 @@ attribution-intelligence-hub/
 ├── data/
 │   ├── templates/
 │   │   ├── weekly_input_template.csv     # Haftalık veri giriş şablonu
-│   │   └── crm_touchpoints_template.csv  # CRM touchpoint şablonu
+│   │   ├── crm_touchpoints_template.csv  # CRM touchpoint şablonu
+│   │   └── sales_stock_template.csv     # Satış/stok veri şablonu
 │   └── sample/
 │       ├── week_01.csv
 │       └── week_02.csv
@@ -150,6 +151,14 @@ L001,2026-01-16 14:05,google,click,brand_search,S1
 L001,2026-01-16 14:08,landing_page,form_submit,lp_filo,S1
 ```
 
+### Satış/Stok CSV
+```csv
+week,channel,product,region,sales_units,sales_revenue,stock_units,stock_value,returns,new_customers,repeat_customers
+2026-W06,meta,AutoMatic Filo Standart,Istanbul,45,675000,120,1800000,2,38,7
+2026-W06,google,AutoMatic Filo Premium,Ankara,8,240000,35,1050000,1,6,2
+2026-W06,,AutoMatic Filo Standart,Izmir,10,150000,80,1200000,1,8,2
+```
+
 ## Segment Tanımları
 - S1 (Hızlı Ölçeklenen): 8 alt segment, %60 bütçe, 33M₺
 - S2 (Çalışanı Gözeten): 3 alt segment, %25 bütçe, 13.75M₺
@@ -166,6 +175,10 @@ L001,2026-01-16 14:08,landing_page,form_submit,lp_filo,S1
 - `GET /api/mta/shapley` — Shapley value attribution
 - `GET /api/unified/report/{week}` — haftalık unified rapor
 - `GET /api/unified/reallocation` — bütçe reallocation önerisi
+- `POST /api/sales-stock/upload` — satış/stok CSV yükle
+- `GET /api/sales-stock/summary` — satış/stok özet raporu
+- `GET /api/sales-stock/weekly` — haftalık satış/stok kırılımı
+- `GET /api/data/template/sales-stock` — satış/stok şablon indir
 
 ## Kodlama Kuralları
 - Python: type hints kullan, docstring yaz, pytest ile test et

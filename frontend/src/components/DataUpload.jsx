@@ -24,6 +24,20 @@ const CRM_COLUMNS = [
   { name: 'session_id', type: 'string', required: false, desc: 'Oturum kimliği', example: 's001' },
 ]
 
+const SALES_STOCK_COLUMNS = [
+  { name: 'week', type: 'string', required: true, desc: 'ISO hafta formatı', example: '2026-W06' },
+  { name: 'channel', type: 'string', required: false, desc: 'Atribüsyon kanalı', example: 'meta' },
+  { name: 'product', type: 'string', required: false, desc: 'Ürün / SKU adı', example: 'AutoMatic Filo Standart' },
+  { name: 'region', type: 'string', required: false, desc: 'Bölge / şehir', example: 'Istanbul' },
+  { name: 'sales_units', type: 'int', required: false, desc: 'Satılan adet', example: '45' },
+  { name: 'sales_revenue', type: 'float', required: false, desc: 'Satış geliri (TL)', example: '675000' },
+  { name: 'stock_units', type: 'int', required: false, desc: 'Stok adedi', example: '120' },
+  { name: 'stock_value', type: 'float', required: false, desc: 'Stok değeri (TL)', example: '1800000' },
+  { name: 'returns', type: 'int', required: false, desc: 'İade adedi', example: '2' },
+  { name: 'new_customers', type: 'int', required: false, desc: 'Yeni müşteri', example: '38' },
+  { name: 'repeat_customers', type: 'int', required: false, desc: 'Tekrar müşteri', example: '7' },
+]
+
 const VALID_CHANNELS = ['meta', 'google', 'tiktok', 'linkedin', 'dv360', 'youtube', 'tv_match', 'tv_news', 'radio', 'dooh']
 
 function DownloadIcon() {
@@ -43,10 +57,11 @@ function InfoIcon() {
 }
 
 export default function DataUpload() {
-  const { uploadFile, runDDAFromCSV, downloadFile } = useAttribution()
+  const { uploadFile, runDDAFromCSV, uploadSalesStock, downloadFile } = useAttribution()
   const [mode, setMode] = useState('weekly')
   const [result, setResult] = useState(null)
   const [ddaResult, setDdaResult] = useState(null)
+  const [salesResult, setSalesResult] = useState(null)
   const [error, setError] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [showFormat, setShowFormat] = useState(false)
@@ -59,14 +74,18 @@ export default function DataUpload() {
     setError(null)
     setResult(null)
     setDdaResult(null)
+    setSalesResult(null)
 
     try {
       if (mode === 'weekly') {
         const data = await uploadFile(file)
         setResult(data)
-      } else {
+      } else if (mode === 'crm') {
         const data = await runDDAFromCSV(file)
         setDdaResult(data)
+      } else {
+        const data = await uploadSalesStock(file)
+        setSalesResult(data)
       }
     } catch (err) {
       setError(err.response?.data?.detail || err.message)
@@ -75,7 +94,7 @@ export default function DataUpload() {
     }
   }
 
-  const columns = mode === 'weekly' ? WEEKLY_COLUMNS : CRM_COLUMNS
+  const columns = mode === 'weekly' ? WEEKLY_COLUMNS : mode === 'crm' ? CRM_COLUMNS : SALES_STOCK_COLUMNS
 
   return (
     <div className="space-y-4">
@@ -84,40 +103,35 @@ export default function DataUpload() {
         <h2 className="card-title mb-4">Veri Yükle</h2>
 
         <div className="flex flex-wrap gap-3 mb-4">
-          <button
-            onClick={() => { setMode('weekly'); setResult(null); setDdaResult(null); setError(null); setShowFormat(false) }}
-            className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              mode === 'weekly'
-                ? 'bg-accent text-white'
-                : 'bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Haftalık Veri
-          </button>
-          <button
-            onClick={() => { setMode('crm'); setResult(null); setDdaResult(null); setError(null); setShowFormat(false) }}
-            className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              mode === 'crm'
-                ? 'bg-accent text-white'
-                : 'bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            CRM Touchpoint
-          </button>
+          {['weekly', 'crm', 'sales-stock'].map((m) => (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setResult(null); setDdaResult(null); setSalesResult(null); setError(null); setShowFormat(false) }}
+              className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                mode === m
+                  ? 'bg-accent text-white'
+                  : 'bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {m === 'weekly' ? 'Haftalık Veri' : m === 'crm' ? 'CRM Touchpoint' : 'Satış / Stok'}
+            </button>
+          ))}
         </div>
 
         <p className="text-slate-500 text-xs mb-4">
           {mode === 'weekly'
             ? 'CSV veya Excel formatında haftalık kanal verilerini yükleyin. Her hafta için 10 kanal satırı beklenir.'
-            : 'CRM touchpoint CSV yükleyin. DDA pipeline (Markov + Shapley) otomatik çalışacak.'}
+            : mode === 'crm'
+            ? 'CRM touchpoint CSV yükleyin. DDA pipeline (Markov + Shapley) otomatik çalışacak.'
+            : 'Haftalık satış, stok ve müşteri verilerini yükleyin. Ürün/bölge bazlı kırılım desteklenir.'}
         </p>
 
         {/* ── Download Buttons ── */}
         <div className="flex flex-wrap gap-2 mb-4">
           <button
             onClick={() => downloadFile(
-              mode === 'weekly' ? '/data/template/weekly' : '/data/template/crm',
-              mode === 'weekly' ? 'weekly_input_template.csv' : 'crm_touchpoints_template.csv'
+              mode === 'weekly' ? '/data/template/weekly' : mode === 'crm' ? '/data/template/crm' : '/data/template/sales-stock',
+              mode === 'weekly' ? 'weekly_input_template.csv' : mode === 'crm' ? 'crm_touchpoints_template.csv' : 'sales_stock_template.csv'
             )}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-300 hover:text-white hover:border-slate-500 transition-colors"
           >
@@ -126,8 +140,8 @@ export default function DataUpload() {
           </button>
           <button
             onClick={() => downloadFile(
-              mode === 'weekly' ? '/data/sample/weekly' : '/data/sample/journeys',
-              mode === 'weekly' ? 'week_01_sample.csv' : 'journeys_sample.csv'
+              mode === 'weekly' ? '/data/sample/weekly' : mode === 'crm' ? '/data/sample/journeys' : '/data/template/sales-stock',
+              mode === 'weekly' ? 'week_01_sample.csv' : mode === 'crm' ? 'journeys_sample.csv' : 'sales_stock_sample.csv'
             )}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:text-blue-300 hover:border-blue-400/40 transition-colors"
           >
@@ -171,6 +185,19 @@ export default function DataUpload() {
               <li>Satir: {result.rows}</li>
               <li>Haftalar: {result.weeks?.join(', ')}</li>
               <li>Kanallar: {result.channels?.join(', ')}</li>
+            </ul>
+          </div>
+        )}
+
+        {salesResult && (
+          <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs">
+            <p className="font-medium text-emerald-400">Satış/Stok verisi yüklendi!</p>
+            <ul className="mt-2 text-emerald-300/80 space-y-1">
+              <li>Dosya: {salesResult.filename}</li>
+              <li>Satır: {salesResult.rows}</li>
+              <li>Haftalar: {salesResult.weeks?.join(', ')}</li>
+              {salesResult.products?.length > 0 && <li>Ürünler: {salesResult.products.join(', ')}</li>}
+              {salesResult.regions?.length > 0 && <li>Bölgeler: {salesResult.regions.join(', ')}</li>}
             </ul>
           </div>
         )}
@@ -227,12 +254,14 @@ export default function DataUpload() {
       {showFormat && (
         <div className="dark-card p-6">
           <h3 className="card-title mb-1">
-            {mode === 'weekly' ? 'Haftalık Veri Formatı' : 'CRM Touchpoint Formatı'}
+            {mode === 'weekly' ? 'Haftalık Veri Formatı' : mode === 'crm' ? 'CRM Touchpoint Formatı' : 'Satış / Stok Veri Formatı'}
           </h3>
           <p className="text-xs text-slate-500 mb-4">
             {mode === 'weekly'
               ? 'Her hafta için 10 kanal satırı içeren CSV dosyası. MMM modeli bu veriyi kullanır.'
-              : 'Her lead\'in tüm temas noktalarını içeren CSV. DDA pipeline (Markov + Shapley) bu veriyi kullanır.'}
+              : mode === 'crm'
+              ? 'Her lead\'in tüm temas noktalarını içeren CSV. DDA pipeline (Markov + Shapley) bu veriyi kullanır.'
+              : 'Haftalık satış, stok ve müşteri verisi. Ürün/bölge/kanal bazlı kırılım ile attribution modelini satışa bağlar.'}
           </p>
 
           {/* Column Table */}
@@ -278,7 +307,7 @@ export default function DataUpload() {
 2026-W05,tv_match,0,0,0,0,450,12
 2026-W05,radio,0,0,0,0,0,36`
                 }</pre>
-              ) : (
+              ) : mode === 'crm' ? (
                 <pre className="text-[11px] text-slate-400 font-mono leading-relaxed">{
 `lead_id,timestamp,channel,touchpoint_type,campaign,segment,converted,session_id
 L001,2026-01-15 10:23,meta,impression,S1_lead,S1,0,s001
@@ -286,6 +315,14 @@ L001,2026-01-16 14:05,google,click,brand_search,S1,0,s002
 L001,2026-01-16 14:08,form,submit,lp_filo,S1,1,s002
 L002,2026-01-15 09:00,tiktok,view,S1_video,S1,0,s003
 L002,2026-01-17 11:30,meta,click,S1_retarget,S1,0,s004`
+                }</pre>
+              ) : (
+                <pre className="text-[11px] text-slate-400 font-mono leading-relaxed">{
+`week,channel,product,region,sales_units,sales_revenue,stock_units,stock_value,returns,new_customers,repeat_customers
+2026-W06,meta,AutoMatic Filo Standart,Istanbul,45,675000,120,1800000,2,38,7
+2026-W06,google,AutoMatic Filo Standart,Istanbul,28,420000,120,1800000,1,22,6
+2026-W06,meta,AutoMatic Filo Premium,Istanbul,12,360000,50,1500000,0,10,2
+2026-W06,,AutoMatic Filo Standart,Izmir,10,150000,80,1200000,1,8,2`
                 }</pre>
               )}
             </div>
@@ -306,7 +343,7 @@ L002,2026-01-17 11:30,meta,click,S1_retarget,S1,0,s004`
           {/* Mode-specific notes */}
           <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-lg">
             <p className="text-xs text-amber-400/80 font-medium mb-1">
-              {mode === 'weekly' ? 'Haftalık Veri Notları:' : 'CRM Touchpoint Notları:'}
+              {mode === 'weekly' ? 'Haftalık Veri Notları:' : mode === 'crm' ? 'CRM Touchpoint Notları:' : 'Satış/Stok Veri Notları:'}
             </p>
             {mode === 'weekly' ? (
               <ul className="text-[11px] text-slate-400 space-y-1 list-disc list-inside">
@@ -316,13 +353,22 @@ L002,2026-01-17 11:30,meta,click,S1_retarget,S1,0,s004`
                 <li>Birden fazla hafta aynı dosyada olabilir (ör. W05 + W06 = 20 satır)</li>
                 <li>Maksimum dosya boyutu: 10 MB, maksimum satır: 50.000</li>
               </ul>
-            ) : (
+            ) : mode === 'crm' ? (
               <ul className="text-[11px] text-slate-400 space-y-1 list-disc list-inside">
                 <li>Her lead'in <strong className="text-slate-300">tüm temas noktaları</strong> kronolojik sırada olmalıdır</li>
                 <li>Dönüşüm satırında <code className="text-accent/80">converted=1</code> ve kanal <code className="text-accent/80">form</code> / <code className="text-accent/80">landing_page</code> olmalı</li>
                 <li>Sistem form/landing_page/website/app kanallarını filtreleyerek sadece pazarlama kanallarını analiz eder</li>
                 <li><code className="text-accent/80">touchpoint_type</code>: impression, click, view, submit vb.</li>
                 <li>DDA pipeline otomatik çalışır: Markov (x0.65) + Shapley (x0.35) blend</li>
+              </ul>
+            ) : (
+              <ul className="text-[11px] text-slate-400 space-y-1 list-disc list-inside">
+                <li><code className="text-accent/80">week</code> zorunlu, diğer alanlar opsiyonel (boş bırakılabilir)</li>
+                <li><code className="text-accent/80">channel</code> doldurulursa satış doğrudan kanala atfedilir (attribution bağlantısı)</li>
+                <li><strong className="text-slate-300">Ürün ve bölge</strong> bazlı kırılım desteklenir (ör. AutoMatic Filo Standart / Premium)</li>
+                <li><code className="text-accent/80">new_customers</code> ve <code className="text-accent/80">repeat_customers</code> müşteri yaşam döngüsü analizi için</li>
+                <li>Stok verileri tedarik zinciri optimizasyonu ve talep tahmini için kullanılır</li>
+                <li>İade oranı otomatik hesaplanır: <code className="text-accent/80">returns / sales_units</code></li>
               </ul>
             )}
           </div>

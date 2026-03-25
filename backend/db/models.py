@@ -70,3 +70,21 @@ class TouchpointData(Base):
     touchpoint_type = Column(String, nullable=False)
     campaign = Column(String, default="")
     segment = Column(String, default="")
+
+
+class SalesStockData(Base):
+    __tablename__ = "sales_stock_data"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True, index=True)
+    week = Column(String, nullable=False, index=True)
+    channel = Column(String, default="")
+    product = Column(String, default="")
+    region = Column(String, default="", index=True)
+    sales_units = Column(Integer, default=0)
+    sales_revenue = Column(Float, default=0.0)
+    stock_units = Column(Integer, default=0)
+    stock_value = Column(Float, default=0.0)
+    returns = Column(Integer, default=0)
+    new_customers = Column(Integer, default=0)
+    repeat_customers = Column(Integer, default=0)

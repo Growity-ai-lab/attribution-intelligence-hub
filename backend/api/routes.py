@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.api.deps import get_current_user
 from backend.auth import authenticate_user, create_access_token
 from backend.db.database import get_db
-from backend.db.models import Campaign, Client, MediaPlanSimulation
+from backend.db.models import Campaign, Client, MediaPlanSimulation, SalesStockData
 
 from backend.config import (
     ADSTOCK_PARAMS,
@@ -38,7 +38,7 @@ from backend.config import (
     TEMPLATE_DIR,
     UNIFIED_WEIGHTS,
 )
-from backend.data.loader import load_crm_touchpoints, load_weekly_csv
+from backend.data.loader import load_crm_touchpoints, load_sales_stock_csv, load_weekly_csv
 from backend.data.schemas import (
     AdstockResult,
     ChannelDecomposition,
@@ -46,6 +46,7 @@ from backend.data.schemas import (
     MediaPlanningResponse,
     OptimalGRPResult,
     ReachDataPoint,
+    SalesStockSummary,
     SaturationResult,
     WeeklySimDetail,
 )
@@ -1005,3 +1006,127 @@ def delete_saved_media_plan(
     db.delete(sim)
     db.commit()
     return {"deleted": True, "id": sim_id}
+
+
+# ── Sales & Stock Endpoints ──────────────────────────────
+
+
+@router.post("/sales-stock/upload")
+async def upload_sales_stock(
+    file: UploadFile = File(...),
+    campaign_id: int | None = Query(None),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Upload sales/stock CSV data."""
+    _validate_file(file)
+    content = await _read_file_content(file)
+
+    records = load_sales_stock_csv(BytesIO(content))
+
+    # Persist to DB
+    for rec in records:
+        db.add(SalesStockData(
+            campaign_id=campaign_id,
+            week=rec.week,
+            channel=rec.channel,
+            product=rec.product,
+            region=rec.region,
+            sales_units=rec.sales_units,
+            sales_revenue=rec.sales_revenue,
+            stock_units=rec.stock_units,
+            stock_value=rec.stock_value,
+            returns=rec.returns,
+            new_customers=rec.new_customers,
+            repeat_customers=rec.repeat_customers,
+        ))
+    db.commit()
+
+    weeks = sorted({r.week for r in records})
+    products = sorted({r.product for r in records if r.product})
+    regions = sorted({r.region for r in records if r.region})
+
+    return {
+        "filename": file.filename,
+        "rows": len(records),
+        "weeks": weeks,
+        "products": products,
+        "regions": regions,
+    }
+
+
+@router.get("/sales-stock/summary")
+def get_sales_stock_summary(
+    campaign_id: int | None = Query(None),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Get aggregated sales/stock summary."""
+    query = db.query(SalesStockData)
+    if campaign_id:
+        query = query.filter(SalesStockData.campaign_id == campaign_id)
+    rows = query.all()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="No sales/stock data found")
+
+    total_revenue = sum(r.sales_revenue for r in rows)
+    total_units = sum(r.sales_units for r in rows)
+    total_stock = sum(r.stock_units for r in rows)
+    total_returns = sum(r.returns for r in rows)
+    total_new = sum(r.new_customers for r in rows)
+    total_repeat = sum(r.repeat_customers for r in rows)
+    weeks = sorted({r.week for r in rows})
+
+    return SalesStockSummary(
+        total_weeks=len(weeks),
+        total_revenue=total_revenue,
+        total_units_sold=total_units,
+        total_stock_units=total_stock,
+        avg_weekly_revenue=total_revenue / len(weeks) if weeks else 0,
+        total_returns=total_returns,
+        return_rate=total_returns / total_units if total_units > 0 else 0,
+        total_new_customers=total_new,
+        total_repeat_customers=total_repeat,
+        products=sorted({r.product for r in rows if r.product}),
+        regions=sorted({r.region for r in rows if r.region}),
+    ).model_dump()
+
+
+@router.get("/sales-stock/weekly")
+def get_sales_stock_weekly(
+    campaign_id: int | None = Query(None),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """Get weekly sales/stock breakdown."""
+    query = db.query(SalesStockData)
+    if campaign_id:
+        query = query.filter(SalesStockData.campaign_id == campaign_id)
+    rows = query.order_by(SalesStockData.week).all()
+
+    weekly: dict[str, dict] = {}
+    for r in rows:
+        if r.week not in weekly:
+            weekly[r.week] = {
+                "week": r.week, "sales_units": 0, "sales_revenue": 0.0,
+                "stock_units": 0, "returns": 0, "new_customers": 0, "repeat_customers": 0,
+            }
+        w = weekly[r.week]
+        w["sales_units"] += r.sales_units
+        w["sales_revenue"] += r.sales_revenue
+        w["stock_units"] += r.stock_units
+        w["returns"] += r.returns
+        w["new_customers"] += r.new_customers
+        w["repeat_customers"] += r.repeat_customers
+
+    return list(weekly.values())
+
+
+@router.get("/data/template/sales-stock")
+def download_sales_stock_template() -> FileResponse:
+    """Download sales/stock CSV template."""
+    path = TEMPLATE_DIR / "sales_stock_template.csv"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Template not found")
+    return FileResponse(path, filename="sales_stock_template.csv", media_type="text/csv")

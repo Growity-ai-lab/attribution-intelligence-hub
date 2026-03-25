@@ -99,6 +99,41 @@ class WeeklyReport(BaseModel):
     channel_scores: list[UnifiedScore]
 
 
+# --------------- Sales & Stock ---------------
+
+
+class SalesStockInput(BaseModel):
+    """Single row of weekly sales/stock data."""
+
+    week: str = Field(..., description="ISO week string, e.g. 2026-W06")
+    channel: str = Field(default="", description="Attribution channel (optional)")
+    product: str = Field(default="", description="Product or SKU name")
+    region: str = Field(default="", description="Geographic region / city")
+    sales_units: int = Field(ge=0, default=0, description="Units sold")
+    sales_revenue: float = Field(ge=0, default=0.0, description="Revenue in TL")
+    stock_units: int = Field(ge=0, default=0, description="Stock on hand (units)")
+    stock_value: float = Field(ge=0, default=0.0, description="Stock value in TL")
+    returns: int = Field(ge=0, default=0, description="Returned units")
+    new_customers: int = Field(ge=0, default=0, description="New customer count")
+    repeat_customers: int = Field(ge=0, default=0, description="Repeat customer count")
+
+
+class SalesStockSummary(BaseModel):
+    """Aggregated sales/stock summary."""
+
+    total_weeks: int
+    total_revenue: float
+    total_units_sold: int
+    total_stock_units: int
+    avg_weekly_revenue: float
+    total_returns: int
+    return_rate: float
+    total_new_customers: int
+    total_repeat_customers: int
+    products: list[str]
+    regions: list[str]
+
+
 # --------------- Media Planning ---------------
 
 
