@@ -194,15 +194,15 @@ export default function MediaPlanningPanel({ campaign }) {
     URL.revokeObjectURL(url)
   }
 
-  // CPP derived values
-  const totalSpend = cpp > 0 ? totalGrp * cpp : 0
-  const cpl = result && totalSpend > 0 && result.summary.total_leads > 0
-    ? totalSpend / result.summary.total_leads : 0
-
   // Derived data
   const channelColor = CHANNEL_COLORS[selectedChannel] || '#f97316'
   const channelLabel = CHANNEL_LABELS[selectedChannel] || selectedChannel
   const totalGrp = weeklyGrps.reduce((s, g) => s + g, 0)
+
+  // CPP derived values
+  const totalSpend = cpp > 0 ? totalGrp * cpp : 0
+  const cpl = result && totalSpend > 0 && result.summary.total_leads > 0
+    ? totalSpend / result.summary.total_leads : 0
 
   // --- Chart Data ---
   const adstockChartData = useMemo(() => {
