@@ -144,6 +144,54 @@ def journey_stats(journeys: list[Journey]) -> dict:
     }
 
 
+def extract_top_paths(
+    journeys: list[Journey],
+    top_n: int = 15,
+) -> list[dict]:
+    """Extract the most common conversion paths with stats.
+
+    Groups journeys by their channel sequence, counts total occurrences
+    and conversions, then returns the top N paths sorted by conversion count.
+
+    Args:
+        journeys: List of Journey objects.
+        top_n: Number of top paths to return.
+
+    Returns:
+        List of dicts: {path, conversions, total, rate, segments}
+    """
+    path_stats: dict[tuple[str, ...], dict] = defaultdict(
+        lambda: {"conversions": 0, "total": 0, "segments": defaultdict(int)}
+    )
+
+    for j in journeys:
+        key = tuple(j.channels)
+        path_stats[key]["total"] += 1
+        if j.converted:
+            path_stats[key]["conversions"] += 1
+        if j.segment:
+            path_stats[key]["segments"][j.segment] += 1
+
+    results = []
+    for path_tuple, stats in path_stats.items():
+        total = stats["total"]
+        conversions = stats["conversions"]
+        # Dominant segment for this path
+        seg_counts = stats["segments"]
+        top_segment = max(seg_counts, key=seg_counts.get) if seg_counts else ""
+        results.append({
+            "path": list(path_tuple),
+            "conversions": conversions,
+            "total": total,
+            "rate": conversions / total if total > 0 else 0.0,
+            "segment": top_segment,
+        })
+
+    # Sort by conversions descending, then by total descending
+    results.sort(key=lambda x: (-x["conversions"], -x["total"]))
+    return results[:top_n]
+
+
 def _is_truthy(val) -> bool:
     """Check if a value is truthy (handles str '1', 'true', bool, int)."""
     if isinstance(val, bool):

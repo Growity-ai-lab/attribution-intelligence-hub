@@ -45,6 +45,9 @@ function buildSamplePaths(campaign) {
 
 export default function MTAPanel({ ddaResult, campaign }) {
   const samplePaths = useMemo(() => buildSamplePaths(campaign), [campaign])
+  const topPaths = ddaResult?.top_paths
+  const displayPaths = topPaths?.length > 0 ? topPaths : samplePaths
+  const hasRealPaths = topPaths?.length > 0
   const markovData = ddaResult?.markov
   const shapleyData = ddaResult?.shapley_dda
   const hybridData = ddaResult?.hybrid_attribution
@@ -106,16 +109,35 @@ export default function MTAPanel({ ddaResult, campaign }) {
       <div className="dark-card">
         <div className="card-hdr">
           <span className="card-title">Top Conversion Paths</span>
+          {!hasRealPaths && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20">
+              {'\u00d6'}rnek Veri
+            </span>
+          )}
+          {hasRealPaths && (
+            <span className="text-xs text-slate-500 font-mono">
+              {topPaths.length} path
+            </span>
+          )}
         </div>
-        <div className="p-4 space-y-3">
-          {samplePaths.map((p, i) => (
-            <div key={i} className="flex items-center gap-3 text-xs">
+        <div className="p-4 space-y-2">
+          {/* Header row */}
+          <div className="flex items-center gap-3 text-[10px] text-slate-500 uppercase tracking-wide pb-1 border-b border-dark-border/30">
+            <span className="w-5" />
+            <span className="flex-1">Path</span>
+            <span className="w-10 text-right">D{'\u00f6'}n.</span>
+            {hasRealPaths && <span className="w-10 text-right">Top.</span>}
+            <span className="w-12 text-right">Oran</span>
+            <span className="w-10 text-center">Seg.</span>
+          </div>
+          {displayPaths.map((p, i) => (
+            <div key={i} className="flex items-center gap-3 text-xs group hover:bg-dark-hover/30 rounded-lg px-1 py-1.5 transition-colors">
               <span className="text-slate-500 font-mono w-5">#{i + 1}</span>
               <div className="flex items-center gap-1 flex-wrap flex-1">
                 {p.path.map((ch, j) => (
                   <span key={j} className="flex items-center gap-1">
                     <span
-                      className="px-2 py-0.5 rounded-full text-white text-xs"
+                      className="px-2 py-0.5 rounded-full text-white text-[11px]"
                       style={{ backgroundColor: CHANNEL_COLORS[ch] || '#6B7280' }}
                     >
                       {CHANNEL_LABELS[ch] || ch}
@@ -124,18 +146,21 @@ export default function MTAPanel({ ddaResult, campaign }) {
                   </span>
                 ))}
               </div>
-              <span className="font-mono text-emerald-400">{p.conversions}</span>
-              <span className="font-mono text-slate-400">{formatPercent(p.rate)}</span>
-              <SegmentPill segment={p.segment} />
+              <span className="font-mono text-emerald-400 w-10 text-right">{p.conversions}</span>
+              {hasRealPaths && <span className="font-mono text-slate-500 w-10 text-right">{p.total}</span>}
+              <span className="font-mono text-slate-400 w-12 text-right">{formatPercent(p.rate)}</span>
+              <span className="w-10 text-center"><SegmentPill segment={p.segment} /></span>
             </div>
           ))}
         </div>
         <div className="px-4 pb-4">
           <div className="p-3 bg-dark-bg rounded-lg border border-dark-border/50">
             <p className="text-xs text-slate-400 leading-relaxed">
-              <span className="text-slate-300 font-medium">Nasıl yorumlanır:</span> Her satır, lead'lerin dönüşüm öncesinde izlediği kanal sırasını gösterir.
-              Yüksek dönüşüm oranına sahip path'ler, o kanal kombinasyonunun birlikte etkili çalıştığını işaret eder.
-              Örneğin Meta {'\u2192'} Google {'\u2192'} Meta path'i, retargeting stratejisinin dönüşümü desteklediğini gösterir.
+              <span className="text-slate-300 font-medium">Nas{'\u0131'}l yorumlan{'\u0131'}r:</span> Her sat{'\u0131'}r, lead'lerin d{'\u00f6'}n{'\u00fc'}{'\u015f'}{'\u00fc'}m {'\u00f6'}ncesinde izledi{'\u011f'}i kanal s{'\u0131'}ras{'\u0131'}n{'\u0131'} g{'\u00f6'}sterir.
+              {hasRealPaths
+                ? ` D${'\u00f6'}n. = d${'\u00f6'}n${'\u00fc'}${'\u015f'}en lead say${'\u0131'}s${'\u0131'}, Top. = toplam lead, Oran = d${'\u00f6'}n${'\u00fc'}${'\u015f'}${'\u00fc'}m oran${'\u0131'}. Y${'\u00fc'}ksek d${'\u00f6'}n${'\u00fc'}${'\u015f'}${'\u00fc'}m oranl${'\u0131'} path'ler kampanya optimizasyonunda ${'\u00f6'}nceliklendirilmelidir.`
+                : ` Bu veriler ${'\u00f6'}rnek i${'\u00e7'}eriktir. Ger${'\u00e7'}ek path analizi i${'\u00e7'}in Unified Rapor sekmesinden CRM touchpoint verisi y${'\u00fc'}kleyin.`
+              }
             </p>
           </div>
         </div>

@@ -7,6 +7,7 @@ and report deviations.
 
 from backend.models.dda.data_prep import (
     Journey,
+    extract_top_paths,
     get_unique_channels,
     journey_stats,
     journeys_to_state_sequences,
@@ -240,8 +241,12 @@ def run_full_dda_pipeline(
         offline_budget_share,
     )
 
+    # Extract top conversion paths
+    top_paths = extract_top_paths(journeys, top_n=15)
+
     return {
         "journey_stats": stats,
+        "top_paths": top_paths,
         "online_channels": online_channels,
         "offline_channels": list(OFFLINE_CHANNELS),
         "markov": {
