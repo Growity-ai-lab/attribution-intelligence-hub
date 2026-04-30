@@ -13,7 +13,15 @@ from sqlalchemy.orm import Session
 from backend.api.deps import get_current_user
 from backend.auth import authenticate_user, create_access_token
 from backend.db.database import get_db
-from backend.db.models import Campaign, Client, MediaPlanSimulation, SalesStockData, TouchpointData, WeeklyData
+from backend.db.models import (
+    Campaign,
+    CampaignModelParams,
+    Client,
+    MediaPlanSimulation,
+    SalesStockData,
+    TouchpointData,
+    WeeklyData,
+)
 
 from backend.config import (
     ADSTOCK_PARAMS,
@@ -283,7 +291,11 @@ def _parse_float_list(raw: str, param_name: str) -> list[float]:
 
 
 def _compute_default_mmm_shares() -> dict[str, float]:
-    """Compute MMM channel shares using default week_01 spend values."""
+    """LEGACY fallback: MMM channel shares from a hardcoded week_01 spend.
+
+    Used only when no campaign context or no real WeeklyData is available.
+    Prefer _compute_mmm_shares(db, campaign_id) when campaign context exists.
+    """
     default_spend = {
         "meta": 2_600_000, "google": 300_000, "tiktok": 800_000,
         "linkedin": 500_000, "dv360": 400_000, "youtube": 600_000,
@@ -304,6 +316,74 @@ def _compute_default_mmm_shares() -> dict[str, float]:
     if total > 0:
         shares = {ch: v / total for ch, v in shares.items()}
     return shares
+
+
+def _compute_mmm_shares(
+    db: Session, campaign_id: int | None
+) -> tuple[dict[str, float], str]:
+    """Compute MMM channel shares from real WeeklyData when available.
+
+    Returns:
+        (shares, source) where source is one of:
+          "fitted_per_campaign"   — campaign has fit + WeeklyData
+          "default_per_campaign"  — has WeeklyData, no fit yet (real spend, default params)
+          "default_global"        — no campaign or no WeeklyData → legacy hardcoded
+    """
+    from backend.models.mmm_fit import get_active_params
+
+    if campaign_id is None:
+        return _compute_default_mmm_shares(), "default_global"
+
+    rows = db.query(WeeklyData).filter(WeeklyData.campaign_id == campaign_id).all()
+    if not rows:
+        return _compute_default_mmm_shares(), "default_global"
+
+    # Aggregate spend per channel across all weeks for this campaign
+    spend_per_ch: dict[str, float] = {}
+    for r in rows:
+        spend_per_ch[r.channel] = spend_per_ch.get(r.channel, 0.0) + float(r.spend or 0.0)
+
+    fitted = get_active_params(db, campaign_id)
+    if fitted:
+        params = fitted["params"]
+        baseline = fitted["baseline"]
+        source = "fitted_per_campaign"
+    else:
+        params = {
+            ch: {
+                "decay": ADSTOCK_PARAMS[ch],
+                "alpha": SATURATION_PARAMS[ch][0],
+                "gamma": SATURATION_PARAMS[ch][1],
+                "max_lift": MAX_LIFT[ch],
+            }
+            for ch in CHANNELS
+        }
+        baseline = BASELINE_LEADS
+        source = "default_per_campaign"
+
+    shares: dict[str, float] = {}
+    for ch in CHANNELS:
+        s = spend_per_ch.get(ch, 0.0)
+        p = params.get(
+            ch,
+            {
+                "decay": ADSTOCK_PARAMS.get(ch, 0.3),
+                "alpha": SATURATION_PARAMS.get(ch, (1e6, 1.0))[0],
+                "gamma": SATURATION_PARAMS.get(ch, (1e6, 1.0))[1],
+                "max_lift": MAX_LIFT.get(ch, 200.0),
+            },
+        )
+        adstocked = compute_adstock([s], p["decay"])
+        adstocked_val = adstocked[0] if adstocked else 0.0
+        sat_val = compute_saturation(adstocked_val, p["alpha"], p["gamma"])
+        shares[ch] = compute_response(
+            sat_val, baseline / len(CHANNELS), p["max_lift"]
+        )
+
+    total = sum(shares.values())
+    if total > 0:
+        shares = {ch: v / total for ch, v in shares.items()}
+    return shares, source
 
 
 def _serialize_dda_result(result: dict) -> dict:
@@ -512,10 +592,21 @@ def get_saturation(channel: str, values: str = "") -> SaturationResult:
 
 
 @router.get("/mmm/decomposition")
-def get_decomposition(spend: str = "") -> list[ChannelDecomposition]:
+def get_decomposition(
+    spend: str = "",
+    campaign_id: int | None = Query(None),
+    with_ci: bool = Query(False),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[ChannelDecomposition]:
     """Compute channel decomposition given spend per channel.
 
     Expects spend as: meta:2600000,google:300000,...
+
+    If campaign_id is provided and a fit exists, uses fitted per-campaign
+    parameters. Otherwise falls back to config defaults.
+    If with_ci=true and a fit with residuals exists, also returns 95% CI
+    via parametric bootstrap (200 iterations).
     """
     channel_spend: dict[str, float] = {}
     if spend:
@@ -536,20 +627,43 @@ def get_decomposition(spend: str = "") -> list[ChannelDecomposition]:
                         detail=f"Invalid spend value for {ch_name}",
                     )
 
-    results: list[ChannelDecomposition] = []
-    total_leads = BASELINE_LEADS
+    # Resolve params: fitted (per campaign) or config defaults
+    fitted = None
+    if campaign_id is not None:
+        from backend.models.mmm_fit import get_active_params
+        fitted = get_active_params(db, campaign_id)
 
+    if fitted:
+        per_ch_params = fitted["params"]
+        baseline = fitted["baseline"]
+    else:
+        per_ch_params = {
+            ch: {
+                "decay": ADSTOCK_PARAMS[ch],
+                "alpha": SATURATION_PARAMS[ch][0],
+                "gamma": SATURATION_PARAMS[ch][1],
+                "max_lift": MAX_LIFT[ch],
+            }
+            for ch in CHANNELS
+        }
+        baseline = BASELINE_LEADS
+
+    results: list[ChannelDecomposition] = []
+    point_leads: dict[str, float] = {}
     for ch in CHANNELS:
         s = channel_spend.get(ch, 0.0)
-        decay = ADSTOCK_PARAMS[ch]
-        alpha, gamma = SATURATION_PARAMS[ch]
-        max_lift = MAX_LIFT[ch]
+        p = per_ch_params.get(ch, {
+            "decay": ADSTOCK_PARAMS[ch],
+            "alpha": SATURATION_PARAMS[ch][0],
+            "gamma": SATURATION_PARAMS[ch][1],
+            "max_lift": MAX_LIFT[ch],
+        })
 
-        adstocked = compute_adstock([s], decay)
+        adstocked = compute_adstock([s], p["decay"])
         adstocked_val = adstocked[0] if adstocked else 0.0
-        sat_val = compute_saturation(adstocked_val, alpha, gamma)
-        leads = compute_response(sat_val, BASELINE_LEADS / len(CHANNELS), max_lift)
-        total_leads += leads - BASELINE_LEADS / len(CHANNELS)
+        sat_val = compute_saturation(adstocked_val, p["alpha"], p["gamma"])
+        leads = compute_response(sat_val, baseline / len(CHANNELS), p["max_lift"])
+        point_leads[ch] = leads
 
         results.append(
             ChannelDecomposition(
@@ -567,7 +681,90 @@ def get_decomposition(spend: str = "") -> list[ChannelDecomposition]:
         for r in results:
             r.share = r.attributed_leads / total_attributed
 
+    # Bootstrap CI (only if explicitly requested and we have residuals)
+    if with_ci and fitted and fitted.get("residuals"):
+        from backend.models.uncertainty import parametric_bootstrap_decomposition
+        ci = parametric_bootstrap_decomposition(
+            spend_map=channel_spend,
+            per_ch_params=per_ch_params,
+            baseline=baseline,
+            residuals=fitted["residuals"],
+            n_iter=200,
+            baseline_divisor=len(CHANNELS),
+        )
+        for r in results:
+            entry = ci.get(r.channel)
+            if entry is not None:
+                r.lead_ci_low = entry["lead_ci_low"]
+                r.lead_ci_high = entry["lead_ci_high"]
+                r.share_ci_low = entry["share_ci_low"]
+                r.share_ci_high = entry["share_ci_high"]
+
     return results
+
+
+@router.post("/mmm/fit")
+def fit_campaign_mmm(
+    campaign_id: int = Query(...),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Fit per-campaign MMM parameters from WeeklyData via scipy NLS.
+
+    Persists result to CampaignModelParams; latest row is the active fit.
+    Returns fit_quality (rmse, mape, r2) plus the fitted params per channel.
+    """
+    from backend.models.mmm_fit import fit_and_store
+    try:
+        result = fit_and_store(db, campaign_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {
+        "channels": result["channels"],
+        "params": result["params"],
+        "baseline": result["baseline"],
+        "fit_quality": result["fit_quality"],
+        "actual": result["actual"],
+        "predicted": result["predicted"],
+    }
+
+
+@router.get("/mmm/fit-status")
+def get_fit_status(
+    campaign_id: int = Query(...),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Check whether the campaign has an active fit and whether it's stale."""
+    from backend.models.mmm_fit import compute_data_hash
+    rec = (
+        db.query(CampaignModelParams)
+        .filter(CampaignModelParams.campaign_id == campaign_id)
+        .order_by(CampaignModelParams.created_at.desc())
+        .first()
+    )
+    rows = db.query(WeeklyData).filter(WeeklyData.campaign_id == campaign_id).all()
+    n_weeks = len({r.week for r in rows})
+    n_rows = len(rows)
+    if not rec:
+        return {
+            "has_fit": False,
+            "stale": True,
+            "n_rows": n_rows,
+            "n_weeks": n_weeks,
+            "can_fit": n_rows >= 8,
+        }
+    current_hash = compute_data_hash(rows) if rows else ""
+    return {
+        "has_fit": True,
+        "fit_quality": json.loads(rec.fit_quality_json),
+        "created_at": rec.created_at,
+        "stale": current_hash != rec.source_data_hash,
+        "source": rec.source,
+        "n_rows": n_rows,
+        "n_weeks": n_weeks,
+        "can_fit": n_rows >= 8,
+    }
 
 
 # --------------- DDA Endpoints ---------------
@@ -686,7 +883,7 @@ async def run_dda_from_csv(
 
     _validate_journey_count(journeys)
 
-    mmm_shares = _compute_default_mmm_shares()
+    mmm_shares, mmm_source = _compute_mmm_shares(db, target_campaign_id)
 
     result = run_full_dda_pipeline(
         journeys,
@@ -711,6 +908,7 @@ async def run_dda_from_csv(
     serialized["persisted"] = persisted
     serialized["campaign_id"] = target_campaign_id
     serialized["redirected_to_sandbox"] = persisted and target_campaign_id != campaign_id
+    serialized["mmm_shares_source"] = mmm_source
     return serialized
 
 

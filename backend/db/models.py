@@ -73,6 +73,26 @@ class TouchpointData(Base):
     segment = Column(String, default="")
 
 
+class CampaignModelParams(Base):
+    """Per-campaign fitted MMM parameters (one row per fit run; latest = active)."""
+
+    __tablename__ = "campaign_model_params"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    created_at = Column(String, nullable=False, index=True)
+    # JSON: {"channels": [...], "params": {ch: {decay, alpha, gamma, max_lift}}, "baseline": ...}
+    params_json = Column(String, nullable=False)
+    # JSON: {rmse, mape, r2, n_obs, converged}
+    fit_quality_json = Column(String, nullable=False, default="{}")
+    # JSON: list of residuals (y - pred) for bootstrap CI
+    residuals_json = Column(String, nullable=False, default="[]")
+    # MD5 hash of WeeklyData rows used for fit, to detect staleness
+    source_data_hash = Column(String, nullable=False, default="", index=True)
+    # 'fit' | 'manual_override' | 'config_default'
+    source = Column(String, nullable=False, default="fit")
+
+
 class SalesStockData(Base):
     __tablename__ = "sales_stock_data"
 

@@ -30,13 +30,14 @@ export function useAttribution() {
     return res.data
   }, [])
 
-  const getDecomposition = useCallback(async (spendMap) => {
+  const getDecomposition = useCallback(async (spendMap, campaignId = null, withCi = false) => {
     const spendStr = Object.entries(spendMap)
       .map(([ch, val]) => `${ch}:${val}`)
       .join(',')
-    const res = await axios.get(`${API_BASE}/mmm/decomposition`, {
-      params: { spend: spendStr },
-    })
+    const params = { spend: spendStr }
+    if (campaignId) params.campaign_id = campaignId
+    if (withCi) params.with_ci = true
+    const res = await axios.get(`${API_BASE}/mmm/decomposition`, { params })
     return res.data
   }, [])
 
@@ -160,6 +161,16 @@ export function useAttribution() {
     window.URL.revokeObjectURL(blobUrl)
   }, [])
 
+  const fitMMM = useCallback(async (campaignId) => {
+    const res = await axios.post(`${API_BASE}/mmm/fit`, null, { params: { campaign_id: campaignId } })
+    return res.data
+  }, [])
+
+  const getFitStatus = useCallback(async (campaignId) => {
+    const res = await axios.get(`${API_BASE}/mmm/fit-status`, { params: { campaign_id: campaignId } })
+    return res.data
+  }, [])
+
   useEffect(() => {
     fetchConfig()
   }, [fetchConfig])
@@ -187,6 +198,8 @@ export function useAttribution() {
     uploadSalesStock,
     getSalesStockSummary,
     getSalesStockWeekly,
+    fitMMM,
+    getFitStatus,
     refetch: fetchConfig,
   }
 }

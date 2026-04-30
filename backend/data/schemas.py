@@ -50,7 +50,11 @@ class SaturationResult(BaseModel):
 
 
 class ChannelDecomposition(BaseModel):
-    """Channel contribution decomposition."""
+    """Channel contribution decomposition.
+
+    CI fields are populated only when ?with_ci=true and a fit with
+    residuals is available; otherwise None.
+    """
 
     channel: str
     spend: float
@@ -58,6 +62,10 @@ class ChannelDecomposition(BaseModel):
     saturated_value: float
     attributed_leads: float
     share: float
+    lead_ci_low: float | None = None
+    lead_ci_high: float | None = None
+    share_ci_low: float | None = None
+    share_ci_high: float | None = None
 
 
 class DDAResult(BaseModel):

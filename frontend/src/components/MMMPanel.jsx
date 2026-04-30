@@ -57,12 +57,46 @@ const fmtTL = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_00
 export default function MMMPanel({ campaign }) {
   const campaignChannels = campaign?.channels || ALL_CHANNELS
   const spendMap = useMemo(() => buildSpendMap(campaign), [campaign])
-  const { getAdstock, getSaturation, getDecomposition, config } = useAttribution()
+  const { getAdstock, getSaturation, getDecomposition, fitMMM, getFitStatus, config } = useAttribution()
   const [selectedChannel, setSelectedChannel] = useState(campaignChannels[0] || 'meta')
   const [adstockData, setAdstockData] = useState(null)
   const [saturationData, setSaturationData] = useState(null)
   const [decomposition, setDecomposition] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [fitStatus, setFitStatus] = useState(null)
+  const [fitting, setFitting] = useState(false)
+  const [fitError, setFitError] = useState(null)
+  const [showCi, setShowCi] = useState(false)
+
+  const campaignId = campaign?.id || null
+
+  const refreshFitStatus = async () => {
+    if (!campaignId) { setFitStatus(null); return }
+    try {
+      const s = await getFitStatus(campaignId)
+      setFitStatus(s)
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => {
+    refreshFitStatus()
+  }, [campaignId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFit = async () => {
+    if (!campaignId) return
+    setFitting(true); setFitError(null)
+    try {
+      await fitMMM(campaignId)
+      await refreshFitStatus()
+      // Reload decomposition with fitted params
+      const res = await getDecomposition(spendMap, campaignId, showCi)
+      setDecomposition(res)
+    } catch (err) {
+      setFitError(err.response?.data?.detail || err.message)
+    } finally {
+      setFitting(false)
+    }
+  }
 
   const decay = config?.adstock_params?.[selectedChannel] || 0
   const satAlpha = config?.saturation_params?.[selectedChannel]?.alpha || 0
@@ -90,13 +124,13 @@ export default function MMMPanel({ campaign }) {
     let cancelled = false
     const loadDecomp = async () => {
       try {
-        const res = await getDecomposition(spendMap)
+        const res = await getDecomposition(spendMap, campaignId, showCi)
         if (!cancelled) setDecomposition(res)
       } catch { /* silently handle */ }
     }
     loadDecomp()
     return () => { cancelled = true }
-  }, [getDecomposition, spendMap])
+  }, [getDecomposition, spendMap, campaignId, showCi])
 
   // --- Adstock: find peak carry-over point ---
   const adstockPeak = useMemo(() => {
@@ -312,6 +346,67 @@ export default function MMMPanel({ campaign }) {
 
   return (
     <div className="space-y-6">
+      {/* Calibration Status Banner */}
+      {campaignId && (
+        <div className="dark-card p-4 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {fitStatus?.has_fit ? (
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold ${
+                fitStatus.stale
+                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+              }`}>
+                {fitStatus.stale ? 'STALE FIT' : 'CALIBRATED'}
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-slate-500/15 text-slate-400 border border-slate-500/30">
+                UNCALIBRATED — DEFAULT PARAMS
+              </span>
+            )}
+            {fitStatus?.has_fit && fitStatus.fit_quality && (
+              <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
+                <span>R<sup>2</sup>: <strong className="text-slate-200">{fitStatus.fit_quality.r2?.toFixed(3)}</strong></span>
+                <span className="text-slate-600">|</span>
+                <span>MAPE: <strong className="text-slate-200">{fitStatus.fit_quality.mape?.toFixed(1)}%</strong></span>
+                <span className="text-slate-600">|</span>
+                <span>n={fitStatus.fit_quality.n_obs}</span>
+              </div>
+            )}
+            {fitStatus && !fitStatus.has_fit && (
+              <span className="text-[11px] text-slate-500">
+                {fitStatus.can_fit
+                  ? `${fitStatus.n_weeks} hafta veri mevcut — modeli fit edebilirsiniz`
+                  : `Fit için en az 8 satır gerekli (mevcut: ${fitStatus.n_rows})`}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showCi}
+                onChange={e => setShowCi(e.target.checked)}
+                disabled={!fitStatus?.has_fit}
+                className="accent-accent"
+              />
+              95% CI göster
+            </label>
+            <button
+              onClick={handleFit}
+              disabled={fitting || !fitStatus?.can_fit}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/15 border border-accent/30 text-accent hover:bg-accent/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {fitting ? 'Fit ediliyor...' : fitStatus?.has_fit ? 'Yeniden Fit' : 'Modeli Fit Et'}
+            </button>
+          </div>
+        </div>
+      )}
+      {fitError && (
+        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+          Fit hatası: {fitError}
+        </div>
+      )}
+
       {/* Channel Selector */}
       <div className="flex flex-wrap gap-2">
         {campaignChannels.map(ch => (
