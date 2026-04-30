@@ -138,6 +138,39 @@ REACH_LOOKUP: dict[int, dict[str, float]] = {
     2000: {"r1": 81.9, "r2": 77.2, "r3": 73.3},
 }
 
+# --------------- Digital Media Planning ---------------
+
+# Per-online-channel default funnel metrics for digital planning.
+# CPM = TL per 1000 impressions; CTR = click-through rate; lead_rate = lead per click.
+# target_audience = unique reachable user count (Türkiye, kategoriye göre); freq_cap = effective frequency ceiling.
+# lead_rate values calibrated for B2B fleet lead generation (filo başvurusu);
+# typical CPL ranges 2K–10K TL, so lead_rate stays in 0.001–0.005 band.
+DIGITAL_CHANNEL_METRICS: dict[str, dict[str, float]] = {
+    "meta":     {"cpm": 80,  "ctr": 0.018, "lead_rate": 0.0015, "target_audience": 4_000_000, "freq_cap": 5},
+    "google":   {"cpm": 60,  "ctr": 0.045, "lead_rate": 0.0040, "target_audience": 2_500_000, "freq_cap": 3},
+    "tiktok":   {"cpm": 55,  "ctr": 0.022, "lead_rate": 0.0010, "target_audience": 5_000_000, "freq_cap": 6},
+    "linkedin": {"cpm": 220, "ctr": 0.008, "lead_rate": 0.0030, "target_audience": 800_000,   "freq_cap": 3},
+    "dv360":    {"cpm": 95,  "ctr": 0.012, "lead_rate": 0.0012, "target_audience": 3_500_000, "freq_cap": 4},
+    "youtube":  {"cpm": 70,  "ctr": 0.015, "lead_rate": 0.0009, "target_audience": 6_000_000, "freq_cap": 5},
+}
+
+# 12-week default spend curves per online channel (front-loaded for awareness ramp).
+DIGITAL_PRESETS: dict[str, list[float]] = {
+    "meta":     [3_500_000, 3_200_000, 2_900_000, 2_700_000, 2_500_000, 2_300_000,
+                 2_300_000, 2_100_000, 2_100_000, 1_900_000, 1_900_000, 1_700_000],
+    "google":   [400_000, 380_000, 360_000, 340_000, 320_000, 300_000,
+                 300_000, 280_000, 280_000, 260_000, 260_000, 240_000],
+    "tiktok":   [1_100_000, 1_000_000, 900_000, 850_000, 800_000, 750_000,
+                 750_000, 700_000, 700_000, 650_000, 650_000, 600_000],
+    "linkedin": [700_000, 650_000, 600_000, 550_000, 500_000, 450_000,
+                 450_000, 400_000, 400_000, 350_000, 350_000, 300_000],
+    "dv360":    [550_000, 500_000, 450_000, 400_000, 380_000, 350_000,
+                 350_000, 320_000, 320_000, 300_000, 300_000, 280_000],
+    "youtube":  [800_000, 750_000, 700_000, 650_000, 600_000, 550_000,
+                 550_000, 500_000, 500_000, 450_000, 450_000, 400_000],
+}
+
+
 # All channels
 CHANNELS = list(ADSTOCK_PARAMS.keys())
 

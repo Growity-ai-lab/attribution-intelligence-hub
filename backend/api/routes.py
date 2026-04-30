@@ -29,6 +29,8 @@ from backend.config import (
     BASELINE_LEADS,
     CHANNELS,
     DDA_BLEND_WEIGHTS,
+    DIGITAL_CHANNEL_METRICS,
+    DIGITAL_PRESETS,
     GRP_MAX_LIFT,
     GRP_PRESETS,
     GRP_SATURATION_PARAMS,
@@ -38,6 +40,7 @@ from backend.config import (
     MAX_LIFT,
     MAX_UPLOAD_SIZE_BYTES,
     OFFLINE_CHANNELS,
+    ONLINE_CHANNELS,
     PRIOR_ALPHA_MAX,
     PRIOR_ALPHA_MIN,
     REACH_LOOKUP,
@@ -50,6 +53,7 @@ from backend.data.loader import load_crm_touchpoints, load_sales_stock_csv, load
 from backend.data.schemas import (
     AdstockResult,
     ChannelDecomposition,
+    FunnelDataPoint,
     MediaPlanningRequest,
     MediaPlanningResponse,
     OptimalGRPResult,
@@ -1043,14 +1047,20 @@ def get_channels() -> dict:
 
 
 def _find_optimal_grp(alpha: float, gamma: float, max_lift: float) -> tuple[float, float]:
-    """Find optimal and saturation-threshold GRP levels.
+    """Find optimal and saturation-threshold input levels.
 
-    Returns (optimal_grp, threshold_grp) where:
-    - optimal: GRP where marginal gain drops below 50% of initial marginal gain
-    - threshold: GRP where marginal gain drops below 10% of initial marginal gain
+    Generic optimizer — works for both GRP-domain (offline, alpha~100s) and
+    spend-domain (digital, alpha~1Ms). Test range scales with alpha.
+
+    Returns (optimal_input, threshold_input) where:
+    - optimal: input where marginal gain drops below 50% of initial marginal gain
+    - threshold: input where marginal gain drops below 10% of initial marginal gain
     """
-    step = 10
-    test_grps = list(range(0, 1501, step))
+    # Scan up to 4x alpha (well past saturation knee for any reasonable gamma)
+    upper = max(alpha * 4.0, 1500.0)
+    n_steps = 150
+    step = upper / n_steps
+    test_grps = [i * step for i in range(n_steps + 1)]
     responses = []
     for g in test_grps:
         sat = compute_saturation(float(g), alpha, gamma)
@@ -1122,13 +1132,112 @@ def _interpolate_reach(cumulative_grp: float) -> dict[str, float]:
     return REACH_LOOKUP[grp_keys[-1]]
 
 
+# --------------- Digital Planning Helpers ---------------
+
+
+def _resolve_digital_metrics(channel: str, request: MediaPlanningRequest) -> dict:
+    """Merge channel defaults with per-request overrides."""
+    base = dict(DIGITAL_CHANNEL_METRICS[channel])
+    if request.cpm_override is not None and request.cpm_override > 0:
+        base["cpm"] = float(request.cpm_override)
+    if request.ctr_override is not None and request.ctr_override > 0:
+        base["ctr"] = float(request.ctr_override)
+    if request.lead_rate_override is not None and request.lead_rate_override > 0:
+        base["lead_rate"] = float(request.lead_rate_override)
+    if request.target_audience_override is not None and request.target_audience_override > 0:
+        base["target_audience"] = int(request.target_audience_override)
+    if request.freq_cap_override is not None and request.freq_cap_override > 0:
+        base["freq_cap"] = int(request.freq_cap_override)
+    return base
+
+
+def _compute_digital_funnel(
+    weekly_spends: list[float], metrics: dict
+) -> list[dict]:
+    """Spend → Impressions → Clicks → Estimated Leads pipeline (per week)."""
+    cpm = float(metrics["cpm"])
+    ctr = float(metrics["ctr"])
+    lead_rate = float(metrics["lead_rate"])
+    out = []
+    for i, spend in enumerate(weekly_spends):
+        impressions = (spend / cpm) * 1000 if cpm > 0 else 0.0
+        clicks = impressions * ctr
+        leads = clicks * lead_rate
+        out.append({
+            "week": i + 1,
+            "spend": float(spend),
+            "impressions": impressions,
+            "clicks": clicks,
+            "estimated_leads_funnel": leads,
+        })
+    return out
+
+
+def _compute_digital_reach(
+    cumulative_impressions: list[float], target_audience: int, freq_cap: int
+) -> list[dict]:
+    """Reach via Poisson coverage:  reach = 1 - exp(-impr/audience).
+    Effective frequency capped by freq_cap.
+    """
+    import math
+    out = []
+    for impr in cumulative_impressions:
+        if target_audience <= 0:
+            out.append({"reach_pct": 0.0, "frequency": 0.0})
+            continue
+        lam = impr / target_audience
+        coverage = 1 - math.exp(-lam)
+        reach_pct = coverage * 100.0
+        raw_freq = lam / coverage if coverage > 0 else 0.0
+        eff_freq = min(raw_freq, float(freq_cap))
+        out.append({"reach_pct": reach_pct, "frequency": eff_freq})
+    return out
+
+
+def _generate_digital_recommendation(
+    channel: str, avg_spend: float, optimal: float, threshold: float
+) -> str:
+    """Turkish recommendation text for digital channels (spend-based)."""
+    def _fmt(v: float) -> str:
+        return f"{v/1_000_000:.1f}M TL" if v >= 1_000_000 else f"{v/1_000:.0f}K TL"
+    if avg_spend < optimal * 0.8:
+        return (
+            f"{channel.capitalize()} kanalında haftalık ortalama harcama {_fmt(avg_spend)} olup "
+            f"optimal seviyenin ({_fmt(optimal)}) altındadır. Ek bütçe ile marjinal lead getirisi "
+            f"hâlâ yüksek; bütçe artışı {_fmt(threshold)} doygunluk sınırına kadar verimli olacaktır."
+        )
+    if avg_spend > threshold:
+        return (
+            f"{channel.capitalize()} kanalında haftalık ortalama harcama {_fmt(avg_spend)} olup "
+            f"doygunluk noktasını ({_fmt(threshold)}) aşmıştır. Marjinal getiri sıfıra yaklaşır; "
+            f"bütçenin bir kısmının daha düşük doygunluk sergileyen kanallara aktarılması önerilir."
+        )
+    return (
+        f"{channel.capitalize()} kanalında haftalık ortalama harcama {_fmt(avg_spend)} olup "
+        f"optimal aralıkta ({_fmt(optimal)}–{_fmt(threshold)}) bulunmaktadır. Mevcut plana devam "
+        f"edilmesi önerilir."
+    )
+
+
 @router.post("/media-planning/simulate")
 def simulate_media_plan(
     request: MediaPlanningRequest,
     _user: dict = Depends(get_current_user),
 ) -> MediaPlanningResponse:
-    """Simulate offline media plan given weekly GRP values."""
+    """Simulate a media plan given weekly values.
+
+    For mode='offline', weekly_grps carry GRP per week (TV/Radyo/DOOH).
+    For mode='digital', weekly_grps carry weekly spend (TL) and a Spend →
+    Impressions → Clicks → Funnel-Lead projection runs alongside the
+    MMM lead estimate.
+    """
     channel = request.channel
+    mode = (request.mode or "offline").lower()
+
+    if mode == "digital":
+        return _simulate_digital_plan(request)
+
+    # ----- OFFLINE PATH -----
     if channel not in OFFLINE_CHANNELS:
         raise HTTPException(
             status_code=400,
@@ -1204,6 +1313,7 @@ def simulate_media_plan(
 
     return MediaPlanningResponse(
         channel=channel,
+        mode="offline",
         decay=decay,
         alpha=alpha,
         gamma=gamma,
@@ -1216,12 +1326,176 @@ def simulate_media_plan(
     )
 
 
+def _simulate_digital_plan(request: MediaPlanningRequest) -> MediaPlanningResponse:
+    """Digital media planning — spend-based MMM + funnel projection."""
+    channel = request.channel
+    if channel not in ONLINE_CHANNELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Channel must be online: {', '.join(sorted(ONLINE_CHANNELS))}",
+        )
+
+    metrics = _resolve_digital_metrics(channel, request)
+    decay = ADSTOCK_PARAMS[channel]
+    alpha, gamma = SATURATION_PARAMS[channel]
+    max_lift = MAX_LIFT[channel]
+    baseline_per_ch = BASELINE_LEADS / len(CHANNELS)
+
+    weekly_spends = list(request.weekly_grps)  # interpreted as spend in digital mode
+
+    # 1. MMM pipeline (adstock → saturation → response)
+    adstocked = compute_adstock(weekly_spends, decay)
+    weekly_details: list[WeeklySimDetail] = []
+    for i, (spend, adst) in enumerate(zip(weekly_spends, adstocked)):
+        sat = compute_saturation(adst, alpha, gamma)
+        leads = compute_response(sat, baseline_per_ch, max_lift)
+        weekly_details.append(WeeklySimDetail(
+            week=i + 1,
+            grp=round(spend, 0),
+            adstocked_grp=round(adst, 0),
+            saturated=round(sat, 4),
+            estimated_leads=round(leads, 1),
+            marginal_leads=round(leads - baseline_per_ch, 1),
+        ))
+
+    # 2. Funnel pipeline
+    funnel_rows = _compute_digital_funnel(weekly_spends, metrics)
+    funnel_curve: list[FunnelDataPoint] = []
+    cumulative_impressions = []
+    cum_impr = 0.0
+    for row in funnel_rows:
+        cum_impr += row["impressions"]
+        cumulative_impressions.append(cum_impr)
+
+    reach_rows = _compute_digital_reach(
+        cumulative_impressions,
+        int(metrics["target_audience"]),
+        int(metrics["freq_cap"]),
+    )
+
+    for fr, rr in zip(funnel_rows, reach_rows):
+        funnel_curve.append(FunnelDataPoint(
+            week=fr["week"],
+            spend=round(fr["spend"], 0),
+            impressions=round(fr["impressions"], 0),
+            clicks=round(fr["clicks"], 0),
+            estimated_leads_funnel=round(fr["estimated_leads_funnel"], 1),
+            reach_pct=round(rr["reach_pct"], 2),
+            frequency=round(rr["frequency"], 2),
+        ))
+
+    # 3. Summary
+    total_spend = sum(weekly_spends)
+    total_impressions = sum(f["impressions"] for f in funnel_rows)
+    total_clicks = sum(f["clicks"] for f in funnel_rows)
+    total_leads_mmm = sum(d.estimated_leads for d in weekly_details)
+    total_leads_funnel = sum(f["estimated_leads_funnel"] for f in funnel_rows)
+    avg_spend = total_spend / len(weekly_spends) if weekly_spends else 0
+    peak_week = max(weekly_details, key=lambda d: d.estimated_leads).week if weekly_details else 1
+
+    avg_cpm = (total_spend / total_impressions * 1000) if total_impressions > 0 else 0
+    avg_cpc = (total_spend / total_clicks) if total_clicks > 0 else 0
+    avg_cpl_mmm = (total_spend / total_leads_mmm) if total_leads_mmm > 0 else 0
+    avg_cpl_funnel = (total_spend / total_leads_funnel) if total_leads_funnel > 0 else 0
+    deviation_pct = (
+        (total_leads_funnel - total_leads_mmm) / total_leads_mmm * 100
+        if total_leads_mmm > 0 else 0
+    )
+
+    summary = {
+        "total_grp": round(total_spend, 0),  # field name kept for FE compat
+        "avg_grp": round(avg_spend, 0),
+        "total_leads": round(total_leads_mmm, 1),
+        "leads_per_100_grp": round((total_leads_mmm / total_spend * 100_000) if total_spend > 0 else 0, 2),
+        "peak_week": peak_week,
+        "total_spend": round(total_spend, 0),
+        "avg_spend": round(avg_spend, 0),
+        "total_impressions": round(total_impressions, 0),
+        "total_clicks": round(total_clicks, 0),
+        "total_leads_mmm": round(total_leads_mmm, 1),
+        "total_leads_funnel": round(total_leads_funnel, 1),
+        "avg_cpm": round(avg_cpm, 2),
+        "avg_cpc": round(avg_cpc, 2),
+        "avg_cpl_mmm": round(avg_cpl_mmm, 2),
+        "avg_cpl_funnel": round(avg_cpl_funnel, 2),
+        "funnel_vs_mmm_deviation_pct": round(deviation_pct, 1),
+    }
+
+    # 4. Optimal spend (reuse generic optimizer with spend-domain α)
+    opt_spend, sat_threshold_spend = _find_optimal_grp(alpha, gamma, max_lift)
+    recommendation = _generate_digital_recommendation(channel, avg_spend, opt_spend, sat_threshold_spend)
+    optimal = OptimalGRPResult(
+        optimal_weekly_grp=round(opt_spend, 0),
+        saturation_threshold_grp=round(sat_threshold_spend, 0),
+        current_avg_grp=round(avg_spend, 0),
+        recommendation=recommendation,
+    )
+
+    # 5. Saturation curve (spend domain)
+    max_spend_chart = max(max(weekly_spends, default=alpha * 2) * 1.5, alpha * 2)
+    curve_count = 50
+    curve_spends = [round(i * (max_spend_chart / curve_count), 0) for i in range(curve_count + 1)]
+    curve_sat = [round(compute_saturation(s, alpha, gamma), 4) for s in curve_spends]
+    saturation_curve = {"grp_values": curve_spends, "saturated_values": curve_sat}
+
+    # 6. Reach curve (cumulative impressions)
+    reach_curve: list[ReachDataPoint] = []
+    for fp in funnel_curve:
+        # reach_pct already computed; expose via r1, freq via r2 for FE
+        reach_curve.append(ReachDataPoint(
+            cumulative_grp=round(cumulative_impressions[fp.week - 1], 0),
+            r1=round(fp.reach_pct, 2),
+            r2=round(fp.frequency, 2),
+            r3=0.0,
+        ))
+
+    return MediaPlanningResponse(
+        channel=channel,
+        mode="digital",
+        decay=decay,
+        alpha=alpha,
+        gamma=gamma,
+        max_lift=max_lift,
+        weekly_details=weekly_details,
+        summary=summary,
+        optimal=optimal,
+        saturation_curve=saturation_curve,
+        reach_curve=reach_curve,
+        funnel_curve=funnel_curve,
+        digital_metrics=metrics,
+    )
+
+
 @router.get("/media-planning/presets/{channel}")
 def get_media_planning_presets(
     channel: str,
+    mode: str = Query("offline"),
     _user: dict = Depends(get_current_user),
 ) -> dict:
-    """Return default GRP presets and parameters for a channel."""
+    """Return default presets and parameters for a channel.
+
+    For mode='offline' returns GRP presets + GRP saturation params.
+    For mode='digital' returns spend presets + online saturation params + funnel metrics.
+    """
+    mode = (mode or "offline").lower()
+    if mode == "digital":
+        if channel not in ONLINE_CHANNELS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Channel must be online: {', '.join(sorted(ONLINE_CHANNELS))}",
+            )
+        alpha, gamma = SATURATION_PARAMS[channel]
+        return {
+            "channel": channel,
+            "mode": "digital",
+            "preset_grps": DIGITAL_PRESETS.get(channel, []),
+            "decay": ADSTOCK_PARAMS[channel],
+            "alpha": alpha,
+            "gamma": gamma,
+            "max_lift": MAX_LIFT[channel],
+            "metrics": DIGITAL_CHANNEL_METRICS.get(channel, {}),
+        }
+    # offline default
     if channel not in OFFLINE_CHANNELS:
         raise HTTPException(
             status_code=400,
@@ -1230,6 +1504,7 @@ def get_media_planning_presets(
     alpha, gamma = GRP_SATURATION_PARAMS[channel]
     return {
         "channel": channel,
+        "mode": "offline",
         "preset_grps": GRP_PRESETS.get(channel, []),
         "decay": ADSTOCK_PARAMS[channel],
         "alpha": alpha,
@@ -1248,14 +1523,20 @@ def save_media_plan(
     weekly_grps: list[float] = Body(..., embed=True),
     response_snapshot: dict = Body(..., embed=True),
     campaign_id: int | None = Body(None, embed=True),
+    mode: str = Body("offline", embed=True),
     user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Save a media plan simulation."""
+    """Save a media plan simulation (offline or digital)."""
     if not name or not name.strip():
         raise HTTPException(status_code=400, detail="Simulation name is required")
-    if channel not in OFFLINE_CHANNELS:
-        raise HTTPException(status_code=400, detail=f"Invalid channel: {channel}")
+    mode = (mode or "offline").lower()
+    if mode == "digital":
+        if channel not in ONLINE_CHANNELS:
+            raise HTTPException(status_code=400, detail=f"Invalid digital channel: {channel}")
+    else:
+        if channel not in OFFLINE_CHANNELS:
+            raise HTTPException(status_code=400, detail=f"Invalid offline channel: {channel}")
 
     sim = MediaPlanSimulation(
         campaign_id=campaign_id,
@@ -1263,31 +1544,36 @@ def save_media_plan(
         channel=channel,
         weekly_grps=json.dumps(weekly_grps),
         response_snapshot=json.dumps(response_snapshot),
+        mode=mode,
         created_at=datetime.now(timezone.utc).isoformat(),
         created_by=user.get("username", ""),
     )
     db.add(sim)
     db.commit()
     db.refresh(sim)
-    return {"id": sim.id, "name": sim.name, "channel": sim.channel, "created_at": sim.created_at}
+    return {"id": sim.id, "name": sim.name, "channel": sim.channel, "mode": sim.mode, "created_at": sim.created_at}
 
 
 @router.get("/media-planning/saved")
 def list_saved_media_plans(
     campaign_id: int | None = Query(None),
+    mode: str | None = Query(None),
     _user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    """List saved media plan simulations."""
+    """List saved media plan simulations. Optional ?mode=offline|digital filter."""
     q = db.query(MediaPlanSimulation)
     if campaign_id is not None:
         q = q.filter(MediaPlanSimulation.campaign_id == campaign_id)
+    if mode is not None:
+        q = q.filter(MediaPlanSimulation.mode == mode.lower())
     sims = q.order_by(MediaPlanSimulation.created_at.desc()).all()
     return [
         {
             "id": s.id,
             "name": s.name,
             "channel": s.channel,
+            "mode": s.mode or "offline",
             "campaign_id": s.campaign_id,
             "created_at": s.created_at,
             "created_by": s.created_by,
@@ -1310,6 +1596,7 @@ def get_saved_media_plan(
         "id": sim.id,
         "name": sim.name,
         "channel": sim.channel,
+        "mode": sim.mode or "offline",
         "campaign_id": sim.campaign_id,
         "weekly_grps": json.loads(sim.weekly_grps),
         "response_snapshot": json.loads(sim.response_snapshot),

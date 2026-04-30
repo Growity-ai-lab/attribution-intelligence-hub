@@ -54,8 +54,9 @@ class MediaPlanSimulation(Base):
     campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True)
     name = Column(String, nullable=False)
     channel = Column(String, nullable=False)
-    weekly_grps = Column(String, nullable=False)  # JSON array
+    weekly_grps = Column(String, nullable=False)  # JSON array (GRP for offline, spend for digital)
     response_snapshot = Column(String, nullable=False)  # JSON blob
+    mode = Column(String, default="offline", index=True)  # 'offline' | 'digital'
     created_at = Column(String, nullable=False)
     created_by = Column(String, default="")
 

@@ -189,10 +189,22 @@ class PeriodComparison(BaseModel):
 
 
 class MediaPlanningRequest(BaseModel):
-    """Request for media planning simulation."""
+    """Request for media planning simulation.
 
-    channel: str = Field(..., description="Offline channel: tv_match, tv_news, radio, dooh")
-    weekly_grps: list[float] = Field(..., description="GRP values per week", min_length=1, max_length=52)
+    For offline mode: weekly_grps carries GRP values per week.
+    For digital mode: weekly_grps carries weekly spend (TL); the field name is
+    kept for backward compatibility but the value is interpreted by the mode.
+    """
+
+    channel: str = Field(..., description="Channel name (offline or online)")
+    weekly_grps: list[float] = Field(..., description="GRP (offline) or spend TL (digital) per week", min_length=1, max_length=52)
+    mode: str = Field("offline", description="'offline' (GRP-based) or 'digital' (spend-based)")
+    # Optional digital-only overrides (None → use DIGITAL_CHANNEL_METRICS defaults)
+    cpm_override: float | None = Field(None, description="Cost per 1000 impressions (TL) — digital only")
+    ctr_override: float | None = Field(None, description="Click-through rate — digital only")
+    lead_rate_override: float | None = Field(None, description="Lead per click rate — digital only")
+    target_audience_override: int | None = Field(None, description="Reachable unique users — digital only")
+    freq_cap_override: int | None = Field(None, description="Effective frequency cap — digital only")
 
 
 class WeeklySimDetail(BaseModel):
@@ -224,10 +236,28 @@ class ReachDataPoint(BaseModel):
     r3: float
 
 
+class FunnelDataPoint(BaseModel):
+    """Per-week funnel projection for digital planning.
+
+    Spend → Impressions (via CPM) → Clicks (via CTR) → Estimated Leads (via lead_rate).
+    Rendered alongside MMM-driven leads in WeeklySimDetail to surface
+    calibration drift between funnel and MMM models.
+    """
+
+    week: int
+    spend: float
+    impressions: float
+    clicks: float
+    estimated_leads_funnel: float
+    reach_pct: float
+    frequency: float
+
+
 class MediaPlanningResponse(BaseModel):
     """Full media planning simulation response."""
 
     channel: str
+    mode: str = "offline"
     decay: float
     alpha: float
     gamma: float
@@ -237,3 +267,6 @@ class MediaPlanningResponse(BaseModel):
     optimal: OptimalGRPResult
     saturation_curve: dict
     reach_curve: list[ReachDataPoint]
+    # Digital-only fields (None for offline mode)
+    funnel_curve: list[FunnelDataPoint] | None = None
+    digital_metrics: dict | None = None
