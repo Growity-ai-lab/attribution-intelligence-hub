@@ -197,7 +197,8 @@ export default function Dashboard({ onDdaResult, campaign, isDemo }) {
         </div>
       </div>
 
-      {!isDemo && <DataUpload />}
+      <DataUpload campaign={campaign} isDemo={isDemo} />
+
 
       {/* Unified Scoring */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

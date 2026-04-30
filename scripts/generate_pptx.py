@@ -237,7 +237,7 @@ steps = [
     ("1", "Veri Yükleme", ACCENT,
      "Haftalık kanal bazlı harcama CSV'si ve CRM touchpoint verisini yükleyin. Sistem otomatik validasyon yapar."),
     ("2", "Model Çalıştırma", BLUE,
-     "MMM adstock/saturation + DDA Markov/Shapley modelleri otomatik çalışır. Incrementality test sonuçları eklenir."),
+     "MMM (varsayılan parametrelerle) adstock/saturation + DDA Markov/Shapley modelleri otomatik çalışır. Parametreler veri yüklendikten sonra Phase B ile kalibre edilir. Incrementality testleri Phase 4 (Q4 2026) ile eklenir."),
     ("3", "Unified Scoring", GREEN,
      "Üç model birleştirilir. Cross-validation: DDA vs MMM sapması >%20 ise uyarı verilir."),
     ("4", "Bütçe Optimizasyonu", PURPLE,

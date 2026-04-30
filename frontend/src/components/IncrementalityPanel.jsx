@@ -67,26 +67,36 @@ export default function IncrementalityPanel({ campaign }) {
     <div className="space-y-6">
       <InfoTip>
         <strong>Incrementality Testing:</strong> Geo-lift, Holdout ve PSA (Public Service Announcement) testleri
-        ile her kanalın gerçek incremental etkisi ölçülür. Bu sonuçlar unified skorda %15 ağırlıkla kullanılır.
+        ile her kanalın gerçek incremental etkisi ölçülür. Roadmap&apos;te %15 ağırlıkla kullanılması planlanmaktadır;
+        şu an unified skorda <strong>nötr (1.0) çarpan</strong> kullanılır — yani incrementality henüz devreye alınmamıştır.
       </InfoTip>
 
-      <div className="dark-card border-t-2 border-accent">
-        <div className="p-6 text-center">
-          <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center mx-auto mb-3">
-            <span className="text-accent text-xl font-bold">4</span>
+      <div className="dark-card border-t-2 border-amber-500">
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 tracking-wider">
+              ROADMAP
+            </span>
+            <h3 className="text-slate-200 font-semibold">Phase 4 — Q4 2026&apos;da aktif</h3>
           </div>
-          <h3 className="text-slate-200 font-semibold mb-1">Faz 4: Incrementality Testing</h3>
-          <p className="text-slate-500 text-xs max-w-md mx-auto">
-            Geo-lift, holdout ve PSA test framework&apos;u bu fazda aktif olacak.
-            Şimdilik aşağıda örnek test sonuçları ve düzeltme faktörleri gösterilmektedir.
+          <p className="text-slate-400 text-sm leading-relaxed">
+            Geo-lift, holdout ve PSA test framework&apos;u şu an yapım aşamasındadır. Aşağıdaki tablolar
+            <strong className="text-amber-300"> sentetik örnek verilerdir</strong> — herhangi bir gerçek müşteri/kampanya
+            verisi içermez. Unified skor şu anda incrementality kanalını <strong>nötr (1.0 çarpan)</strong>{' '}
+            olarak hesaplar.
           </p>
+          <ul className="mt-3 text-xs text-slate-500 space-y-1 list-disc list-inside">
+            <li><strong className="text-slate-400">Q3 2026:</strong> Geo-lift backend modülü (region-time matched-pair design)</li>
+            <li><strong className="text-slate-400">Q4 2026:</strong> Holdout audience scheduler (Meta/Google audience exclusion)</li>
+            <li><strong className="text-slate-400">Q4 2026:</strong> PSA inventory partnership (causal lift)</li>
+          </ul>
         </div>
       </div>
 
       <div className="dark-card">
         <div className="card-hdr">
-          <span className="card-title">Test Sonuçları (Örnek)</span>
-          <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-amber-500/15 text-amber-400">MOCK</span>
+          <span className="card-title">Test Sonuçları (Sentetik Örnek)</span>
+          <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-amber-500/15 text-amber-400">SENTETİK</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

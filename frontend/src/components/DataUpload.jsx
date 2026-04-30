@@ -58,7 +58,7 @@ function InfoIcon() {
   )
 }
 
-export default function DataUpload() {
+export default function DataUpload({ campaign, isDemo, onDataUploaded }) {
   const { uploadFile, runDDAFromCSV, uploadSalesStock, downloadFile } = useAttribution()
   const [mode, setMode] = useState('weekly')
   const [result, setResult] = useState(null)
@@ -67,6 +67,8 @@ export default function DataUpload() {
   const [error, setError] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [showFormat, setShowFormat] = useState(false)
+
+  const campaignId = campaign?.id || null
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -80,13 +82,14 @@ export default function DataUpload() {
 
     try {
       if (mode === 'weekly') {
-        const data = await uploadFile(file)
+        const data = await uploadFile(file, campaignId)
         setResult(data)
       } else if (mode === 'crm') {
-        const data = await runDDAFromCSV(file)
+        const data = await runDDAFromCSV(file, 0.5, campaignId)
         setDdaResult(data)
+        if (onDataUploaded) onDataUploaded(data)
       } else {
-        const data = await uploadSalesStock(file)
+        const data = await uploadSalesStock(file, campaignId)
         setSalesResult(data)
       }
     } catch (err) {
@@ -100,6 +103,21 @@ export default function DataUpload() {
 
   return (
     <div className="space-y-4">
+      {/* ── Demo banner ── */}
+      {isDemo && (
+        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-300 leading-relaxed">
+          <strong>Demo modunda yükleme:</strong> Verileriniz otomatik olarak{' '}
+          <span className="font-mono">&quot;Demo Sandbox&quot;</span> alanına yazılır ve seed örnek datayı bozmaz.
+          Gerçek kampanya yönetimi için lütfen giriş yapın.
+        </div>
+      )}
+      {!campaignId && (
+        <div className="p-3 bg-slate-500/10 border border-slate-500/20 rounded-lg text-xs text-slate-400">
+          <strong>Not:</strong> Kampanya bağlamı yok — yükleme yalnızca doğrulama yapacak, veri kalıcı olmayacak.
+          Kalıcı kayıt için bir kampanya seçin.
+        </div>
+      )}
+
       {/* ── Main Upload Card ── */}
       <div className="dark-card p-6">
         <h2 className="card-title mb-4">Veri Yükle</h2>

@@ -14,7 +14,7 @@ const TABS = [
   { id: 'unified', label: 'Unified Rapor' },
   { id: 'mmm', label: 'MMM Çıktıları' },
   { id: 'mta', label: 'MTA Paths' },
-  { id: 'inc', label: 'Incrementality' },
+  { id: 'inc', label: 'Incrementality (Roadmap)' },
   { id: 'media', label: 'Medya Planlama' },
   { id: 'plan', label: 'Proje Planı' },
 ]

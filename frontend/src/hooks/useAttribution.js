@@ -22,10 +22,11 @@ export function useAttribution() {
     }
   }, [])
 
-  const uploadFile = useCallback(async (file) => {
+  const uploadFile = useCallback(async (file, campaignId = null) => {
     const formData = new FormData()
     formData.append('file', file)
-    const res = await axios.post(`${API_BASE}/data/upload`, formData)
+    const params = campaignId ? { campaign_id: campaignId } : {}
+    const res = await axios.post(`${API_BASE}/data/upload`, formData, { params })
     return res.data
   }, [])
 
@@ -53,12 +54,12 @@ export function useAttribution() {
     return res.data
   }, [])
 
-  const runDDAFromCSV = useCallback(async (file, priorAlpha = 0.5) => {
+  const runDDAFromCSV = useCallback(async (file, priorAlpha = 0.5, campaignId = null) => {
     const formData = new FormData()
     formData.append('file', file)
-    const res = await axios.post(`${API_BASE}/dda/run-from-csv`, formData, {
-      params: { prior_alpha: priorAlpha },
-    })
+    const params = { prior_alpha: priorAlpha }
+    if (campaignId) params.campaign_id = campaignId
+    const res = await axios.post(`${API_BASE}/dda/run-from-csv`, formData, { params })
     return res.data
   }, [])
 
@@ -127,10 +128,11 @@ export function useAttribution() {
     return res.data
   }, [])
 
-  const uploadSalesStock = useCallback(async (file) => {
+  const uploadSalesStock = useCallback(async (file, campaignId = null) => {
     const formData = new FormData()
     formData.append('file', file)
-    const res = await axios.post(`${API_BASE}/sales-stock/upload`, formData)
+    const params = campaignId ? { campaign_id: campaignId } : {}
+    const res = await axios.post(`${API_BASE}/sales-stock/upload`, formData, { params })
     return res.data
   }, [])
 

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.api.deps import get_current_user
 from backend.auth import authenticate_user, create_access_token
 from backend.db.database import get_db
-from backend.db.models import Campaign, Client, MediaPlanSimulation, SalesStockData
+from backend.db.models import Campaign, Client, MediaPlanSimulation, SalesStockData, TouchpointData, WeeklyData
 
 from backend.config import (
     ADSTOCK_PARAMS,
@@ -347,6 +347,59 @@ def _validate_journey_count(journeys: list) -> None:
         )
 
 
+# --------------- Demo Sandbox ---------------
+
+
+def _ensure_demo_sandbox_campaign(db: Session, source_campaign_id: int) -> int:
+    """For demo users, redirect uploads to a "Demo Sandbox" client/campaign
+    so the seed data (Petrol Ofisi, etc.) is never overwritten.
+
+    Creates the sandbox client/campaign on first use, returns its campaign_id.
+    """
+    source = db.query(Campaign).filter(Campaign.id == source_campaign_id).first()
+    if source is None:
+        return source_campaign_id
+
+    src_client = db.query(Client).filter(Client.id == source.client_id).first()
+    year = src_client.year if src_client else 2026
+
+    sandbox_client = (
+        db.query(Client)
+        .filter(Client.name == "Demo Sandbox", Client.year == year)
+        .first()
+    )
+    if sandbox_client is None:
+        sandbox_client = Client(
+            name="Demo Sandbox",
+            year=year,
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+        db.add(sandbox_client)
+        db.flush()
+
+    sandbox_camp = (
+        db.query(Campaign)
+        .filter(
+            Campaign.client_id == sandbox_client.id,
+            Campaign.name == source.name,
+        )
+        .first()
+    )
+    if sandbox_camp is None:
+        sandbox_camp = Campaign(
+            client_id=sandbox_client.id,
+            name=source.name,
+            budget=source.budget or 0.0,
+            channels=source.channels or "",
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+        db.add(sandbox_camp)
+        db.commit()
+        db.refresh(sandbox_camp)
+
+    return sandbox_camp.id
+
+
 # --------------- Health ---------------
 
 
@@ -359,8 +412,16 @@ def health_check() -> dict[str, str]:
 
 
 @router.post("/data/upload")
-async def upload_weekly_data(file: UploadFile = File(...), _user: dict = Depends(get_current_user)) -> dict:
-    """Upload weekly CSV data file."""
+async def upload_weekly_data(
+    file: UploadFile = File(...),
+    campaign_id: int | None = Query(None),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Upload weekly CSV data file. Persists to DB if campaign_id provided.
+
+    Re-upload semantics: rows for the same (campaign_id, week) are replaced.
+    """
     _validate_file(file)
     content = await _read_file_content(file)
 
@@ -369,11 +430,44 @@ async def upload_weekly_data(file: UploadFile = File(...), _user: dict = Depends
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+    persisted = False
+    target_campaign_id = campaign_id
+    if campaign_id is not None:
+        # Demo role: redirect to a sandbox campaign so seed data isn't overwritten
+        if _user.get("role") == "demo":
+            target_campaign_id = _ensure_demo_sandbox_campaign(db, campaign_id)
+
+        weeks_in_upload = list({r.week for r in records})
+        if weeks_in_upload:
+            db.query(WeeklyData).filter(
+                WeeklyData.campaign_id == target_campaign_id,
+                WeeklyData.week.in_(weeks_in_upload),
+            ).delete(synchronize_session=False)
+
+        for rec in records:
+            db.add(WeeklyData(
+                campaign_id=target_campaign_id,
+                week=rec.week,
+                channel=rec.channel,
+                spend=rec.spend,
+                impressions=rec.impressions,
+                clicks=rec.clicks,
+                leads=rec.leads,
+                grp=rec.grp,
+                spot_count=rec.spot_count,
+                segment=getattr(rec, "segment", "") or "",
+            ))
+        db.commit()
+        persisted = True
+
     return {
         "filename": file.filename,
         "rows": len(records),
         "weeks": list({r.week for r in records}),
         "channels": list({r.channel for r in records}),
+        "persisted": persisted,
+        "campaign_id": target_campaign_id,
+        "redirected_to_sandbox": persisted and target_campaign_id != campaign_id,
     }
 
 
@@ -526,12 +620,17 @@ def run_dda(
 async def run_dda_from_csv(
     file: UploadFile = File(...),
     prior_alpha: float = 0.5,
+    campaign_id: int | None = Query(None),
     _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> dict:
     """Run DDA pipeline from a CRM touchpoint CSV.
 
-    Parses the CSV, extracts journeys (filtering conversion events),
-    runs Markov+Shapley ensemble, and returns unified results.
+    Parses the CSV, persists raw touchpoints (if campaign_id provided),
+    extracts journeys (filtering conversion events), runs Markov+Shapley
+    ensemble, and returns unified results.
+
+    Re-upload semantics: existing touchpoints for the campaign are replaced.
     """
     _validate_file(file)
     _validate_prior_alpha(prior_alpha)
@@ -541,6 +640,28 @@ async def run_dda_from_csv(
         touchpoints = load_crm_touchpoints(BytesIO(content))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+    # Persist raw touchpoints (forensic value; conversion-event filtering is lossy)
+    persisted = False
+    target_campaign_id = campaign_id
+    if campaign_id is not None:
+        if _user.get("role") == "demo":
+            target_campaign_id = _ensure_demo_sandbox_campaign(db, campaign_id)
+        db.query(TouchpointData).filter(
+            TouchpointData.campaign_id == target_campaign_id,
+        ).delete(synchronize_session=False)
+        for tp in touchpoints:
+            db.add(TouchpointData(
+                campaign_id=target_campaign_id,
+                lead_id=tp.lead_id,
+                timestamp=tp.timestamp,
+                channel=tp.channel,
+                touchpoint_type=tp.touchpoint_type,
+                campaign=tp.campaign,
+                segment=tp.segment,
+            ))
+        db.commit()
+        persisted = True
 
     # Capture lead-level conversion status BEFORE filtering
     lead_converted: dict[str, bool] = {}
@@ -587,6 +708,9 @@ async def run_dda_from_csv(
         ch: {k: round(float(v), 4) for k, v in scores.items()}
         for ch, scores in unified.items()
     }
+    serialized["persisted"] = persisted
+    serialized["campaign_id"] = target_campaign_id
+    serialized["redirected_to_sandbox"] = persisted and target_campaign_id != campaign_id
     return serialized
 
 
@@ -1027,10 +1151,14 @@ async def upload_sales_stock(
 
     records = load_sales_stock_csv(BytesIO(content))
 
+    target_campaign_id = campaign_id
+    if campaign_id is not None and _user.get("role") == "demo":
+        target_campaign_id = _ensure_demo_sandbox_campaign(db, campaign_id)
+
     # Persist to DB
     for rec in records:
         db.add(SalesStockData(
-            campaign_id=campaign_id,
+            campaign_id=target_campaign_id,
             week=rec.week,
             channel=rec.channel,
             product=rec.product,
@@ -1055,6 +1183,8 @@ async def upload_sales_stock(
         "weeks": weeks,
         "products": products,
         "regions": regions,
+        "campaign_id": target_campaign_id,
+        "redirected_to_sandbox": campaign_id is not None and target_campaign_id != campaign_id,
     }
 
 
