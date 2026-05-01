@@ -13,6 +13,7 @@ import {
 } from 'chart.js'
 import { Line, Bar } from 'react-chartjs-2'
 import annotationPlugin from 'chartjs-plugin-annotation'
+import * as XLSX from 'xlsx'
 import { useAttribution } from '../hooks/useAttribution'
 import { CHANNEL_LABELS, CHANNEL_COLORS } from '../utils/colors'
 
@@ -25,6 +26,141 @@ const SCENARIO_PRESETS = {
   minimum: { label: 'Minimum', icon: '↓', spend_mult: 0.5 },
   optimum: { label: 'Optimum', icon: '◎', spend_mult: 1.0 },
   maksimum: { label: 'Maksimum', icon: '↑', spend_mult: 1.5 },
+}
+
+// Channel auto-mapping keywords (lowercase matching against Mecra + Site/Network)
+const CHANNEL_MAP_KEYWORDS = {
+  youtube: ['youtube', 'yt'],
+  google: ['google ads', 'google search', 'sem', 'search ads'],
+  meta: ['meta', 'facebook', 'instagram', 'fb ', 'ig '],
+  tiktok: ['tiktok', 'tik tok'],
+  linkedin: ['linkedin'],
+  dv360: ['dv360', 'dv 360', 'programatik', 'programmatic', 'preroll', 'display&video'],
+}
+
+// Header column detection keywords (Turkish media plan conventions)
+const SPEND_COL_KEYWORDS = ['net yayin bedeli', 'net yayın bedeli', 'butce', 'bütçe', 'her sey dahil', 'her şey dahil', 'toplam maliyet', 'total cost', 'spend', 'harcama']
+const MECRA_COL_KEYWORDS = ['mecra', 'media', 'kanal', 'channel']
+const SITE_COL_KEYWORDS = ['site', 'network', 'site/network', 'platform']
+const IMP_COL_KEYWORDS = ['planlanan', 'impression', 'imp', 'goruntulenme', 'görüntülenme']
+const CPM_COL_KEYWORDS = ['cpm', 'birim maliyet', 'birim fiyat', 'unit cost']
+const DURATION_COL_KEYWORDS = ['sure', 'süre', 'duration', 'gun', 'gün']
+
+function findColIndex(headers, keywords) {
+  for (let i = 0; i < headers.length; i++) {
+    const h = String(headers[i] || '').toLowerCase().replace(/\s+/g, ' ').trim()
+    if (keywords.some(kw => h.includes(kw))) return i
+  }
+  return -1
+}
+
+function autoMapChannel(mecra, site) {
+  const combined = `${mecra} ${site}`.toLowerCase()
+  for (const [ch, keywords] of Object.entries(CHANNEL_MAP_KEYWORDS)) {
+    if (keywords.some(kw => combined.includes(kw))) return ch
+  }
+  return null
+}
+
+function parseMediaPlanExcel(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+
+        // Find header row (look for "Mecra" or "Platform")
+        let headerIdx = -1
+        for (let i = 0; i < Math.min(rows.length, 20); i++) {
+          const row = rows[i].map(c => String(c).toLowerCase())
+          if (row.some(c => MECRA_COL_KEYWORDS.some(kw => c.includes(kw)))) {
+            headerIdx = i
+            break
+          }
+        }
+        if (headerIdx === -1) {
+          reject(new Error('Baslik satiri bulunamadi. "Mecra" veya "Platform" kolonu gerekli.'))
+          return
+        }
+
+        const headers = rows[headerIdx].map(c => String(c))
+        const mecraIdx = findColIndex(headers, MECRA_COL_KEYWORDS)
+        const siteIdx = findColIndex(headers, SITE_COL_KEYWORDS)
+        const spendIdx = findColIndex(headers, SPEND_COL_KEYWORDS)
+        const impIdx = findColIndex(headers, IMP_COL_KEYWORDS)
+        const cpmIdx = findColIndex(headers, CPM_COL_KEYWORDS)
+        const durationIdx = findColIndex(headers, DURATION_COL_KEYWORDS)
+
+        if (spendIdx === -1) {
+          reject(new Error('Butce/spend kolonu bulunamadi. "Net Yayin Bedeli" veya "Butce" kolonu gerekli.'))
+          return
+        }
+
+        // Parse data rows
+        const lineItems = []
+        for (let i = headerIdx + 1; i < rows.length; i++) {
+          const row = rows[i]
+          const mecra = String(row[mecraIdx] || '').trim()
+          const site = siteIdx >= 0 ? String(row[siteIdx] || '').trim() : ''
+          const spendRaw = row[spendIdx]
+          const spend = typeof spendRaw === 'number' ? spendRaw : parseFloat(String(spendRaw).replace(/[^\d.,\-]/g, '').replace(',', '.')) || 0
+
+          if (!mecra && !site) continue
+          if (spend <= 0) continue
+
+          const imp = impIdx >= 0 ? (typeof row[impIdx] === 'number' ? row[impIdx] : parseFloat(String(row[impIdx]).replace(/[^\d]/g, '')) || 0) : 0
+          const cpm = cpmIdx >= 0 ? (typeof row[cpmIdx] === 'number' ? row[cpmIdx] : parseFloat(String(row[cpmIdx]).replace(/[^\d.,]/g, '').replace(',', '.')) || 0) : 0
+          const duration = durationIdx >= 0 ? String(row[durationIdx] || '') : ''
+
+          const mapped = autoMapChannel(mecra, site)
+          lineItems.push({ mecra, site, spend, impressions: imp, cpm, duration, mappedChannel: mapped, rowIndex: i })
+        }
+
+        // Extract campaign info from header area
+        let campaignName = ''
+        let brand = ''
+        for (let i = 0; i < headerIdx; i++) {
+          const row = rows[i].map(c => String(c).toLowerCase())
+          const vals = rows[i].map(c => String(c).trim())
+          for (let j = 0; j < row.length; j++) {
+            if (row[j].includes('marka')) brand = vals[j + 1] || vals[j + 2] || ''
+            if (row[j].includes('kampanya') && row[j].includes('ad')) campaignName = vals[j + 1] || vals[j + 2] || ''
+          }
+        }
+
+        // Aggregate by mapped channel
+        const channelAgg = {}
+        for (const item of lineItems) {
+          const ch = item.mappedChannel || '_unmapped'
+          if (!channelAgg[ch]) channelAgg[ch] = { totalSpend: 0, totalImp: 0, items: [], labels: [] }
+          channelAgg[ch].totalSpend += item.spend
+          channelAgg[ch].totalImp += item.impressions
+          channelAgg[ch].items.push(item)
+          const label = `${item.mecra}${item.site ? ' / ' + item.site : ''}`
+          if (!channelAgg[ch].labels.includes(label)) channelAgg[ch].labels.push(label)
+        }
+
+        resolve({ lineItems, channelAgg, campaignName, brand, headers: headers.map(String) })
+      } catch (err) {
+        reject(err)
+      }
+    }
+    reader.onerror = () => reject(new Error('Dosya okunamadi'))
+    reader.readAsArrayBuffer(file)
+  })
+}
+
+function distributeSpend(totalSpend, numWeeks, mode = 'front-loaded') {
+  if (mode === 'even') {
+    const weekly = Math.round(totalSpend / numWeeks / 1000) * 1000
+    return Array(numWeeks).fill(weekly)
+  }
+  // Front-loaded: first week gets ~1.4x avg, linearly decreasing
+  const weights = Array.from({ length: numWeeks }, (_, i) => numWeeks - i * 0.6)
+  const totalW = weights.reduce((a, b) => a + b, 0)
+  return weights.map(w => Math.round((w / totalW) * totalSpend / 1000) * 1000)
 }
 
 const fmtN = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0)
@@ -57,6 +193,14 @@ export default function DigitalPlanningPanel({ campaign }) {
 
   // Digital metrics defaults (populated from preset response)
   const [channelDefaults, setChannelDefaults] = useState(null)
+
+  // Excel import state
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importData, setImportData] = useState(null)
+  const [importError, setImportError] = useState('')
+  const [importDistribution, setImportDistribution] = useState('front-loaded')
+  const [importMappingOverrides, setImportMappingOverrides] = useState({})
+  const fileInputRef = useRef(null)
 
   // Save/Load state
   const [savedPlans, setSavedPlans] = useState([])
@@ -183,6 +327,64 @@ export default function DigitalPlanningPanel({ campaign }) {
       await deleteSavedMediaPlan(id)
       refreshSavedPlans()
     } catch { /* ignore */ }
+  }
+
+  // Excel import handlers
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportError('')
+    try {
+      const parsed = await parseMediaPlanExcel(file)
+      setImportData(parsed)
+      setImportMappingOverrides({})
+      setShowImportModal(true)
+    } catch (err) {
+      setImportError(err.message || 'Excel parse hatasi')
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleImportChannelMapping = (itemIdx, newChannel) => {
+    setImportMappingOverrides(prev => ({ ...prev, [itemIdx]: newChannel }))
+  }
+
+  const getEffectiveImportAgg = useCallback(() => {
+    if (!importData) return {}
+    const agg = {}
+    for (const item of importData.lineItems) {
+      const ch = importMappingOverrides[item.rowIndex] !== undefined
+        ? importMappingOverrides[item.rowIndex]
+        : (item.mappedChannel || '_unmapped')
+      if (ch === '_unmapped' || ch === '') continue
+      if (!agg[ch]) agg[ch] = { totalSpend: 0, totalImp: 0, labels: [] }
+      agg[ch].totalSpend += item.spend
+      agg[ch].totalImp += item.impressions
+      const label = `${item.mecra}${item.site ? ' / ' + item.site : ''}`
+      if (!agg[ch].labels.includes(label)) agg[ch].labels.push(label)
+    }
+    return agg
+  }, [importData, importMappingOverrides])
+
+  const handleImportApply = (channel) => {
+    const agg = getEffectiveImportAgg()
+    if (!agg[channel]) return
+    setSelectedChannel(channel)
+    const spends = distributeSpend(agg[channel].totalSpend, numWeeks, importDistribution)
+    setWeeklySpends(spends)
+    setShowImportModal(false)
+    setImportData(null)
+  }
+
+  const handleImportApplyAll = () => {
+    const agg = getEffectiveImportAgg()
+    const firstChannel = ONLINE.find(ch => agg[ch])
+    if (!firstChannel) return
+    setSelectedChannel(firstChannel)
+    const spends = distributeSpend(agg[firstChannel].totalSpend, numWeeks, importDistribution)
+    setWeeklySpends(spends)
+    setShowImportModal(false)
+    setImportData(null)
   }
 
   // CSV Export
@@ -535,6 +737,13 @@ export default function DigitalPlanningPanel({ campaign }) {
             >
               Yukle
             </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 border border-blue-500/30 text-blue-400 hover:bg-blue-500/25 transition-colors"
+            >
+              Excel Ice Aktar
+            </button>
+            <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
             {result && (
               <button
                 onClick={() => setShowSaveModal(true)}
@@ -594,6 +803,137 @@ export default function DigitalPlanningPanel({ campaign }) {
             )}
           </div>
         )}
+
+        {/* Import error */}
+        {importError && (
+          <div className="px-4 py-3 bg-red-500/10 border-b border-red-500/30 flex items-center justify-between">
+            <p className="text-xs text-red-400">{importError}</p>
+            <button onClick={() => setImportError('')} className="text-red-400 text-xs ml-2">x</button>
+          </div>
+        )}
+
+        {/* Import Modal */}
+        {showImportModal && importData && (() => {
+          const agg = getEffectiveImportAgg()
+          const mappedChannels = ONLINE.filter(ch => agg[ch])
+          const unmappedItems = importData.lineItems.filter(item => {
+            const override = importMappingOverrides[item.rowIndex]
+            return override !== undefined ? (override === '_unmapped' || override === '') : !item.mappedChannel
+          })
+          const totalMapped = mappedChannels.reduce((s, ch) => s + (agg[ch]?.totalSpend || 0), 0)
+
+          return (
+            <div className="px-4 py-4 bg-dark-bg/80 border-b border-dark-border space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-100">
+                    Plan Ice Aktarma
+                    {importData.brand && <span className="text-slate-500 ml-2">| {importData.brand}</span>}
+                    {importData.campaignName && <span className="text-accent ml-1">{importData.campaignName}</span>}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {importData.lineItems.length} satir okundu | Toplam eslesen: {fmtMoney(totalMapped)} TL
+                  </p>
+                </div>
+                <button onClick={() => { setShowImportModal(false); setImportData(null) }}
+                  className="text-slate-500 hover:text-slate-300 text-lg">x</button>
+              </div>
+
+              {/* Distribution mode */}
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wide">Dagitim:</span>
+                {[
+                  { id: 'front-loaded', label: 'On Agirlikli' },
+                  { id: 'even', label: 'Esit' },
+                ].map(d => (
+                  <button
+                    key={d.id}
+                    onClick={() => setImportDistribution(d.id)}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                      importDistribution === d.id
+                        ? 'bg-accent/15 text-accent border border-accent/40'
+                        : 'bg-dark-card border border-dark-border text-slate-400'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+                <span className="text-[10px] text-slate-500">| {numWeeks} haftaya dagilir</span>
+              </div>
+
+              {/* Mapped channels */}
+              {mappedChannels.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Eslesen Kanallar</p>
+                  {mappedChannels.map(ch => (
+                    <div key={ch} className="flex items-center justify-between px-3 py-2.5 bg-dark-card rounded-lg border border-dark-border group">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHANNEL_COLORS[ch] }} />
+                        <div>
+                          <span className="text-xs font-medium text-slate-200">{CHANNEL_LABELS[ch]}</span>
+                          <span className="ml-2 text-[10px] text-slate-500">{agg[ch].labels.join(', ')}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-mono text-slate-300">{fmtMoney(agg[ch].totalSpend)} TL</span>
+                        {agg[ch].totalImp > 0 && (
+                          <span className="text-[10px] font-mono text-slate-500">{fmtN(agg[ch].totalImp)} imp</span>
+                        )}
+                        <button
+                          onClick={() => handleImportApply(ch)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-accent/15 text-accent hover:bg-accent/25 transition-colors"
+                        >
+                          Uygula
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Unmapped items */}
+              {unmappedItems.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Eslenmeyen Satirlar</p>
+                  {unmappedItems.map(item => (
+                    <div key={item.rowIndex} className="flex items-center justify-between px-3 py-2 bg-dark-card/50 rounded-lg border border-yellow-500/20">
+                      <div>
+                        <span className="text-xs text-slate-300">{item.mecra}</span>
+                        {item.site && <span className="text-[10px] text-slate-500 ml-1">/ {item.site}</span>}
+                        <span className="ml-2 text-xs font-mono text-slate-400">{fmtMoney(item.spend)} TL</span>
+                      </div>
+                      <select
+                        value={importMappingOverrides[item.rowIndex] ?? '_unmapped'}
+                        onChange={e => handleImportChannelMapping(item.rowIndex, e.target.value)}
+                        className="bg-dark-bg border border-dark-border rounded-lg px-2 py-1 text-[11px] text-slate-300"
+                      >
+                        <option value="_unmapped">Esle...</option>
+                        {ONLINE.map(ch => (
+                          <option key={ch} value={ch}>{CHANNEL_LABELS[ch]}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Apply all button */}
+              {mappedChannels.length > 0 && (
+                <div className="flex items-center justify-between pt-2 border-t border-dark-border">
+                  <p className="text-[10px] text-slate-500">
+                    Bir kanala tiklayin veya ilk eslesen kanali otomatik uygulayın.
+                  </p>
+                  <button
+                    onClick={handleImportApplyAll}
+                    className="px-4 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors"
+                  >
+                    Ilk Kanali Uygula ({CHANNEL_LABELS[mappedChannels[0]]})
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         <div className="p-4">
           {/* Spend inputs grid */}
