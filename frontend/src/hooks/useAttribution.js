@@ -92,29 +92,41 @@ export function useAttribution() {
     return new File([res.data], 'journeys_sample.csv', { type: 'text/csv' })
   }, [])
 
-  const simulateMediaPlan = useCallback(async (channel, weeklyGrps) => {
+  const simulateMediaPlan = useCallback(async (channel, weeklyGrps, mode = 'offline') => {
     const res = await axios.post(`${API_BASE}/media-planning/simulate`, {
       channel,
       weekly_grps: weeklyGrps,
+      mode,
     })
     return res.data
   }, [])
 
-  const getMediaPlanPresets = useCallback(async (channel) => {
-    const res = await axios.get(`${API_BASE}/media-planning/presets/${channel}`)
+  const simulateDigitalPlan = useCallback(async (channel, weeklySpends, overrides = {}) => {
+    const res = await axios.post(`${API_BASE}/media-planning/simulate`, {
+      channel,
+      weekly_grps: weeklySpends,
+      mode: 'digital',
+      ...overrides,
+    })
     return res.data
   }, [])
 
-  const saveMediaPlan = useCallback(async (name, channel, weeklyGrps, responseSnapshot, campaignId = null) => {
+  const getMediaPlanPresets = useCallback(async (channel, mode = 'offline') => {
+    const res = await axios.get(`${API_BASE}/media-planning/presets/${channel}`, { params: { mode } })
+    return res.data
+  }, [])
+
+  const saveMediaPlan = useCallback(async (name, channel, weeklyGrps, responseSnapshot, campaignId = null, mode = 'offline') => {
     const res = await axios.post(`${API_BASE}/media-planning/save`, {
-      name, channel, weekly_grps: weeklyGrps, response_snapshot: responseSnapshot, campaign_id: campaignId,
+      name, channel, weekly_grps: weeklyGrps, response_snapshot: responseSnapshot, campaign_id: campaignId, mode,
     })
     return res.data
   }, [])
 
-  const listSavedMediaPlans = useCallback(async (campaignId = null) => {
+  const listSavedMediaPlans = useCallback(async (campaignId = null, mode = null) => {
     const params = {}
     if (campaignId !== null) params.campaign_id = campaignId
+    if (mode !== null) params.mode = mode
     const res = await axios.get(`${API_BASE}/media-planning/saved`, { params })
     return res.data
   }, [])
@@ -190,6 +202,7 @@ export function useAttribution() {
     fetchSampleJourneys,
     downloadFile,
     simulateMediaPlan,
+    simulateDigitalPlan,
     getMediaPlanPresets,
     saveMediaPlan,
     listSavedMediaPlans,

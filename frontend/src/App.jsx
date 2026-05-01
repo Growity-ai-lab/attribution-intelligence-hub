@@ -9,6 +9,7 @@ import MTAPanel from './components/MTAPanel'
 import IncrementalityPanel from './components/IncrementalityPanel'
 import ProjectPlanPanel from './components/ProjectPlanPanel'
 import MediaPlanningPanel from './components/MediaPlanningPanel'
+import DigitalPlanningPanel from './components/DigitalPlanningPanel'
 
 const TABS = [
   { id: 'unified', label: 'Unified Rapor' },
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'mta', label: 'MTA Paths' },
   { id: 'inc', label: 'Incrementality (Roadmap)' },
   { id: 'media', label: 'Medya Planlama' },
+  { id: 'digital', label: 'Dijital Planlama' },
   { id: 'plan', label: 'Proje Planı' },
 ]
 
@@ -115,6 +117,53 @@ export default function App() {
           </header>
           <main className="max-w-7xl mx-auto px-4 py-6">
             <MediaPlanningPanel />
+          </main>
+        </div>
+      )
+    }
+
+    if (standaloneTool === 'digital') {
+      return (
+        <div className="min-h-screen bg-dark-bg bg-grid-overlay">
+          <header className="border-b border-dark-border bg-dark-bg/80 backdrop-blur-sm sticky top-0 z-30">
+            <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleBackToSelector}
+                  className="w-8 h-8 rounded-lg overflow-hidden hover:opacity-80 transition-opacity"
+                  title="Ana Sayfa"
+                >
+                  <img src="/logo.svg" alt="Time's Hub" className="w-full h-full" />
+                </button>
+                <div className="flex items-center gap-2 text-sm">
+                  <button onClick={handleBackToSelector} className="text-slate-400 hover:text-slate-200 transition-colors">
+                    Ana Sayfa
+                  </button>
+                  <span className="text-slate-600">/</span>
+                  <span className="text-accent font-medium">Dijital Medya Planlama</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleBackToSelector}
+                  className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                >
+                  &larr; Geri
+                </button>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-emerald-500/15 text-emerald-400">
+                  {user.username}
+                </span>
+                <button
+                  onClick={logout}
+                  className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700/50 text-slate-400 hover:text-red-400 transition-colors"
+                >
+                  Çıkış
+                </button>
+              </div>
+            </div>
+          </header>
+          <main className="max-w-7xl mx-auto px-4 py-6">
+            <DigitalPlanningPanel />
           </main>
         </div>
       )
@@ -236,6 +285,7 @@ export default function App() {
         {activeTab === 'mta' && <MTAPanel ddaResult={ddaResult} campaign={workspace.campaign} />}
         {activeTab === 'inc' && <IncrementalityPanel campaign={workspace.campaign} />}
         {activeTab === 'media' && <MediaPlanningPanel campaign={workspace.campaign} />}
+        {activeTab === 'digital' && <DigitalPlanningPanel campaign={workspace.campaign} />}
         {activeTab === 'plan' && <ProjectPlanPanel />}
       </main>
     </div>
