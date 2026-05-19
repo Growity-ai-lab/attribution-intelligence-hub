@@ -278,44 +278,24 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
               <span className="w-5 h-5 rounded-md bg-accent/15 text-accent text-xs flex items-center justify-center">&#9881;</span>
               Araçlar
             </h2>
-            <div className="space-y-3">
-              <button
-                onClick={() => onStandaloneTool('media')}
-                className="w-full text-left px-5 py-4 rounded-xl border bg-dark-card border-dark-border hover:border-accent hover:bg-accent/5 transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center text-accent text-lg flex-shrink-0">
-                    &#9879;
-                  </div>
-                  <div>
-                    <span className="font-medium text-sm text-slate-100 group-hover:text-accent transition-colors">
-                      Medya Planlama
-                    </span>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Offline GRP analizi — Adstock, Saturation, Reach, Optimal GRP
-                    </p>
-                  </div>
+            <button
+              onClick={() => onStandaloneTool('media')}
+              className="w-full text-left px-5 py-4 rounded-xl border bg-dark-card border-dark-border hover:border-accent hover:bg-accent/5 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center text-accent text-lg flex-shrink-0">
+                  &#9879;
                 </div>
-              </button>
-              <button
-                onClick={() => onStandaloneTool('digital')}
-                className="w-full text-left px-5 py-4 rounded-xl border bg-dark-card border-dark-border hover:border-blue-400 hover:bg-blue-500/5 transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 text-lg flex-shrink-0">
-                    &#9642;
-                  </div>
-                  <div>
-                    <span className="font-medium text-sm text-slate-100 group-hover:text-blue-400 transition-colors">
-                      Dijital Medya Planlama
-                    </span>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Meta, Google, TikTok, LinkedIn, DV360, YouTube — Spend, Funnel, Reach, Optimal CPL
-                    </p>
-                  </div>
+                <div>
+                  <span className="font-medium text-sm text-slate-100 group-hover:text-accent transition-colors">
+                    Medya Planlama
+                  </span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Meta, Google, TikTok, LinkedIn, DV360, YouTube — Spend, Funnel, Reach, Optimal CPL
+                  </p>
                 </div>
-              </button>
-            </div>
+              </div>
+            </button>
           </div>
         )}
       </div>

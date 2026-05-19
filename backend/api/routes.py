@@ -72,8 +72,19 @@ from backend.models.mmm import (
     compute_saturation,
 )
 from backend.models.unified import compute_unified_report, suggest_reallocation
+from backend.integrations.bigquery import (
+    get_client as bq_get_client,
+    test_connection as bq_test_connection,
+    query_ga4_sessions,
+    ga4_to_touchpoints,
+    summarize_touchpoints,
+    default_date_range,
+)
 
 router = APIRouter()
+
+# In-memory BQ client cache (per-process; lost on restart)
+_bq_clients: dict[str, object] = {}
 
 
 @router.get("/health")
@@ -937,6 +948,202 @@ def get_journey_stats(
             raise HTTPException(status_code=422, detail=f"Invalid journey: {e}")
 
     return journey_stats(journey_objects)
+
+
+# --------------- BigQuery Integration ---------------
+
+
+@router.post("/integrations/bigquery/connect")
+async def bq_connect(
+    credentials: UploadFile = File(...),
+    project: str = Query(...),
+    dataset: str = Query(...),
+    _user: dict = Depends(get_current_user),
+) -> dict:
+    """Upload service account JSON and test BQ connection.
+
+    Returns connection status, available date range, table count.
+    Credentials are held in memory only (not persisted to disk).
+    """
+    if credentials.size and credentials.size > 1_000_000:
+        raise HTTPException(status_code=400, detail="Credentials file too large")
+    raw = await credentials.read()
+    try:
+        creds_str = raw.decode("utf-8")
+        client = bq_get_client(creds_str)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid credentials: {e}")
+
+    info = bq_test_connection(client, project, dataset)
+    if not info["ok"]:
+        raise HTTPException(status_code=400, detail=info.get("error", "Connection failed"))
+
+    # Cache client for subsequent requests (keyed by project+dataset)
+    cache_key = f"{project}:{dataset}"
+    _bq_clients[cache_key] = {"client": client, "creds": creds_str}
+
+    return info
+
+
+@router.post("/integrations/bigquery/preview")
+def bq_preview(
+    project: str = Query(...),
+    dataset: str = Query(...),
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    conversion_events: str = Query("purchase"),
+    _user: dict = Depends(get_current_user),
+) -> dict:
+    """Pull GA4 sessions from BQ and return summary (without running DDA).
+
+    Use this to preview data before committing to a full DDA run.
+    """
+    cache_key = f"{project}:{dataset}"
+    cached = _bq_clients.get(cache_key)
+    if not cached:
+        raise HTTPException(status_code=400, detail="BigQuery not connected. Call /connect first.")
+
+    if not start_date or not end_date:
+        start_date, end_date = default_date_range(6)
+
+    conv_list = [e.strip() for e in conversion_events.split(",") if e.strip()]
+    client = cached["client"]
+
+    try:
+        df = query_ga4_sessions(client, project, dataset, start_date, end_date, conv_list)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"BigQuery query failed: {e}")
+
+    touchpoints = ga4_to_touchpoints(df, conv_list)
+    summary = summarize_touchpoints(touchpoints)
+    summary["start_date"] = start_date
+    summary["end_date"] = end_date
+    summary["conversion_events"] = conv_list
+    return summary
+
+
+@router.post("/dda/run-from-bigquery")
+def run_dda_from_bigquery(
+    project: str = Query(...),
+    dataset: str = Query(...),
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    conversion_events: str = Query("purchase"),
+    prior_alpha: float = Query(0.5),
+    campaign_id: int | None = Query(None),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Run full DDA pipeline from BigQuery GA4 export.
+
+    1. Pull session-level touchpoints from BQ
+    2. Map GA4 source/medium to hub channels
+    3. Extract journeys (filter conversion-event channels)
+    4. Run Markov + Shapley ensemble
+    5. Compute unified report (DDA + MMM blend)
+    """
+    _validate_prior_alpha(prior_alpha)
+
+    cache_key = f"{project}:{dataset}"
+    cached = _bq_clients.get(cache_key)
+    if not cached:
+        raise HTTPException(status_code=400, detail="BigQuery not connected. Call /connect first.")
+
+    if not start_date or not end_date:
+        start_date, end_date = default_date_range(6)
+
+    conv_list = [e.strip() for e in conversion_events.split(",") if e.strip()]
+    client = cached["client"]
+
+    # Step 1: Pull from BQ
+    try:
+        df = query_ga4_sessions(client, project, dataset, start_date, end_date, conv_list)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"BigQuery query failed: {e}")
+
+    if df.empty:
+        raise HTTPException(status_code=422, detail="No events found in the specified date range.")
+
+    # Step 2: Convert to touchpoints
+    touchpoints = ga4_to_touchpoints(df, conv_list)
+    summary = summarize_touchpoints(touchpoints)
+
+    if summary["conversions"] == 0:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No conversion events ({', '.join(conv_list)}) found. Check event names.",
+        )
+
+    # Step 3: Persist touchpoints if campaign_id given
+    persisted = False
+    target_campaign_id = campaign_id
+    if campaign_id is not None:
+        if _user.get("role") == "demo":
+            target_campaign_id = _ensure_demo_sandbox_campaign(db, campaign_id)
+        db.query(TouchpointData).filter(
+            TouchpointData.campaign_id == target_campaign_id,
+        ).delete(synchronize_session=False)
+        for tp in touchpoints:
+            db.add(TouchpointData(
+                campaign_id=target_campaign_id,
+                lead_id=tp["lead_id"],
+                timestamp=tp["timestamp"],
+                channel=tp["channel"],
+                touchpoint_type=tp["touchpoint_type"],
+                campaign=tp["campaign"],
+                segment=tp["segment"],
+            ))
+        db.commit()
+        persisted = True
+
+    # Step 4: Extract journeys (same filtering as CSV path)
+    lead_converted: dict[str, bool] = {}
+    for tp in touchpoints:
+        if tp.get("converted"):
+            lead_converted[tp["lead_id"]] = True
+
+    filtered = [
+        tp for tp in touchpoints
+        if tp["channel"] not in _CONVERSION_CHANNELS
+    ]
+    for tp in filtered:
+        tp["converted"] = lead_converted.get(tp["lead_id"], False)
+
+    journeys = extract_journeys(filtered)
+    if not journeys:
+        raise HTTPException(status_code=422, detail="No valid journeys extracted from BQ data.")
+
+    _validate_journey_count(journeys)
+
+    # Step 5: Run DDA
+    mmm_shares, mmm_source = _compute_mmm_shares(db, target_campaign_id)
+    result = run_full_dda_pipeline(
+        journeys,
+        mmm_shares,
+        prior_alpha=prior_alpha,
+        markov_blend=DDA_BLEND_WEIGHTS["markov"],
+        shapley_blend=DDA_BLEND_WEIGHTS["shapley"],
+    )
+
+    # Step 6: Unified report
+    hybrid = result["hybrid_attribution"]
+    unified = compute_unified_report(
+        mmm_scores=mmm_shares,
+        dda_scores={k: float(v) for k, v in hybrid.items()},
+    )
+
+    serialized = _serialize_dda_result(result)
+    serialized["unified_report"] = {
+        ch: {k: round(float(v), 4) for k, v in scores.items()}
+        for ch, scores in unified.items()
+    }
+    serialized["bq_summary"] = summary
+    serialized["persisted"] = persisted
+    serialized["campaign_id"] = target_campaign_id
+    serialized["mmm_shares_source"] = mmm_source
+    serialized["data_source"] = "bigquery"
+    serialized["date_range"] = {"start": start_date, "end": end_date}
+    return serialized
 
 
 # --------------- Unified / Reallocation ---------------
