@@ -129,6 +129,11 @@ WITH raw_events AS (
     ) AS revenue
   FROM `{project}.{dataset}.events_*`
   WHERE _TABLE_SUFFIX BETWEEN @start_date AND @end_date
+    AND (
+      traffic_source.source IS NOT NULL
+      OR traffic_source.medium IS NOT NULL
+      OR event_name IN UNNEST(@conversion_events)
+    )
 )
 SELECT
   user_pseudo_id,
@@ -139,10 +144,8 @@ SELECT
   campaign,
   revenue
 FROM raw_events
-WHERE source IS NOT NULL
-   OR medium IS NOT NULL
-   OR event_name IN UNNEST(@conversion_events)
 ORDER BY user_pseudo_id, event_ts
+LIMIT @row_limit
 """
 
 
@@ -153,6 +156,7 @@ def query_ga4_sessions(
     start_date: str,
     end_date: str,
     conversion_events: list[str] | None = None,
+    row_limit: int = 500_000,
 ) -> pd.DataFrame:
     """Pull session-level touchpoint data from GA4 BQ export.
 
@@ -160,6 +164,7 @@ def query_ga4_sessions(
     ----------
     start_date, end_date : YYYYMMDD strings
     conversion_events : e.g. ["purchase", "generate_lead"]
+    row_limit : max rows to return (default 500k, keeps query fast)
 
     Returns DataFrame with columns:
       user_pseudo_id, event_ts, event_name, source, medium, campaign, revenue
@@ -173,6 +178,7 @@ def query_ga4_sessions(
             bigquery.ScalarQueryParameter("start_date", "STRING", start_date),
             bigquery.ScalarQueryParameter("end_date", "STRING", end_date),
             bigquery.ArrayQueryParameter("conversion_events", "STRING", conversion_events),
+            bigquery.ScalarQueryParameter("row_limit", "INT64", row_limit),
         ]
     )
     df = client.query(sql, job_config=job_config).to_dataframe()

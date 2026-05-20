@@ -1020,7 +1020,7 @@ def bq_preview(
     client = cached["client"]
 
     try:
-        df = query_ga4_sessions(client, project, dataset, start_date, end_date, conv_list)
+        df = query_ga4_sessions(client, project, dataset, start_date, end_date, conv_list, row_limit=100_000)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"BigQuery query failed: {e}")
 
@@ -1029,6 +1029,7 @@ def bq_preview(
     summary["start_date"] = start_date
     summary["end_date"] = end_date
     summary["conversion_events"] = conv_list
+    summary["row_limit_applied"] = len(df) >= 100_000
     return summary
 
 
