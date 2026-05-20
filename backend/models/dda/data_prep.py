@@ -200,6 +200,50 @@ def extract_top_paths(
     return results[:top_n]
 
 
+def compute_assist_report(journeys: list[Journey]) -> list[dict]:
+    """Compute assisted vs last-touch conversion stats per channel.
+
+    For each converting journey:
+    - Last channel gets a 'last_touch' credit
+    - All other channels get an 'assist' credit
+    - First channel gets a 'first_touch' credit
+
+    Returns list of dicts sorted by total involvement, each with:
+      channel, assists, last_touch, first_touch, total_involvement,
+      assist_ratio (assists / total_involvement)
+    """
+    assists: dict[str, int] = defaultdict(int)
+    last_touch: dict[str, int] = defaultdict(int)
+    first_touch: dict[str, int] = defaultdict(int)
+
+    for j in journeys:
+        if not j.converted or not j.channels:
+            continue
+        last_touch[j.channels[-1]] += 1
+        first_touch[j.channels[0]] += 1
+        for ch in j.channels[:-1]:
+            assists[ch] += 1
+
+    all_channels = set(assists) | set(last_touch) | set(first_touch)
+    results = []
+    for ch in all_channels:
+        a = assists.get(ch, 0)
+        lt = last_touch.get(ch, 0)
+        ft = first_touch.get(ch, 0)
+        total = a + lt
+        results.append({
+            "channel": ch,
+            "assists": a,
+            "last_touch": lt,
+            "first_touch": ft,
+            "total_involvement": total,
+            "assist_ratio": a / total if total > 0 else 0.0,
+        })
+
+    results.sort(key=lambda x: -x["total_involvement"])
+    return results
+
+
 def _is_truthy(val) -> bool:
     """Check if a value is truthy (handles str '1', 'true', bool, int)."""
     if isinstance(val, bool):
