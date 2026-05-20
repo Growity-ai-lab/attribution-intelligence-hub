@@ -79,7 +79,10 @@ def get_client(credentials_json: str) -> bigquery.Client:
     """Create BQ client from service account JSON string."""
     info = json.loads(credentials_json)
     creds = service_account.Credentials.from_service_account_info(
-        info, scopes=["https://www.googleapis.com/auth/bigquery.readonly"]
+        info, scopes=[
+            "https://www.googleapis.com/auth/bigquery.readonly",
+            "https://www.googleapis.com/auth/cloud-platform",
+        ]
     )
     return bigquery.Client(credentials=creds, project=info.get("project_id"))
 
