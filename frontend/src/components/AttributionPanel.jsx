@@ -506,62 +506,84 @@ export default function AttributionPanel({ campaign }) {
           </div>
 
           {/* Assisted Conversion Report */}
-          {ddaResult.assist_report?.length > 0 && (
-            <div className="dark-card">
-              <div className="card-hdr">
-                <span className="card-title">Asist Analizi</span>
-                <span className="text-[10px] font-mono text-slate-500">
-                  İlk temas / Asist / Son temas kırılımı
-                </span>
+          {ddaResult.assist_report?.length > 0 && (() => {
+            const hasAssists = ddaResult.assist_report.some(r => r.assists > 0)
+            const avgTp = ddaResult.journey_stats?.avg_path_length || ddaResult.journey_stats?.avg_touchpoints || 0
+            const isSingleTouch = avgTp <= 1.2
+            return (
+              <div className="dark-card">
+                <div className="card-hdr">
+                  <span className="card-title">Asist Analizi</span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    İlk temas / Asist / Son temas kırılımı
+                  </span>
+                </div>
+                {isSingleTouch && (
+                  <div className="mx-4 mt-3 p-3 rounded-lg bg-amber-900/20 border border-amber-800/30">
+                    <p className="text-xs text-amber-300 leading-relaxed">
+                      <span className="font-semibold">Tek temaslı yolculuklar:</span>{' '}
+                      Ortalama temas noktası {avgTp.toFixed(1)} — kullanıcılar tek oturumda dönüşüm yapıyor veya
+                      GA4 çapraz oturum takibi (User-ID / Google Signals) aktif değil.
+                      Asist verisi bu nedenle sınırlı, aşağıdaki tablo yalnızca son temas dağılımını gösteriyor.
+                    </p>
+                  </div>
+                )}
+                <div className="p-4 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-dark-border text-slate-400">
+                        <th className="text-left py-2 px-2">Kanal</th>
+                        {!isSingleTouch && <th className="text-right py-2 px-2">İlk Temas</th>}
+                        {!isSingleTouch && <th className="text-right py-2 px-2">Asist</th>}
+                        <th className="text-right py-2 px-2">Son Temas</th>
+                        {!isSingleTouch && <th className="text-right py-2 px-2">Toplam</th>}
+                        {!isSingleTouch && <th className="text-right py-2 px-2">Asist Oranı</th>}
+                        <th className="text-right py-2 px-2">{isSingleTouch ? 'Pay' : 'Rol'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ddaResult.assist_report.map((r, idx) => {
+                        const ratio = r.assist_ratio
+                        const totalConv = ddaResult.assist_report.reduce((s, x) => s + x.last_touch, 0)
+                        const share = totalConv > 0 ? r.last_touch / totalConv : 0
+
+                        const rolLabel = isSingleTouch
+                          ? fmtPct(share)
+                          : ratio >= 0.55 ? 'Farkındalık' : ratio <= 0.25 ? 'Dönüştürücü' : 'Hibrit'
+                        const rolColor = isSingleTouch
+                          ? 'bg-slate-500/15 text-slate-300'
+                          : ratio >= 0.55
+                            ? 'bg-amber-500/15 text-amber-400'
+                            : ratio <= 0.25
+                              ? 'bg-emerald-500/15 text-emerald-400'
+                              : 'bg-blue-500/15 text-blue-400'
+                        return (
+                          <tr key={r.channel} className="border-b border-dark-border/50 hover:bg-dark-bg/30">
+                            <td className="py-2 px-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getChannelColor(r.channel, idx) }} />
+                                <span className="text-slate-200">{r.channel}</span>
+                              </div>
+                            </td>
+                            {!isSingleTouch && <td className="py-2 px-2 text-right font-mono text-slate-400">{r.first_touch}</td>}
+                            {!isSingleTouch && <td className="py-2 px-2 text-right font-mono text-slate-400">{r.assists}</td>}
+                            <td className="py-2 px-2 text-right font-mono text-slate-100">{r.last_touch}</td>
+                            {!isSingleTouch && <td className="py-2 px-2 text-right font-mono text-slate-300">{r.total_involvement}</td>}
+                            {!isSingleTouch && <td className="py-2 px-2 text-right font-mono text-slate-100">{fmtPct(ratio)}</td>}
+                            <td className="py-2 px-2 text-right">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${rolColor}`}>
+                                {rolLabel}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="p-4 overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-dark-border text-slate-400">
-                      <th className="text-left py-2 px-2">Kanal</th>
-                      <th className="text-right py-2 px-2">İlk Temas</th>
-                      <th className="text-right py-2 px-2">Asist</th>
-                      <th className="text-right py-2 px-2">Son Temas</th>
-                      <th className="text-right py-2 px-2">Toplam</th>
-                      <th className="text-right py-2 px-2">Asist Oranı</th>
-                      <th className="text-right py-2 px-2">Rol</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ddaResult.assist_report.map((r, idx) => {
-                      const ratio = r.assist_ratio
-                      const rolLabel = ratio >= 0.60 ? 'Farkındalık' : ratio <= 0.25 ? 'Dönüştürücü' : 'Hibrit'
-                      const rolColor = ratio >= 0.60
-                        ? 'bg-amber-500/15 text-amber-400'
-                        : ratio <= 0.25
-                          ? 'bg-emerald-500/15 text-emerald-400'
-                          : 'bg-blue-500/15 text-blue-400'
-                      return (
-                        <tr key={r.channel} className="border-b border-dark-border/50 hover:bg-dark-bg/30">
-                          <td className="py-2 px-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getChannelColor(r.channel, idx) }} />
-                              <span className="text-slate-200">{r.channel}</span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-2 text-right font-mono text-slate-400">{r.first_touch}</td>
-                          <td className="py-2 px-2 text-right font-mono text-slate-400">{r.assists}</td>
-                          <td className="py-2 px-2 text-right font-mono text-slate-100">{r.last_touch}</td>
-                          <td className="py-2 px-2 text-right font-mono text-slate-300">{r.total_involvement}</td>
-                          <td className="py-2 px-2 text-right font-mono text-slate-100">{fmtPct(ratio)}</td>
-                          <td className="py-2 px-2 text-right">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${rolColor}`}>
-                              {rolLabel}
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Çıkarımlar / Insights */}
           {ddaResult.insights?.length > 0 && (

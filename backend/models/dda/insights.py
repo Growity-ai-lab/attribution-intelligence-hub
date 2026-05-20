@@ -14,45 +14,85 @@ def generate_insights(
     journey_stats: dict,
     bq_summary: dict | None = None,
 ) -> list[dict]:
-    """Generate Turkish-language insights from DDA results.
-
-    Returns list of dicts with keys: type, icon, text, category.
-    """
+    """Generate Turkish-language insights from DDA results."""
     insights: list[dict] = []
 
     if not assist_report:
         return insights
 
-    _insight_top_converter(assist_report, insights)
-    _insight_top_assister(assist_report, insights)
-    _insight_first_touch_leader(assist_report, insights)
+    avg_tp = (
+        journey_stats.get("avg_path_length")
+        or journey_stats.get("avg_touchpoints")
+        or 0
+    )
+    is_single_touch = avg_tp <= 1.2
+
+    if is_single_touch:
+        _insight_single_touch_warning(journey_stats, insights)
+
+    _insight_top_converter(assist_report, hybrid_attribution, insights)
+
+    if not is_single_touch:
+        _insight_top_assister(assist_report, insights)
+        _insight_first_touch_leader(assist_report, insights)
+
     _insight_markov_shapley_deviation(markov_weights, shapley_weights, insights)
     _insight_cross_validation(cross_validation, insights)
-    _insight_journey_pattern(journey_stats, insights)
     _insight_concentration(hybrid_attribution, insights)
+    _insight_channel_count(hybrid_attribution, journey_stats, insights)
 
     return insights
 
 
-def _insight_top_converter(assist_report: list[dict], out: list[dict]) -> None:
+def _insight_single_touch_warning(journey_stats: dict, out: list[dict]) -> None:
+    total = journey_stats.get("total_journeys", 0)
+    converted = journey_stats.get("converted", 0)
+    rate_pct = round(journey_stats.get("conversion_rate", 0) * 100, 1)
+    out.append({
+        "type": "warning",
+        "icon": "⚠️",
+        "text": (
+            f"Kullanıcı yolculukları ortalama 1 temas noktasından oluşuyor "
+            f"({total} yolculuk, {converted} dönüşüm, %{rate_pct} oran). "
+            f"Bu durum GA4'ün oturum bazlı veri toplamasından kaynaklanıyor — "
+            f"çapraz oturum takibi (User-ID veya Google Signals) aktif değilse "
+            f"aynı kullanıcının farklı oturumlardaki temasları birleştirilemiyor. "
+            f"Asist analizi bu nedenle sınırlı."
+        ),
+        "category": "data_quality",
+    })
+
+
+def _insight_top_converter(
+    assist_report: list[dict],
+    hybrid_attribution: dict[str, float],
+    out: list[dict],
+) -> None:
     top = max(assist_report, key=lambda r: r["last_touch"])
     if top["last_touch"] == 0:
         return
-    out.append({
-        "type": "success",
-        "icon": "\U0001f3af",
-        "text": (
-            f"{top['channel']} en yüksek son temas kanalı "
-            f"({top['last_touch']} dönüşüm) — doğrudan dönüşüm sağlayan ana kanal."
-        ),
-        "category": "top_converter",
-    })
+    ch = top["channel"]
+    dda_pct = round(hybrid_attribution.get(ch, 0) * 100, 1)
+
+    second = sorted(assist_report, key=lambda r: -r["last_touch"])
+    second_ch = second[1]["channel"] if len(second) > 1 else None
+    second_lt = second[1]["last_touch"] if len(second) > 1 else 0
+
+    text = (
+        f"{ch} en yüksek dönüştürücü kanal — {top['last_touch']} son temas, "
+        f"DDA ağırlığı %{dda_pct}."
+    )
+    if second_ch and second_lt > 0:
+        gap = top["last_touch"] - second_lt
+        text += f" İkinci sırada {second_ch} ({second_lt}), aradaki fark {gap} dönüşüm."
+
+    out.append({"type": "success", "icon": "\U0001f3af", "text": text, "category": "top_converter"})
 
 
 def _insight_top_assister(assist_report: list[dict], out: list[dict]) -> None:
     candidates = [
         r for r in assist_report
-        if r["assist_ratio"] >= 0.60 and r["total_involvement"] >= 5
+        if r["assist_ratio"] >= 0.55 and r["total_involvement"] >= 5
     ]
     if not candidates:
         return
@@ -63,7 +103,8 @@ def _insight_top_assister(assist_report: list[dict], out: list[dict]) -> None:
         "icon": "\U0001f517",
         "text": (
             f"{top['channel']} yüksek asist oranına sahip (%{pct}) — "
-            f"farkındalık/değerlendirme aşamasında kritik rol oynuyor, bütçe kesilmemeli."
+            f"{top['assists']} kez dönüşümden önceki adımda yer alıyor. "
+            f"Farkındalık aşamasında kritik rol oynuyor, bütçe kesilmemeli."
         ),
         "category": "top_assister",
     })
@@ -80,8 +121,9 @@ def _insight_first_touch_leader(assist_report: list[dict], out: list[dict]) -> N
         "type": "info",
         "icon": "\U0001f44b",
         "text": (
-            f"{top['channel']} en çok ilk temas noktası "
-            f"({top['first_touch']}x) — yeni kullanıcı kazanımında lider."
+            f"{top['channel']} ilk temas lideri ({top['first_touch']}x) — "
+            f"kullanıcıyı markaya ilk kez tanıştıran kanal. "
+            f"Son temas kanalı olan {top_converter['channel']} ile birlikte çalışıyor."
         ),
         "category": "first_touch_leader",
     })
@@ -92,12 +134,21 @@ def _insight_markov_shapley_deviation(
     shapley_weights: dict[str, float],
     out: list[dict],
 ) -> None:
+    deviations = []
     for ch in markov_weights:
         m = markov_weights.get(ch, 0.0)
         s = shapley_weights.get(ch, 0.0)
         diff = abs(m - s)
-        if diff < 0.10:
-            continue
+        if diff >= 0.10 and max(m, s) >= 0.05:
+            deviations.append((ch, m, s, diff))
+
+    deviations.sort(key=lambda x: -x[3])
+
+    if not deviations:
+        return
+
+    if len(deviations) == 1:
+        ch, m, s, diff = deviations[0]
         m_pct = round(m * 100, 1)
         s_pct = round(s * 100, 1)
         dev_pct = round(diff * 100, 1)
@@ -105,9 +156,35 @@ def _insight_markov_shapley_deviation(
             "type": "warning",
             "icon": "⚠️",
             "text": (
-                f"{ch} için Markov (%{m_pct}) ve Shapley (%{s_pct}) "
-                f"arasında %{dev_pct} sapma — bu kanalın etkisi modele göre farklı ölçülüyor."
+                f"{ch} kanalında Markov (%{m_pct}) ve Shapley (%{s_pct}) "
+                f"modelleri arasında %{dev_pct} fark var. "
+                f"{'Markov daha yüksek → kanal zincirin kritik bir halkası' if m > s else 'Shapley daha yüksek → kanal tek başına da etkili'}."
             ),
+            "category": "model_divergence",
+        })
+    else:
+        top2 = deviations[:2]
+        lines = []
+        for ch, m, s, diff in top2:
+            m_pct = round(m * 100, 1)
+            s_pct = round(s * 100, 1)
+            dev_pct = round(diff * 100, 1)
+            lines.append(f"{ch} (%{dev_pct} fark: Markov %{m_pct}, Shapley %{s_pct})")
+        count_extra = len(deviations) - 2
+        text = (
+            f"Markov ve Shapley modelleri arasında en büyük sapmalar: "
+            f"{lines[0]}; {lines[1]}."
+        )
+        if count_extra > 0:
+            text += f" +{count_extra} kanal daha sapma gösteriyor."
+        text += (
+            " Markov kanal zincirine, Shapley bağımsız etkiye odaklanır — "
+            "sapma yüksekse her iki metriği birlikte değerlendirin."
+        )
+        out.append({
+            "type": "warning",
+            "icon": "⚠️",
+            "text": text,
             "category": "model_divergence",
         })
 
@@ -116,45 +193,25 @@ def _insight_cross_validation(
     cross_validation: list[dict],
     out: list[dict],
 ) -> None:
-    flagged = [cv for cv in cross_validation if cv.get("flagged")]
+    flagged = [
+        cv for cv in cross_validation
+        if cv.get("flagged") and cv.get("mmm_weight", 0) > 0.01
+    ]
     if not flagged:
         return
     worst = max(flagged, key=lambda cv: cv.get("deviation", 0))
     ch = worst.get("channel", "?")
     dda_pct = round(worst.get("dda_weight", 0) * 100, 1)
     mmm_pct = round(worst.get("mmm_weight", 0) * 100, 1)
-    dev_pct = round(worst.get("deviation", 0) * 100, 1)
-    out.append({
-        "type": "warning",
-        "icon": "\U0001f4ca",
-        "text": (
-            f"{ch}: DDA (%{dda_pct}) vs MMM (%{mmm_pct}) arasında "
-            f"%{dev_pct} fark — panel raporları ile model tahmini uyuşmuyor."
-        ),
-        "category": "cross_validation",
-    })
-
-
-def _insight_journey_pattern(journey_stats: dict, out: list[dict]) -> None:
-    avg = journey_stats.get("avg_path_length") or journey_stats.get("avg_touchpoints")
-    rate = journey_stats.get("conversion_rate", 0)
-    if avg is None:
-        return
-    avg_r = round(avg, 1)
-    rate_pct = round(rate * 100, 1)
-    if avg > 3:
-        interpretation = "çok adımlı bir satın alma yolculuğu, üst huni kanalları korunmalı"
-    elif avg <= 1.5:
-        interpretation = "kısa dönüşüm yolculuğu, son temas kanallarına odaklanılmalı"
-    else:
-        interpretation = "orta uzunlukta yolculuk, hem farkındalık hem dönüşüm kanalları dengeli tutulmalı"
     out.append({
         "type": "info",
-        "icon": "\U0001f4c8",
+        "icon": "\U0001f4ca",
         "text": (
-            f"Ortalama {avg_r} temas noktası ile %{rate_pct} dönüşüm oranı — {interpretation}."
+            f"{ch}: DDA (%{dda_pct}) vs MMM (%{mmm_pct}) karşılaştırması farklı sonuç veriyor. "
+            f"DDA kullanıcı yolculuğuna, MMM toplam harcama-dönüşüm ilişkisine bakar — "
+            f"iki model farklı perspektif sunar, tek başına biri yeterli değil."
         ),
-        "category": "journey_pattern",
+        "category": "cross_validation",
     })
 
 
@@ -166,15 +223,55 @@ def _insight_concentration(
         return
     top_ch = max(hybrid_attribution, key=hybrid_attribution.get)
     top_share = hybrid_attribution[top_ch]
-    if top_share < 0.40:
+    if top_share < 0.35:
         return
     pct = round(top_share * 100, 1)
+
+    sorted_chs = sorted(hybrid_attribution.items(), key=lambda x: -x[1])
+    if len(sorted_chs) >= 2:
+        second_ch, second_share = sorted_chs[1]
+        second_pct = round(second_share * 100, 1)
+        suggestion = (
+            f"En yakın alternatif {second_ch} (%{second_pct}). "
+            f"Bütçenin bir kısmını {second_ch} gibi destekleyici kanallara "
+            f"kaydırmak riski azaltabilir."
+        )
+    else:
+        suggestion = "Bütçe çeşitlendirmesi önerilir."
+
     out.append({
         "type": "warning",
         "icon": "\U0001f4b0",
         "text": (
-            f"Dönüşüm %{pct} oranında {top_ch} kanalına yoğunlaşmış — "
-            f"tek kanala bağımlılık riski var, çeşitlendirme önerilir."
+            f"Dönüşümlerin %{pct}'i {top_ch} kanalında yoğunlaşmış. "
+            f"{suggestion}"
         ),
         "category": "concentration",
     })
+
+
+def _insight_channel_count(
+    hybrid_attribution: dict[str, float],
+    journey_stats: dict,
+    out: list[dict],
+) -> None:
+    n_channels = len(hybrid_attribution)
+    converted = journey_stats.get("converted", 0)
+    if n_channels < 3 or converted == 0:
+        return
+
+    active = sum(1 for v in hybrid_attribution.values() if v >= 0.05)
+    low = sum(1 for v in hybrid_attribution.values() if 0 < v < 0.03)
+
+    if low >= 3:
+        low_chs = [ch for ch, v in hybrid_attribution.items() if 0 < v < 0.03]
+        out.append({
+            "type": "info",
+            "icon": "\U0001f4cb",
+            "text": (
+                f"Toplam {n_channels} kanal arasından {active} tanesi anlamlı katkı sağlıyor (>%5). "
+                f"{', '.join(low_chs[:3])} gibi {low} kanal çok düşük ağırlıkta — "
+                f"bu kanalların bütçe-getiri oranı değerlendirilmeli."
+            ),
+            "category": "channel_efficiency",
+        })
