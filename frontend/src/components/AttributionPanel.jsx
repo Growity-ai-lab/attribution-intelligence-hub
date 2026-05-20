@@ -85,7 +85,14 @@ export default function AttributionPanel({ campaign }) {
       })
       setConnected(res.data)
     } catch (err) {
-      setConnectError(err.response?.data?.detail || err.message)
+      const detail = err.response?.data?.detail
+      if (detail) {
+        setConnectError(detail)
+      } else if (err.code === 'ERR_NETWORK') {
+        setConnectError('Backend sunucusuna ulasilamiyor. Sunucunun calisiyor oldugundan emin olun.')
+      } else {
+        setConnectError(err.message || 'Bilinmeyen hata')
+      }
     }
     setConnecting(false)
   }, [bqProject, bqDataset, bqFile])

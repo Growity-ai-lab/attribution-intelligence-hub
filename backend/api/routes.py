@@ -982,11 +982,13 @@ async def bq_connect(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid credentials: {e}")
 
-    info = bq_test_connection(client, project, dataset)
+    try:
+        info = bq_test_connection(client, project, dataset)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"BQ connection failed: {e}")
     if not info["ok"]:
         raise HTTPException(status_code=400, detail=info.get("error", "Connection failed"))
 
-    # Cache client for subsequent requests (keyed by project+dataset)
     cache_key = f"{project}:{dataset}"
     _bq_clients[cache_key] = {"client": client, "creds": creds_str}
 
