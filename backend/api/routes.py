@@ -405,7 +405,15 @@ def _serialize_dda_result(result: dict) -> dict:
     """Convert numpy values in DDA result to JSON-serializable types."""
     return {
         "journey_stats": result["journey_stats"],
-        "top_paths": result.get("top_paths", []),
+        "top_paths": [
+            {
+                "path": p["path"],
+                "count": p.get("total", p.get("count", 0)),
+                "conversion_rate": p.get("rate", p.get("conversion_rate", 0.0)),
+                "conversions": p.get("conversions", 0),
+            }
+            for p in result.get("top_paths", [])
+        ],
         "online_channels": result["online_channels"],
         "offline_channels": result["offline_channels"],
         "markov": {

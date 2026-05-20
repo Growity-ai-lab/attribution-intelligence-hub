@@ -539,8 +539,8 @@ export default function AttributionPanel({ campaign }) {
                         </span>
                       ))}
                     </div>
-                    <span className="text-slate-400 font-mono">{p.count}</span>
-                    <span className="text-accent font-mono">{fmtPct(p.conversion_rate)}</span>
+                    <span className="text-slate-400 font-mono">{p.total || p.count}</span>
+                    <span className="text-accent font-mono">{fmtPct(p.rate ?? p.conversion_rate)}</span>
                   </div>
                 ))}
               </div>
