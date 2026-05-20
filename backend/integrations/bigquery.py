@@ -188,12 +188,21 @@ def query_ga4_sessions(
 # --------------- Transform to Touchpoints ---------------
 
 
+def _source_medium_label(source: str | None, medium: str | None) -> str:
+    """Build a 'source / medium' channel label from GA4 fields."""
+    src = (source or "(direct)").strip()
+    med = (medium or "(none)").strip()
+    if not src:
+        src = "(direct)"
+    if not med:
+        med = "(none)"
+    return f"{src} / {med}"
+
+
 def ga4_to_touchpoints(df: pd.DataFrame, conversion_events: list[str] | None = None) -> list[dict]:
     """Convert GA4 DataFrame to CRMTouchpoint-compatible dicts.
 
-    Each row becomes a touchpoint dict with:
-      lead_id (= user_pseudo_id), timestamp, channel, touchpoint_type,
-      campaign, converted, revenue
+    Uses raw source/medium as channel name for maximum transparency.
     """
     if conversion_events is None:
         conversion_events = ["purchase"]
@@ -202,7 +211,7 @@ def ga4_to_touchpoints(df: pd.DataFrame, conversion_events: list[str] | None = N
     results: list[dict] = []
 
     for _, row in df.iterrows():
-        channel = map_channel(row.get("source"), row.get("medium"))
+        channel = _source_medium_label(row.get("source"), row.get("medium"))
         event = str(row.get("event_name", ""))
         revenue = float(row.get("revenue", 0) or 0)
         converted = event in conv_set and revenue > 0

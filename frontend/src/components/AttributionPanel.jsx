@@ -10,7 +10,7 @@ import {
 } from 'chart.js'
 import { Bar } from 'react-chartjs-2'
 import axios from 'axios'
-import { CHANNEL_LABELS, CHANNEL_COLORS } from '../utils/colors'
+// Channel colors assigned dynamically by index — no static mapping needed
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -24,26 +24,14 @@ const fmtMoney = v => {
 const fmtN = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0)
 const fmtPct = v => `%${(v * 100).toFixed(1)}`
 
-const ALL_CHANNEL_LABELS = {
-  ...CHANNEL_LABELS,
-  direct: 'Direct',
-  organic_search: 'Organic Search',
-  referral: 'Referral',
-  email: 'Email',
-  organic_social: 'Organic Social',
-  affiliate: 'Affiliate',
-  other: 'Other',
-}
+const PALETTE = [
+  '#3b82f6', '#f97316', '#ec4899', '#8b5cf6', '#06b6d4',
+  '#ef4444', '#22c55e', '#eab308', '#14b8a6', '#a855f7',
+  '#f472b6', '#64748b', '#fb923c', '#84cc16', '#6366f1',
+]
 
-const ALL_CHANNEL_COLORS = {
-  ...CHANNEL_COLORS,
-  direct: '#64748b',
-  organic_search: '#22c55e',
-  referral: '#06b6d4',
-  email: '#eab308',
-  organic_social: '#f472b6',
-  affiliate: '#a78bfa',
-  other: '#475569',
+function getChannelColor(ch, index) {
+  return PALETTE[index % PALETTE.length]
 }
 
 export default function AttributionPanel({ campaign }) {
@@ -154,13 +142,13 @@ export default function AttributionPanel({ campaign }) {
     const hybrid = ddaResult.hybrid_attribution || {}
     const channels = Object.keys(hybrid).sort((a, b) => hybrid[b] - hybrid[a])
     return {
-      labels: channels.map(ch => ALL_CHANNEL_LABELS[ch] || ch),
+      labels: channels,
       datasets: [
         {
           label: 'DDA Weight',
           data: channels.map(ch => hybrid[ch]),
-          backgroundColor: channels.map(ch => (ALL_CHANNEL_COLORS[ch] || '#64748b') + '80'),
-          borderColor: channels.map(ch => ALL_CHANNEL_COLORS[ch] || '#64748b'),
+          backgroundColor: channels.map((_, i) => getChannelColor(null, i) + '80'),
+          borderColor: channels.map((_, i) => getChannelColor(null, i)),
           borderWidth: 1, borderRadius: 3,
         },
       ],
@@ -389,16 +377,16 @@ export default function AttributionPanel({ campaign }) {
             {preview.channels && (
               <div className="space-y-1">
                 <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Kanal Dagilimi</p>
-                {Object.entries(preview.channels).slice(0, 10).map(([ch, count]) => (
+                {Object.entries(preview.channels).slice(0, 15).map(([ch, count], i) => (
                   <div key={ch} className="flex items-center gap-2 text-xs">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ALL_CHANNEL_COLORS[ch] || '#64748b' }} />
-                    <span className="text-slate-300 w-28">{ALL_CHANNEL_LABELS[ch] || ch}</span>
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getChannelColor(ch, i) }} />
+                    <span className="text-slate-300 w-40 truncate" title={ch}>{ch}</span>
                     <div className="flex-1 bg-dark-bg rounded-full h-1.5">
                       <div
                         className="h-1.5 rounded-full"
                         style={{
                           width: `${Math.min(100, (count / preview.total_events) * 100)}%`,
-                          backgroundColor: ALL_CHANNEL_COLORS[ch] || '#64748b',
+                          backgroundColor: getChannelColor(ch, i),
                         }}
                       />
                     </div>
@@ -489,7 +477,7 @@ export default function AttributionPanel({ campaign }) {
                 <tbody>
                   {Object.entries(ddaResult.hybrid_attribution || {})
                     .sort(([, a], [, b]) => b - a)
-                    .map(([ch, weight]) => {
+                    .map(([ch, weight], idx) => {
                       const markov = ddaResult.markov?.attribution_weights?.[ch] || 0
                       const shapley = ddaResult.shapley_dda?.[ch] || 0
                       const unified = ddaResult.unified_report?.[ch]?.unified_score
@@ -497,8 +485,8 @@ export default function AttributionPanel({ campaign }) {
                         <tr key={ch} className="border-b border-dark-border/50 hover:bg-dark-bg/30">
                           <td className="py-2 px-2">
                             <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ALL_CHANNEL_COLORS[ch] || '#64748b' }} />
-                              <span className="text-slate-200">{ALL_CHANNEL_LABELS[ch] || ch}</span>
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getChannelColor(ch, idx) }} />
+                              <span className="text-slate-200">{ch}</span>
                             </div>
                           </td>
                           <td className="py-2 px-2 text-right font-mono text-slate-100">{fmtPct(weight)}</td>
@@ -535,13 +523,9 @@ export default function AttributionPanel({ campaign }) {
                         <span key={j} className="flex items-center gap-1">
                           {j > 0 && <span className="text-slate-600">→</span>}
                           <span
-                            className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                            style={{
-                              backgroundColor: (ALL_CHANNEL_COLORS[ch] || '#64748b') + '20',
-                              color: ALL_CHANNEL_COLORS[ch] || '#94a3b8',
-                            }}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-700/50 text-slate-300"
                           >
-                            {ALL_CHANNEL_LABELS[ch] || ch}
+                            {ch}
                           </span>
                         </span>
                       ))}
