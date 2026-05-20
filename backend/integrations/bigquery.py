@@ -231,6 +231,25 @@ def ga4_to_touchpoints(df: pd.DataFrame, conversion_events: list[str] | None = N
     return results
 
 
+def consolidate_channels(touchpoints: list[dict], max_channels: int = 12) -> list[dict]:
+    """Group low-frequency source/medium pairs into 'diger' to keep channel count manageable.
+
+    Keeps the top N channels by touchpoint count, merges the rest into 'diger'.
+    This is critical for Shapley computation which is O(2^n) on channel count.
+    """
+    freq: dict[str, int] = {}
+    for tp in touchpoints:
+        freq[tp["channel"]] = freq.get(tp["channel"], 0) + 1
+
+    top_channels = {ch for ch, _ in sorted(freq.items(), key=lambda x: -x[1])[:max_channels]}
+
+    for tp in touchpoints:
+        if tp["channel"] not in top_channels:
+            tp["channel"] = "diger"
+
+    return touchpoints
+
+
 def summarize_touchpoints(touchpoints: list[dict]) -> dict:
     """Quick summary stats for UI display before running DDA."""
     if not touchpoints:

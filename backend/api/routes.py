@@ -77,6 +77,7 @@ from backend.integrations.bigquery import (
     test_connection as bq_test_connection,
     query_ga4_sessions,
     ga4_to_touchpoints,
+    consolidate_channels,
     summarize_touchpoints,
     default_date_range,
 )
@@ -1075,8 +1076,9 @@ def run_dda_from_bigquery(
     if df.empty:
         raise HTTPException(status_code=422, detail="No events found in the specified date range.")
 
-    # Step 2: Convert to touchpoints
+    # Step 2: Convert to touchpoints, consolidate low-freq channels
     touchpoints = ga4_to_touchpoints(df, conv_list)
+    touchpoints = consolidate_channels(touchpoints, max_channels=12)
     summary = summarize_touchpoints(touchpoints)
 
     if summary["conversions"] == 0:
