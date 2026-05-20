@@ -1126,11 +1126,13 @@ def run_dda_from_bigquery(
 
     _validate_journey_count(journeys)
 
-    # Step 5: Run DDA
+    # Step 5: Run DDA (exclude offline MMM channels for BQ-sourced data)
     mmm_shares, mmm_source = _compute_mmm_shares(db, target_campaign_id)
+    from backend.models.dda.ensemble import OFFLINE_CHANNELS
+    digital_mmm_shares = {k: v for k, v in mmm_shares.items() if k not in OFFLINE_CHANNELS}
     result = run_full_dda_pipeline(
         journeys,
-        mmm_shares,
+        digital_mmm_shares,
         prior_alpha=prior_alpha,
         markov_blend=DDA_BLEND_WEIGHTS["markov"],
         shapley_blend=DDA_BLEND_WEIGHTS["shapley"],

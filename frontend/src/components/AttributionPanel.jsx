@@ -446,7 +446,7 @@ export default function AttributionPanel({ campaign }) {
           {/* Attribution Chart */}
           <div className="dark-card">
             <div className="card-hdr">
-              <span className="card-title">Channel Attribution (DDA)</span>
+              <span className="card-title">Kanal Attribution (DDA)</span>
               <span className="text-[10px] font-mono text-slate-500">
                 Markov %65 + Shapley %35 blend
                 {ddaResult.data_source === 'bigquery' && ' | BigQuery'}
@@ -490,8 +490,8 @@ export default function AttributionPanel({ campaign }) {
                   {Object.entries(ddaResult.hybrid_attribution || {})
                     .sort(([, a], [, b]) => b - a)
                     .map(([ch, weight]) => {
-                      const markov = ddaResult.markov_attribution?.[ch] || 0
-                      const shapley = ddaResult.shapley_attribution?.[ch] || 0
+                      const markov = ddaResult.markov?.attribution_weights?.[ch] || 0
+                      const shapley = ddaResult.shapley_dda?.[ch] || 0
                       const unified = ddaResult.unified_report?.[ch]?.unified_score
                       return (
                         <tr key={ch} className="border-b border-dark-border/50 hover:bg-dark-bg/30">
@@ -521,7 +521,7 @@ export default function AttributionPanel({ campaign }) {
           {ddaResult.top_paths && ddaResult.top_paths.length > 0 && (
             <div className="dark-card">
               <div className="card-hdr">
-                <span className="card-title">Top Conversion Paths</span>
+                <span className="card-title">En Sik Donusum Yollari</span>
                 <span className="text-[10px] font-mono text-slate-500">
                   {ddaResult.journey_stats?.total_journeys || '?'} journey
                 </span>
@@ -562,16 +562,16 @@ export default function AttributionPanel({ campaign }) {
                 <p className="text-sm font-mono text-slate-100">{fmtN(ddaResult.journey_stats.total_journeys)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Converted</p>
+                <p className="text-[10px] text-slate-500 uppercase">Donusum Yapan</p>
                 <p className="text-sm font-mono text-accent">{fmtN(ddaResult.journey_stats.converted)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Conv. Rate</p>
+                <p className="text-[10px] text-slate-500 uppercase">Donusum Orani</p>
                 <p className="text-sm font-mono text-slate-100">{fmtPct(ddaResult.journey_stats.conversion_rate)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
                 <p className="text-[10px] text-slate-500 uppercase">Ort. Touchpoint</p>
-                <p className="text-sm font-mono text-slate-100">{ddaResult.journey_stats.avg_touchpoints?.toFixed(1)}</p>
+                <p className="text-sm font-mono text-slate-100">{ddaResult.journey_stats.avg_path_length?.toFixed(1) || ddaResult.journey_stats.avg_touchpoints?.toFixed(1)}</p>
               </div>
             </div>
           )}

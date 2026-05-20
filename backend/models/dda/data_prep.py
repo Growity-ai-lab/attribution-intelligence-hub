@@ -56,7 +56,15 @@ def extract_journeys(
     for lead_id, tps in grouped.items():
         sorted_tps = sorted(tps, key=lambda x: x.get(timestamp_col, ""))
 
-        channels = [tp[channel_col] for tp in sorted_tps if tp.get(channel_col)]
+        raw_channels = [tp[channel_col] for tp in sorted_tps if tp.get(channel_col)]
+        if not raw_channels:
+            continue
+
+        # Deduplicate consecutive identical channels
+        channels = [raw_channels[0]]
+        for ch in raw_channels[1:]:
+            if ch != channels[-1]:
+                channels.append(ch)
         if not channels:
             continue
 
