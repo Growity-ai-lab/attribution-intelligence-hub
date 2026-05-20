@@ -7,11 +7,13 @@ and report deviations.
 
 from backend.models.dda.data_prep import (
     Journey,
+    compute_assist_report,
     extract_top_paths,
     get_unique_channels,
     journey_stats,
     journeys_to_state_sequences,
 )
+from backend.models.dda.insights import generate_insights
 from backend.models.dda.markov import run_markov_attribution
 from backend.models.dda.shapley_dda import run_shapley_dda
 
@@ -244,6 +246,19 @@ def run_full_dda_pipeline(
     # Extract top conversion paths
     top_paths = extract_top_paths(journeys, top_n=15)
 
+    # Assist report + insights
+    assist_report = compute_assist_report(journeys)
+    insights = generate_insights(
+        assist_report=assist_report,
+        hybrid_attribution=hybrid_weights,
+        markov_weights=markov_result["attribution_weights"],
+        shapley_weights=shapley_weights,
+        cross_validation=[
+            {"channel": ch, **vals} for ch, vals in cross_val.items()
+        ],
+        journey_stats=stats,
+    )
+
     return {
         "journey_stats": stats,
         "top_paths": top_paths,
@@ -260,4 +275,6 @@ def run_full_dda_pipeline(
         "cross_validation": cross_val,
         "mmm_offline_weights": offline_from_mmm,
         "hybrid_attribution": hybrid_weights,
+        "assist_report": assist_report,
+        "insights": insights,
     }

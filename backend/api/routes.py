@@ -430,6 +430,8 @@ def _serialize_dda_result(result: dict) -> dict:
             for ch, vals in result["cross_validation"].items()
         ],
         "hybrid_attribution": {k: float(v) for k, v in result["hybrid_attribution"].items()},
+        "assist_report": result.get("assist_report", []),
+        "insights": result.get("insights", []),
     }
 
 

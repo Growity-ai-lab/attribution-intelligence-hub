@@ -505,6 +505,91 @@ export default function AttributionPanel({ campaign }) {
             </div>
           </div>
 
+          {/* Assisted Conversion Report */}
+          {ddaResult.assist_report?.length > 0 && (
+            <div className="dark-card">
+              <div className="card-hdr">
+                <span className="card-title">Asist Analizi</span>
+                <span className="text-[10px] font-mono text-slate-500">
+                  İlk temas / Asist / Son temas kırılımı
+                </span>
+              </div>
+              <div className="p-4 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-dark-border text-slate-400">
+                      <th className="text-left py-2 px-2">Kanal</th>
+                      <th className="text-right py-2 px-2">İlk Temas</th>
+                      <th className="text-right py-2 px-2">Asist</th>
+                      <th className="text-right py-2 px-2">Son Temas</th>
+                      <th className="text-right py-2 px-2">Toplam</th>
+                      <th className="text-right py-2 px-2">Asist Oranı</th>
+                      <th className="text-right py-2 px-2">Rol</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ddaResult.assist_report.map((r, idx) => {
+                      const ratio = r.assist_ratio
+                      const rolLabel = ratio >= 0.60 ? 'Farkındalık' : ratio <= 0.25 ? 'Dönüştürücü' : 'Hibrit'
+                      const rolColor = ratio >= 0.60
+                        ? 'bg-amber-500/15 text-amber-400'
+                        : ratio <= 0.25
+                          ? 'bg-emerald-500/15 text-emerald-400'
+                          : 'bg-blue-500/15 text-blue-400'
+                      return (
+                        <tr key={r.channel} className="border-b border-dark-border/50 hover:bg-dark-bg/30">
+                          <td className="py-2 px-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getChannelColor(r.channel, idx) }} />
+                              <span className="text-slate-200">{r.channel}</span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-2 text-right font-mono text-slate-400">{r.first_touch}</td>
+                          <td className="py-2 px-2 text-right font-mono text-slate-400">{r.assists}</td>
+                          <td className="py-2 px-2 text-right font-mono text-slate-100">{r.last_touch}</td>
+                          <td className="py-2 px-2 text-right font-mono text-slate-300">{r.total_involvement}</td>
+                          <td className="py-2 px-2 text-right font-mono text-slate-100">{fmtPct(ratio)}</td>
+                          <td className="py-2 px-2 text-right">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${rolColor}`}>
+                              {rolLabel}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Çıkarımlar / Insights */}
+          {ddaResult.insights?.length > 0 && (
+            <div className="dark-card">
+              <div className="card-hdr">
+                <span className="card-title">Çıkarımlar</span>
+                <span className="text-[10px] font-mono text-slate-500">
+                  Otomatik analiz
+                </span>
+              </div>
+              <div className="p-4 space-y-2">
+                {ddaResult.insights.map((insight, i) => {
+                  const bg = insight.type === 'warning'
+                    ? 'bg-amber-900/20 border-amber-800/30'
+                    : insight.type === 'success'
+                      ? 'bg-emerald-900/20 border-emerald-800/30'
+                      : 'bg-blue-900/20 border-blue-800/30'
+                  return (
+                    <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${bg}`}>
+                      <span className="text-base flex-shrink-0">{insight.icon}</span>
+                      <p className="text-xs text-slate-200 leading-relaxed">{insight.text}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Top Conversion Paths */}
           {ddaResult.top_paths && ddaResult.top_paths.length > 0 && (
             <div className="dark-card">
