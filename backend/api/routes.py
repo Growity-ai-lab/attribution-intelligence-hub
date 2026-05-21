@@ -71,6 +71,7 @@ from backend.models.mmm import (
     compute_response,
     compute_saturation,
 )
+from backend.models.simulation import simulate_budget
 from backend.models.unified import compute_unified_report, suggest_reallocation
 from backend.integrations.bigquery import (
     get_client as bq_get_client,
@@ -1870,6 +1871,52 @@ def delete_saved_media_plan(
     db.delete(sim)
     db.commit()
     return {"deleted": True, "id": sim_id}
+
+
+# ── Budget Simulation (DDA-based) ─────────────────────────
+
+
+@router.post("/simulation/budget")
+def run_budget_simulation(
+    payload: dict = Body(...),
+    _user: dict = Depends(get_current_user),
+) -> dict:
+    """Simulate budget allocation using DDA attribution weights.
+
+    Expects JSON body:
+    {
+      "channel_spends": {"google/cpc": 50000, ...},
+      "dda_weights": {"google/cpc": 0.326, ...},
+      "total_revenue": 1100000,
+      "total_conversions": 571,
+      "scenario_spends": {"google/cpc": 60000, ...}  // optional
+    }
+    """
+    channel_spends = payload.get("channel_spends")
+    dda_weights = payload.get("dda_weights")
+    total_revenue = payload.get("total_revenue")
+    total_conversions = payload.get("total_conversions")
+    scenario_spends = payload.get("scenario_spends")
+
+    if not channel_spends or not dda_weights:
+        raise HTTPException(
+            status_code=400,
+            detail="channel_spends ve dda_weights zorunludur.",
+        )
+    if total_revenue is None or total_conversions is None:
+        raise HTTPException(
+            status_code=400,
+            detail="total_revenue ve total_conversions zorunludur.",
+        )
+
+    result = simulate_budget(
+        channel_spends=channel_spends,
+        dda_weights=dda_weights,
+        total_revenue=float(total_revenue),
+        total_conversions=int(total_conversions),
+        scenario_spends=scenario_spends,
+    )
+    return result
 
 
 # ── Sales & Stock Endpoints ──────────────────────────────

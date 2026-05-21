@@ -90,6 +90,14 @@ export default function AttributionPanel({ campaign }) {
   const [conversionEvents, setConversionEvents] = useState('purchase')
   const [showMethodology, setShowMethodology] = useState(false)
 
+  // Budget simulation
+  const [channelSpends, setChannelSpends] = useState({})
+  const [scenarioSpends, setScenarioSpends] = useState({})
+  const [simResult, setSimResult] = useState(null)
+  const [simLoading, setSimLoading] = useState(false)
+  const [simError, setSimError] = useState('')
+  const [showScenario, setShowScenario] = useState(false)
+
   const handleConnect = useCallback(async () => {
     if (!bqProject || !bqDataset || !bqFile) return
     setConnecting(true)
@@ -165,6 +173,80 @@ export default function AttributionPanel({ campaign }) {
     }
     setDdaLoading(false)
   }, [csvFile, campaign])
+
+  const ORGANIC_KEYWORDS = ['direct', 'organic', 'referral', 'email', '(direct)', '(none)']
+  const isOrganic = ch => ORGANIC_KEYWORDS.some(kw => ch.toLowerCase().includes(kw))
+
+  const handleSimulate = useCallback(async (useScenario = false) => {
+    if (!ddaResult) return
+    const weights = ddaResult.hybrid_attribution || {}
+    const bq = ddaResult.bq_summary || {}
+    const totalRevenue = bq.total_revenue || 0
+    const totalConversions = bq.total_conversions || bq.conversions || 0
+
+    const spends = {}
+    for (const ch of Object.keys(weights)) {
+      if (!isOrganic(ch) && channelSpends[ch] > 0) {
+        spends[ch] = Number(channelSpends[ch])
+      }
+    }
+    if (Object.keys(spends).length === 0) {
+      setSimError('En az bir kanala harcama girmeniz gerekiyor.')
+      return
+    }
+
+    setSimLoading(true)
+    setSimError('')
+    try {
+      const body = {
+        channel_spends: spends,
+        dda_weights: weights,
+        total_revenue: totalRevenue,
+        total_conversions: totalConversions,
+      }
+      if (useScenario) {
+        const sSpends = {}
+        for (const ch of Object.keys(weights)) {
+          if (!isOrganic(ch) && scenarioSpends[ch] > 0) {
+            sSpends[ch] = Number(scenarioSpends[ch])
+          }
+        }
+        if (Object.keys(sSpends).length > 0) body.scenario_spends = sSpends
+      }
+      const res = await axios.post(`${API}/simulation/budget`, body)
+      setSimResult(res.data)
+      if (useScenario) setShowScenario(true)
+    } catch (err) {
+      setSimError(err.response?.data?.detail || err.message)
+    }
+    setSimLoading(false)
+  }, [ddaResult, channelSpends, scenarioSpends])
+
+  const handleCsvSpendUpload = useCallback((e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      const lines = evt.target.result.split('\n').filter(l => l.trim())
+      const newSpends = {}
+      for (const line of lines.slice(1)) {
+        const [ch, spend] = line.split(',').map(s => s.trim())
+        if (ch && spend && !isNaN(Number(spend))) {
+          newSpends[ch] = Number(spend)
+        }
+      }
+      setChannelSpends(prev => ({ ...prev, ...newSpends }))
+    }
+    reader.readAsText(file)
+  }, [])
+
+  const handleResetSim = useCallback(() => {
+    setChannelSpends({})
+    setScenarioSpends({})
+    setSimResult(null)
+    setSimError('')
+    setShowScenario(false)
+  }, [])
 
   // Chart data from DDA result
   const chartData = ddaResult ? (() => {
@@ -727,6 +809,231 @@ export default function AttributionPanel({ campaign }) {
                     </div>
                   )
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Bütçe & Gelir Simülasyonu */}
+          {ddaResult.hybrid_attribution && (
+            <div className="dark-card">
+              <div className="card-hdr">
+                <span className="card-title">
+                  Bütçe & Gelir Simülasyonu
+                  <InfoTip text="DDA katkı paylarını kullanarak kanal bazlı ROAS ve CPA hesaplar. Harcama verisi manuel girilir veya CSV ile yüklenir. Senaryo modunda bütçe değişikliklerinin gelire etkisini simüle edebilirsiniz." />
+                </span>
+                <span className="text-[10px] font-mono text-slate-500">
+                  Lineer projeksiyon
+                </span>
+              </div>
+              <div className="p-4 space-y-4">
+                {/* Spend input table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-[10px] text-slate-500 uppercase border-b border-slate-700/50">
+                        <th className="text-left py-2 px-2">Kanal</th>
+                        <th className="text-right py-2 px-2">
+                          Katkı Payı
+                          <InfoTip text="DDA analizi sonucunda hesaplanan kanal katkı oranı." />
+                        </th>
+                        <th className="text-right py-2 px-2">
+                          Harcama (₺)
+                          <InfoTip text="Bu kanala yapılan toplam harcamayı girin. Organik kanallar için harcama girilemez." />
+                        </th>
+                        {showScenario && (
+                          <th className="text-right py-2 px-2">
+                            Senaryo (₺)
+                            <InfoTip text="What-if analizi için yeni bütçe değerlerini girin." />
+                          </th>
+                        )}
+                        {simResult && <th className="text-right py-2 px-2">ROAS</th>}
+                        {simResult && <th className="text-right py-2 px-2">CPA (₺)</th>}
+                        {simResult?.recommendations && <th className="text-center py-2 px-2">Aksiyon</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(ddaResult.hybrid_attribution)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([ch, weight]) => {
+                          const organic = isOrganic(ch)
+                          const curCh = simResult?.current?.channels?.[ch]
+                          const rec = simResult?.recommendations?.find(r => r.channel === ch)
+                          const actionColor = rec?.action === 'artir'
+                            ? 'text-emerald-400'
+                            : rec?.action === 'azalt'
+                              ? 'text-red-400'
+                              : rec?.action === 'degerlendirmeli'
+                                ? 'text-amber-400'
+                                : 'text-slate-400'
+                          return (
+                            <tr key={ch} className="border-b border-slate-800/50 hover:bg-slate-800/20">
+                              <td className="py-1.5 px-2 text-slate-200 font-medium">{ch}</td>
+                              <td className="py-1.5 px-2 text-right text-slate-300 font-mono">{fmtPct(weight)}</td>
+                              <td className="py-1.5 px-2 text-right">
+                                {organic ? (
+                                  <span className="text-slate-600 text-[10px]">organik</span>
+                                ) : (
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    className="w-24 bg-slate-800/50 border border-slate-700 rounded px-2 py-1 text-right text-xs text-slate-200 font-mono focus:border-blue-500 focus:outline-none"
+                                    placeholder="0"
+                                    value={channelSpends[ch] || ''}
+                                    onChange={e => setChannelSpends(prev => ({ ...prev, [ch]: e.target.value }))}
+                                  />
+                                )}
+                              </td>
+                              {showScenario && (
+                                <td className="py-1.5 px-2 text-right">
+                                  {organic ? (
+                                    <span className="text-slate-600 text-[10px]">—</span>
+                                  ) : (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      className="w-24 bg-amber-900/20 border border-amber-700/50 rounded px-2 py-1 text-right text-xs text-amber-200 font-mono focus:border-amber-500 focus:outline-none"
+                                      placeholder={channelSpends[ch] || '0'}
+                                      value={scenarioSpends[ch] || ''}
+                                      onChange={e => setScenarioSpends(prev => ({ ...prev, [ch]: e.target.value }))}
+                                    />
+                                  )}
+                                </td>
+                              )}
+                              {simResult && (
+                                <td className="py-1.5 px-2 text-right font-mono text-slate-300">
+                                  {curCh?.roas != null ? `${curCh.roas.toFixed(1)}x` : '—'}
+                                </td>
+                              )}
+                              {simResult && (
+                                <td className="py-1.5 px-2 text-right font-mono text-slate-300">
+                                  {curCh?.cpa != null ? `${fmtMoney(curCh.cpa)}` : '—'}
+                                </td>
+                              )}
+                              {simResult?.recommendations && (
+                                <td className={`py-1.5 px-2 text-center text-[10px] font-medium ${actionColor}`}>
+                                  {rec ? `${rec.icon} ${rec.action === 'artir' ? 'Artır' : rec.action === 'azalt' ? 'Azalt' : rec.action === 'koru' ? 'Koru' : 'Değerlendir'}` : '—'}
+                                </td>
+                              )}
+                            </tr>
+                          )
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Recommendation tooltips */}
+                {simResult?.recommendations?.length > 0 && (
+                  <div className="space-y-1.5">
+                    {simResult.recommendations.filter(r => r.action !== 'koru').map((rec, i) => {
+                      const bg = rec.action === 'artir'
+                        ? 'bg-emerald-900/20 border-emerald-800/30'
+                        : rec.action === 'azalt'
+                          ? 'bg-red-900/20 border-red-800/30'
+                          : 'bg-amber-900/20 border-amber-800/30'
+                      return (
+                        <div key={i} className={`flex items-start gap-2 p-2 rounded-lg border ${bg}`}>
+                          <span className="text-sm flex-shrink-0">{rec.icon}</span>
+                          <p className="text-[11px] text-slate-300 leading-relaxed">
+                            <span className="font-medium text-slate-100">{rec.channel}</span>: {rec.reason}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleSimulate(false)}
+                    disabled={simLoading}
+                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    {simLoading ? 'Hesaplanıyor...' : 'Simüle Et'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!showScenario) {
+                        const copy = {}
+                        for (const ch of Object.keys(channelSpends)) copy[ch] = channelSpends[ch]
+                        setScenarioSpends(copy)
+                        setShowScenario(true)
+                      } else {
+                        handleSimulate(true)
+                      }
+                    }}
+                    disabled={simLoading || !simResult}
+                    className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    {showScenario ? 'Senaryoyu Simüle Et' : 'Senaryo Ekle'}
+                  </button>
+                  <label className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium rounded-lg transition-colors cursor-pointer">
+                    CSV ile Yükle
+                    <input type="file" accept=".csv" className="hidden" onChange={handleCsvSpendUpload} />
+                  </label>
+                  <button
+                    onClick={handleResetSim}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-medium rounded-lg transition-colors"
+                  >
+                    Sıfırla
+                  </button>
+                </div>
+
+                {simError && (
+                  <p className="text-xs text-red-400">{simError}</p>
+                )}
+
+                {/* Summary KPIs */}
+                {simResult && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-slate-500 uppercase">Toplam Harcama</p>
+                      <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_spend)} ₺</p>
+                    </div>
+                    <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-slate-500 uppercase">Toplam Gelir</p>
+                      <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_revenue)} ₺</p>
+                    </div>
+                    <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-slate-500 uppercase">Karma ROAS</p>
+                      <p className="text-sm font-mono text-slate-100">{simResult.current.blended_roas != null ? `${simResult.current.blended_roas.toFixed(1)}x` : '—'}</p>
+                    </div>
+                    <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-slate-500 uppercase">Dönüşüm</p>
+                      <p className="text-sm font-mono text-slate-100">{fmtN(simResult.current.total_conversions)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Scenario comparison */}
+                {simResult?.scenario && showScenario && (
+                  <div className="space-y-3">
+                    <div className="text-xs font-medium text-amber-300">Senaryo Sonucu</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-amber-400/70 uppercase">Projeksiyon Gelir</p>
+                        <p className="text-sm font-mono text-amber-200">{fmtMoney(simResult.scenario.projected_revenue)} ₺</p>
+                      </div>
+                      <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-amber-400/70 uppercase">Gelir Farkı</p>
+                        <p className={`text-sm font-mono ${simResult.scenario.delta_revenue >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                          {simResult.scenario.delta_revenue >= 0 ? '+' : ''}{fmtMoney(simResult.scenario.delta_revenue)} ₺
+                          <span className="text-[10px] ml-1">({simResult.scenario.delta_revenue_pct >= 0 ? '+' : ''}{simResult.scenario.delta_revenue_pct}%)</span>
+                        </p>
+                      </div>
+                      <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-amber-400/70 uppercase">Yeni ROAS</p>
+                        <p className="text-sm font-mono text-amber-200">{simResult.scenario.blended_roas != null ? `${simResult.scenario.blended_roas.toFixed(1)}x` : '—'}</p>
+                      </div>
+                      <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-amber-400/70 uppercase">ROAS Değişim</p>
+                        <p className={`text-sm font-mono ${(simResult.scenario.delta_roas || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                          {simResult.scenario.delta_roas != null ? `${simResult.scenario.delta_roas >= 0 ? '+' : ''}${simResult.scenario.delta_roas.toFixed(1)}x` : '—'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
