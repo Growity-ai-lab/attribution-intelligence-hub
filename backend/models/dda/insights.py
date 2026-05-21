@@ -80,7 +80,7 @@ def _insight_top_converter(
 
     text = (
         f"{ch} en yüksek dönüştürücü kanal — {top['last_touch']} son temas, "
-        f"DDA ağırlığı %{dda_pct}."
+        f"katkı payı %{dda_pct}."
     )
     if second_ch and second_lt > 0:
         gap = top["last_touch"] - second_lt
@@ -152,38 +152,46 @@ def _insight_markov_shapley_deviation(
         m_pct = round(m * 100, 1)
         s_pct = round(s * 100, 1)
         dev_pct = round(diff * 100, 1)
+        if m > s:
+            explanation = (
+                f"Zincir etkisi (%{m_pct}) bağımsız katkıdan (%{s_pct}) yüksek — "
+                f"bu kanal, dönüşüm yolculuğunun vazgeçilmez bir halkası."
+            )
+        else:
+            explanation = (
+                f"Bağımsız katkı (%{s_pct}) zincir etkisinden (%{m_pct}) yüksek — "
+                f"bu kanal tek başına da dönüşüm sağlayabiliyor."
+            )
         out.append({
-            "type": "warning",
-            "icon": "⚠️",
-            "text": (
-                f"{ch} kanalında Markov (%{m_pct}) ve Shapley (%{s_pct}) "
-                f"modelleri arasında %{dev_pct} fark var. "
-                f"{'Markov daha yüksek → kanal zincirin kritik bir halkası' if m > s else 'Shapley daha yüksek → kanal tek başına da etkili'}."
-            ),
+            "type": "info",
+            "icon": "\U0001f50d",
+            "text": f"{ch} kanalında iki analiz yöntemi farklı sonuç veriyor (%{dev_pct} fark). {explanation}",
             "category": "model_divergence",
         })
     else:
         top2 = deviations[:2]
         lines = []
         for ch, m, s, diff in top2:
-            m_pct = round(m * 100, 1)
-            s_pct = round(s * 100, 1)
             dev_pct = round(diff * 100, 1)
-            lines.append(f"{ch} (%{dev_pct} fark: Markov %{m_pct}, Shapley %{s_pct})")
+            if m > s:
+                lines.append(f"{ch} (%{dev_pct} fark — zincirde kritik)")
+            else:
+                lines.append(f"{ch} (%{dev_pct} fark — tek başına etkili)")
         count_extra = len(deviations) - 2
         text = (
-            f"Markov ve Shapley modelleri arasında en büyük sapmalar: "
+            f"İki analiz yöntemi bazı kanallarda farklı sonuç veriyor: "
             f"{lines[0]}; {lines[1]}."
         )
         if count_extra > 0:
-            text += f" +{count_extra} kanal daha sapma gösteriyor."
+            text += f" +{count_extra} kanal daha farklılık gösteriyor."
         text += (
-            " Markov kanal zincirine, Shapley bağımsız etkiye odaklanır — "
-            "sapma yüksekse her iki metriği birlikte değerlendirin."
+            " Zincir etkisi kanalı yolculuktan çıkararak, bağımsız katkı ise "
+            "tüm kombinasyonlardaki etkiyi ölçerek hesaplanır. "
+            "Fark büyükse kanalın rolü karmaşık demektir, her iki değere birlikte bakılmalı."
         )
         out.append({
-            "type": "warning",
-            "icon": "⚠️",
+            "type": "info",
+            "icon": "\U0001f50d",
             "text": text,
             "category": "model_divergence",
         })
@@ -207,9 +215,10 @@ def _insight_cross_validation(
         "type": "info",
         "icon": "\U0001f4ca",
         "text": (
-            f"{ch}: DDA (%{dda_pct}) vs MMM (%{mmm_pct}) karşılaştırması farklı sonuç veriyor. "
-            f"DDA kullanıcı yolculuğuna, MMM toplam harcama-dönüşüm ilişkisine bakar — "
-            f"iki model farklı perspektif sunar, tek başına biri yeterli değil."
+            f"{ch}: Yolculuk analizi (%{dda_pct}) ile harcama modeli (%{mmm_pct}) farklı sonuç veriyor. "
+            f"Yolculuk analizi kullanıcının hangi kanallardan geçtiğine, "
+            f"harcama modeli ise toplam bütçe-dönüşüm ilişkisine bakar. "
+            f"İkisini birlikte değerlendirmek daha sağlıklı bir tablo sunar."
         ),
         "category": "cross_validation",
     })

@@ -60,6 +60,7 @@ export default function AttributionPanel({ campaign }) {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [conversionEvents, setConversionEvents] = useState('purchase')
+  const [showMethodology, setShowMethodology] = useState(false)
 
   const handleConnect = useCallback(async () => {
     if (!bqProject || !bqDataset || !bqFile) return
@@ -145,7 +146,7 @@ export default function AttributionPanel({ campaign }) {
       labels: channels,
       datasets: [
         {
-          label: 'DDA Weight',
+          label: 'Katkı Payı',
           data: channels.map(ch => hybrid[ch]),
           backgroundColor: channels.map((_, i) => getChannelColor(null, i) + '80'),
           borderColor: channels.map((_, i) => getChannelColor(null, i)),
@@ -413,15 +414,15 @@ export default function AttributionPanel({ campaign }) {
           {ddaResult.bq_summary && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Event</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Etkileşim</p>
                 <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.total_events)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Benzersiz Kullanici</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Benzersiz Kullanıcı</p>
                 <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.unique_users)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Donusum</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Dönüşüm</p>
                 <p className="text-lg font-mono text-accent mt-0.5">{fmtN(ddaResult.bq_summary.conversions)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
@@ -431,12 +432,57 @@ export default function AttributionPanel({ campaign }) {
             </div>
           )}
 
+          {/* Methodology Info */}
+          <div className="dark-card">
+            <button
+              onClick={() => setShowMethodology(v => !v)}
+              className="w-full card-hdr cursor-pointer hover:bg-dark-bg/30 transition-colors"
+            >
+              <span className="card-title">Bu skorlar nasıl hesaplanır?</span>
+              <span className="text-[10px] text-slate-500">{showMethodology ? '▲ Gizle' : '▼ Göster'}</span>
+            </button>
+            {showMethodology && (
+              <div className="px-4 pb-4 space-y-3 text-xs text-slate-300 leading-relaxed">
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-900/15 border border-blue-800/20">
+                  <span className="text-blue-400 font-bold mt-0.5 flex-shrink-0">1</span>
+                  <div>
+                    <p className="font-semibold text-slate-200">Zincir Etkisi</p>
+                    <p className="text-slate-400 mt-0.5">Her kanalı sırayla dönüşüm yolculuğundan çıkarır ve dönüşüm oranının ne kadar düştüğünü ölçer. Bir kanal çıkarıldığında dönüşümler çok düşüyorsa, o kanal zincirin kritik halkasıdır.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-900/15 border border-purple-800/20">
+                  <span className="text-purple-400 font-bold mt-0.5 flex-shrink-0">2</span>
+                  <div>
+                    <p className="font-semibold text-slate-200">Bağımsız Katkı</p>
+                    <p className="text-slate-400 mt-0.5">Her kanalın tüm olası kombinasyonlardaki katkısını hesaplar. Kanalların sırasından bağımsız olarak, her birinin dönüşüme ne kadar eklediğini adil şekilde paylaştırır.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-900/15 border border-emerald-800/20">
+                  <span className="text-emerald-400 font-bold mt-0.5 flex-shrink-0">3</span>
+                  <div>
+                    <p className="font-semibold text-slate-200">Katkı Payı</p>
+                    <p className="text-slate-400 mt-0.5">Zincir Etkisi (%65) ve Bağımsız Katkı (%35) ağırlıklı ortalaması. Tek bir model yerine ikisini harmanlayarak daha güvenilir bir sonuç elde edilir.</p>
+                  </div>
+                </div>
+                {ddaResult.unified_report && (
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-900/15 border border-amber-800/20">
+                    <span className="text-amber-400 font-bold mt-0.5 flex-shrink-0">4</span>
+                    <div>
+                      <p className="font-semibold text-slate-200">Nihai Skor</p>
+                      <p className="text-slate-400 mt-0.5">Kullanıcı yolculuğu analizi (Katkı Payı) ile harcama-dönüşüm modeli (MMM) birleştirilerek oluşturulan son skor. İki farklı bakış açısını tek bir değerde özetler.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Attribution Chart */}
           <div className="dark-card">
             <div className="card-hdr">
-              <span className="card-title">Kanal Attribution (DDA)</span>
+              <span className="card-title">Kanal Katkı Payları</span>
               <span className="text-[10px] font-mono text-slate-500">
-                Markov %65 + Shapley %35 blend
+                Zincir etkisi %65 + Bağımsız katkı %35
                 {ddaResult.data_source === 'bigquery' && ' | BigQuery'}
               </span>
             </div>
@@ -452,14 +498,16 @@ export default function AttributionPanel({ campaign }) {
           {/* Attribution Table */}
           <div className="dark-card">
             <div className="card-hdr">
-              <span className="card-title">Attribution Detay</span>
+              <span className="card-title">Kanal Katkı Detayı</span>
               {ddaResult.mmm_shares_source && (
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
                   ddaResult.mmm_shares_source === 'fitted_per_campaign'
                     ? 'bg-emerald-500/15 text-emerald-400'
                     : 'bg-yellow-500/15 text-yellow-400'
                 }`}>
-                  MMM: {ddaResult.mmm_shares_source}
+                  {ddaResult.mmm_shares_source === 'fitted_per_campaign'
+                    ? 'Harcama modeli: kampanyaya özel'
+                    : 'Harcama modeli: genel varsayılan'}
                 </span>
               )}
             </div>
@@ -468,10 +516,10 @@ export default function AttributionPanel({ campaign }) {
                 <thead>
                   <tr className="border-b border-dark-border text-slate-400">
                     <th className="text-left py-2 px-2">Kanal</th>
-                    <th className="text-right py-2 px-2">DDA Weight</th>
-                    <th className="text-right py-2 px-2">Markov</th>
-                    <th className="text-right py-2 px-2">Shapley</th>
-                    {ddaResult.unified_report && <th className="text-right py-2 px-2">Unified Score</th>}
+                    <th className="text-right py-2 px-2" title="Zincir Etkisi ve Bağımsız Katkı ağırlıklı ortalaması">Katkı Payı</th>
+                    <th className="text-right py-2 px-2" title="Kanal çıkarıldığında dönüşüm ne kadar düşer?">Zincir Etkisi</th>
+                    <th className="text-right py-2 px-2" title="Kanalın sıradan bağımsız, adil katkı payı">Bağımsız Katkı</th>
+                    {ddaResult.unified_report && <th className="text-right py-2 px-2" title="Yolculuk analizi + harcama modeli birleşik skoru">Nihai Skor</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -616,9 +664,9 @@ export default function AttributionPanel({ campaign }) {
           {ddaResult.top_paths && ddaResult.top_paths.length > 0 && (
             <div className="dark-card">
               <div className="card-hdr">
-                <span className="card-title">En Sik Donusum Yollari</span>
+                <span className="card-title">En Sık Dönüşüm Yolları</span>
                 <span className="text-[10px] font-mono text-slate-500">
-                  {ddaResult.journey_stats?.total_journeys || '?'} journey
+                  {ddaResult.journey_stats?.total_journeys || '?'} yolculuk
                 </span>
               </div>
               <div className="p-4 space-y-2">
@@ -649,19 +697,19 @@ export default function AttributionPanel({ campaign }) {
           {ddaResult.journey_stats && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Toplam Journey</p>
+                <p className="text-[10px] text-slate-500 uppercase">Toplam Yolculuk</p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(ddaResult.journey_stats.total_journeys)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Donusum Yapan</p>
+                <p className="text-[10px] text-slate-500 uppercase">Dönüşüm Yapan</p>
                 <p className="text-sm font-mono text-accent">{fmtN(ddaResult.journey_stats.converted)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Donusum Orani</p>
+                <p className="text-[10px] text-slate-500 uppercase">Dönüşüm Oranı</p>
                 <p className="text-sm font-mono text-slate-100">{fmtPct(ddaResult.journey_stats.conversion_rate)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Ort. Touchpoint</p>
+                <p className="text-[10px] text-slate-500 uppercase">Ort. Temas Noktası</p>
                 <p className="text-sm font-mono text-slate-100">{ddaResult.journey_stats.avg_path_length?.toFixed(1) || ddaResult.journey_stats.avg_touchpoints?.toFixed(1)}</p>
               </div>
             </div>
