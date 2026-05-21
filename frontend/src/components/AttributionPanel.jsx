@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -31,12 +31,29 @@ const PALETTE = [
 ]
 
 function InfoTip({ text }) {
+  const [show, setShow] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const ref = useRef(null)
+
+  const handleEnter = () => {
+    if (ref.current) {
+      const r = ref.current.getBoundingClientRect()
+      setPos({ top: r.top - 8, left: Math.min(r.left, window.innerWidth - 300) })
+    }
+    setShow(true)
+  }
+
   return (
-    <span className="group/tip relative inline-flex ml-1 cursor-help">
-      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-slate-600/50 text-[9px] font-bold text-slate-400 group-hover/tip:bg-blue-500/30 group-hover/tip:text-blue-300 transition-colors">i</span>
-      <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-72 rounded-lg bg-[#0f1318] border border-slate-600/60 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-100 font-normal text-left opacity-0 group-hover/tip:opacity-100 transition-opacity z-50 shadow-2xl shadow-black/60">
-        {text}
-      </span>
+    <span className="relative inline-flex ml-1 cursor-help" ref={ref} onMouseEnter={handleEnter} onMouseLeave={() => setShow(false)}>
+      <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold transition-colors ${show ? 'bg-blue-500/30 text-blue-300' : 'bg-slate-600/50 text-slate-400'}`}>i</span>
+      {show && (
+        <div
+          className="fixed w-72 rounded-lg bg-[#0b0e12] border border-slate-500/50 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-100 font-normal text-left shadow-2xl shadow-black/80"
+          style={{ top: pos.top, left: pos.left, transform: 'translateY(-100%)', zIndex: 9999 }}
+        >
+          {text}
+        </div>
+      )}
     </span>
   )
 }
@@ -750,33 +767,33 @@ export default function AttributionPanel({ campaign }) {
           {/* Journey Stats */}
           {ddaResult.journey_stats && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center group/kpi relative">
-                <p className="text-[10px] text-slate-500 uppercase">Toplam Yolculuk</p>
+              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-slate-500 uppercase">
+                  Toplam Yolculuk
+                  <InfoTip text="Benzersiz kullanıcı yolculuğu sayısı. Her kullanıcının tüm temas noktaları bir yolculuk oluşturur." />
+                </p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(ddaResult.journey_stats.total_journeys)}</p>
-                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 rounded-lg bg-[#0f1318] border border-slate-600/60 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-100 text-left opacity-0 group-hover/kpi:opacity-100 transition-opacity z-50 shadow-2xl shadow-black/60">
-                  Benzersiz kullanıcı yolculuğu sayısı. Her kullanıcının tüm temas noktaları bir yolculuk oluşturur.
-                </span>
               </div>
-              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center group/kpi relative">
-                <p className="text-[10px] text-slate-500 uppercase">Dönüşüm Yapan</p>
+              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-slate-500 uppercase">
+                  Dönüşüm Yapan
+                  <InfoTip text="Dönüşüm (purchase/bağış) gerçekleştiren yolculuk sayısı." />
+                </p>
                 <p className="text-sm font-mono text-accent">{fmtN(ddaResult.journey_stats.converted)}</p>
-                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 rounded-lg bg-[#0f1318] border border-slate-600/60 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-100 text-left opacity-0 group-hover/kpi:opacity-100 transition-opacity z-50 shadow-2xl shadow-black/60">
-                  Dönüşüm (purchase/bağış) gerçekleştiren yolculuk sayısı.
-                </span>
               </div>
-              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center group/kpi relative">
-                <p className="text-[10px] text-slate-500 uppercase">Dönüşüm Oranı</p>
+              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-slate-500 uppercase">
+                  Dönüşüm Oranı
+                  <InfoTip text="Conversion Rate = Dönüşüm Yapan / Toplam Yolculuk." />
+                </p>
                 <p className="text-sm font-mono text-slate-100">{fmtPct(ddaResult.journey_stats.conversion_rate)}</p>
-                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 rounded-lg bg-[#0f1318] border border-slate-600/60 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-100 text-left opacity-0 group-hover/kpi:opacity-100 transition-opacity z-50 shadow-2xl shadow-black/60">
-                  Conversion Rate = Dönüşüm Yapan / Toplam Yolculuk.
-                </span>
               </div>
-              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center group/kpi relative">
-                <p className="text-[10px] text-slate-500 uppercase">Ort. Temas Noktası</p>
+              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-slate-500 uppercase">
+                  Ort. Temas Noktası
+                  <InfoTip text="Avg. Touchpoints. Dönüşüm öncesi ortalama kanal etkileşim sayısı. 1.0 ise kullanıcılar tek adımda dönüşüyor demektir." />
+                </p>
                 <p className="text-sm font-mono text-slate-100">{ddaResult.journey_stats.avg_path_length?.toFixed(1) || ddaResult.journey_stats.avg_touchpoints?.toFixed(1)}</p>
-                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-lg bg-[#0f1318] border border-slate-600/60 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-100 text-left opacity-0 group-hover/kpi:opacity-100 transition-opacity z-50 shadow-2xl shadow-black/60">
-                  Avg. Touchpoints. Dönüşüm öncesi ortalama kanal etkileşim sayısı. 1.0 ise kullanıcılar tek adımda dönüşüyor demektir.
-                </span>
               </div>
             </div>
           )}
