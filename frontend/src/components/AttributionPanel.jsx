@@ -30,6 +30,17 @@ const PALETTE = [
   '#f472b6', '#64748b', '#fb923c', '#84cc16', '#6366f1',
 ]
 
+function InfoTip({ text }) {
+  return (
+    <span className="group relative inline-flex ml-1 cursor-help">
+      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-slate-600/50 text-[9px] font-bold text-slate-400 group-hover:bg-blue-500/30 group-hover:text-blue-300 transition-colors">i</span>
+      <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 w-64 rounded-lg bg-slate-800 border border-slate-600/50 px-3 py-2 text-[11px] leading-relaxed text-slate-200 font-normal text-left opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-xl">
+        {text}
+      </span>
+    </span>
+  )
+}
+
 function getChannelColor(ch, index) {
   return PALETTE[index % PALETTE.length]
 }
@@ -516,10 +527,24 @@ export default function AttributionPanel({ campaign }) {
                 <thead>
                   <tr className="border-b border-dark-border text-slate-400">
                     <th className="text-left py-2 px-2">Kanal</th>
-                    <th className="text-right py-2 px-2" title="Zincir Etkisi ve Bağımsız Katkı ağırlıklı ortalaması">Katkı Payı</th>
-                    <th className="text-right py-2 px-2" title="Kanal çıkarıldığında dönüşüm ne kadar düşer?">Zincir Etkisi</th>
-                    <th className="text-right py-2 px-2" title="Kanalın sıradan bağımsız, adil katkı payı">Bağımsız Katkı</th>
-                    {ddaResult.unified_report && <th className="text-right py-2 px-2" title="Yolculuk analizi + harcama modeli birleşik skoru">Nihai Skor</th>}
+                    <th className="text-right py-2 px-2">
+                      Katkı Payı
+                      <InfoTip text="DDA (Data-Driven Attribution) skoru. Zincir Etkisi (%65) ve Bağımsız Katkı (%35) ağırlıklı ortalamasıdır. Her kanalın dönüşüme toplam katkısını gösterir." />
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      Zincir Etkisi
+                      <InfoTip text="Markov Zinciri modeli. Kanalı dönüşüm yolculuğundan çıkarır ve dönüşüm oranının ne kadar düştüğünü ölçer. Yüksekse kanal zincirin vazgeçilmez halkasıdır." />
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      Bağımsız Katkı
+                      <InfoTip text="Shapley Value modeli. Kanalın tüm olası kanal kombinasyonlarındaki marjinal katkısını hesaplar. Sıradan bağımsız, adil bir dağılım yapar." />
+                    </th>
+                    {ddaResult.unified_report && (
+                      <th className="text-right py-2 px-2">
+                        Nihai Skor
+                        <InfoTip text="Unified Score. Kullanıcı yolculuğu analizi (DDA) ile harcama-dönüşüm modeli (MMM — Marketing Mix Model) birleştirilerek oluşturulan son skor." />
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -581,12 +606,41 @@ export default function AttributionPanel({ campaign }) {
                     <thead>
                       <tr className="border-b border-dark-border text-slate-400">
                         <th className="text-left py-2 px-2">Kanal</th>
-                        {!isSingleTouch && <th className="text-right py-2 px-2">İlk Temas</th>}
-                        {!isSingleTouch && <th className="text-right py-2 px-2">Asist</th>}
-                        <th className="text-right py-2 px-2">Son Temas</th>
-                        {!isSingleTouch && <th className="text-right py-2 px-2">Toplam</th>}
-                        {!isSingleTouch && <th className="text-right py-2 px-2">Asist Oranı</th>}
-                        <th className="text-right py-2 px-2">{isSingleTouch ? 'Pay' : 'Rol'}</th>
+                        {!isSingleTouch && (
+                          <th className="text-right py-2 px-2">
+                            İlk Temas
+                            <InfoTip text="First Touch. Bu kanalın kullanıcının markayı ilk kez keşfettiği temas noktası olarak kaç kez göründüğü." />
+                          </th>
+                        )}
+                        {!isSingleTouch && (
+                          <th className="text-right py-2 px-2">
+                            Asist
+                            <InfoTip text="Assisted Conversion. Kanalın son temas olmadan dönüşüme katkı sağladığı — yani yolculukta ara adım olarak yer aldığı — sayı." />
+                          </th>
+                        )}
+                        <th className="text-right py-2 px-2">
+                          Son Temas
+                          <InfoTip text="Last Touch. Kullanıcının dönüşüm yapmadan hemen önce son etkileşimde bulunduğu kanal. Genelde dönüşümü 'kapatan' kanal olarak yorumlanır." />
+                        </th>
+                        {!isSingleTouch && (
+                          <th className="text-right py-2 px-2">
+                            Toplam
+                            <InfoTip text="Total Involvement. Asist + Son Temas toplamı. Kanalın dönüşüm sürecine toplam katılım sayısı." />
+                          </th>
+                        )}
+                        {!isSingleTouch && (
+                          <th className="text-right py-2 px-2">
+                            Asist Oranı
+                            <InfoTip text="Assist Ratio = Asist / Toplam. Yüksekse kanal genellikle arka planda çalışıyor (farkındalık); düşükse doğrudan dönüşüm sağlıyor." />
+                          </th>
+                        )}
+                        <th className="text-right py-2 px-2">
+                          {isSingleTouch ? 'Pay' : 'Rol'}
+                          <InfoTip text={isSingleTouch
+                            ? 'Kanalın toplam dönüşümler içindeki yüzde payı.'
+                            : 'Farkındalık: asist oranı yüksek (üst huni). Dönüştürücü: son temas ağırlıklı (alt huni). Hibrit: ikisinin karışımı.'
+                          } />
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -696,21 +750,33 @@ export default function AttributionPanel({ campaign }) {
           {/* Journey Stats */}
           {ddaResult.journey_stats && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center group relative">
                 <p className="text-[10px] text-slate-500 uppercase">Toplam Yolculuk</p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(ddaResult.journey_stats.total_journeys)}</p>
+                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-52 rounded-lg bg-slate-800 border border-slate-600/50 px-3 py-2 text-[11px] leading-relaxed text-slate-200 text-left opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-xl">
+                  Benzersiz kullanıcı yolculuğu sayısı. Her kullanıcının tüm temas noktaları bir yolculuk oluşturur.
+                </span>
               </div>
-              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center group relative">
                 <p className="text-[10px] text-slate-500 uppercase">Dönüşüm Yapan</p>
                 <p className="text-sm font-mono text-accent">{fmtN(ddaResult.journey_stats.converted)}</p>
+                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-52 rounded-lg bg-slate-800 border border-slate-600/50 px-3 py-2 text-[11px] leading-relaxed text-slate-200 text-left opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-xl">
+                  Dönüşüm (purchase/bağış) gerçekleştiren yolculuk sayısı.
+                </span>
               </div>
-              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center group relative">
                 <p className="text-[10px] text-slate-500 uppercase">Dönüşüm Oranı</p>
                 <p className="text-sm font-mono text-slate-100">{fmtPct(ddaResult.journey_stats.conversion_rate)}</p>
+                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-52 rounded-lg bg-slate-800 border border-slate-600/50 px-3 py-2 text-[11px] leading-relaxed text-slate-200 text-left opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-xl">
+                  Conversion Rate = Dönüşüm Yapan / Toplam Yolculuk.
+                </span>
               </div>
-              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center group relative">
                 <p className="text-[10px] text-slate-500 uppercase">Ort. Temas Noktası</p>
                 <p className="text-sm font-mono text-slate-100">{ddaResult.journey_stats.avg_path_length?.toFixed(1) || ddaResult.journey_stats.avg_touchpoints?.toFixed(1)}</p>
+                <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-56 rounded-lg bg-slate-800 border border-slate-600/50 px-3 py-2 text-[11px] leading-relaxed text-slate-200 text-left opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-xl">
+                  Avg. Touchpoints. Dönüşüm öncesi ortalama kanal etkileşim sayısı. 1.0 ise kullanıcılar tek adımda dönüşüyor demektir.
+                </span>
               </div>
             </div>
           )}
