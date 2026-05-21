@@ -988,7 +988,35 @@ async def bq_connect(
     try:
         info = bq_test_connection(client, project, dataset)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"BQ connection failed: {e}")
+        msg = str(e)
+        if "403" in msg or "Access Denied" in msg or "Permission" in msg.lower():
+            sa_email = ""
+            try:
+                import json
+                sa_info = json.loads(creds_str)
+                sa_email = sa_info.get("client_email", "")
+            except Exception:
+                pass
+            hint = (
+                f"Bu service account'ın '{project}.{dataset}' dataset'ine erişim yetkisi yok. "
+                f"Google Cloud Console → BigQuery → {dataset} → Paylaşım (Sharing) bölümünden "
+            )
+            if sa_email:
+                hint += f"'{sa_email}' adresine "
+            else:
+                hint += "service account'a "
+            hint += "'BigQuery Veri Görüntüleyici' (BigQuery Data Viewer) rolünü ekleyin."
+            raise HTTPException(status_code=403, detail=hint)
+        elif "404" in msg or "not exist" in msg.lower() or "not found" in msg.lower():
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"'{project}.{dataset}' dataset'i bulunamadı. "
+                    f"Project ID ve Dataset adını kontrol edin. "
+                    f"GA4 export dataset'leri genellikle 'analytics_' ile başlar."
+                ),
+            )
+        raise HTTPException(status_code=400, detail=f"BigQuery bağlantı hatası: {e}")
     if not info["ok"]:
         raise HTTPException(status_code=400, detail=info.get("error", "Connection failed"))
 
