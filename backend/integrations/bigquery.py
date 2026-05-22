@@ -122,12 +122,17 @@ WITH raw_events AS (
     traffic_source.source AS source,
     traffic_source.medium AS medium,
     traffic_source.name AS campaign,
-    COALESCE(
-      ecommerce.purchase_revenue,
-      (SELECT value.double_value FROM UNNEST(event_params) WHERE key = 'value'),
-      (SELECT CAST(value.int_value AS FLOAT64) FROM UNNEST(event_params) WHERE key = 'value'),
-      0
-    ) AS revenue
+    CASE
+      WHEN event_name IN UNNEST(@conversion_events) THEN
+        COALESCE(
+          ecommerce.purchase_revenue,
+          (SELECT value.double_value FROM UNNEST(event_params) WHERE key = 'value'),
+          (SELECT CAST(value.int_value AS FLOAT64) FROM UNNEST(event_params) WHERE key = 'value'),
+          0
+        )
+      ELSE 0
+    END AS revenue,
+    (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS ga_session_id
   FROM `{project}.{dataset}.events_*`
   WHERE _TABLE_SUFFIX BETWEEN @start_date AND @end_date
     AND (
@@ -143,7 +148,8 @@ SELECT
   source,
   medium,
   campaign,
-  revenue
+  revenue,
+  ga_session_id
 FROM raw_events
 ORDER BY user_pseudo_id, event_ts
 LIMIT @row_limit
@@ -209,6 +215,7 @@ def ga4_to_touchpoints(df: pd.DataFrame, conversion_events: list[str] | None = N
     """Convert GA4 DataFrame to CRMTouchpoint-compatible dicts.
 
     Uses raw source/medium as channel name for maximum transparency.
+    Revenue is only assigned to conversion events (handled in SQL CASE).
     """
     if conversion_events is None:
         conversion_events = ["purchase"]
@@ -219,8 +226,14 @@ def ga4_to_touchpoints(df: pd.DataFrame, conversion_events: list[str] | None = N
     for _, row in df.iterrows():
         channel = _source_medium_label(row.get("source"), row.get("medium"))
         event = str(row.get("event_name", ""))
-        revenue = float(row.get("revenue", 0) or 0)
         converted = event in conv_set
+        revenue = float(row.get("revenue", 0) or 0) if converted else 0.0
+        ga_sid = row.get("ga_session_id")
+        session_id = (
+            f"{row['user_pseudo_id']}_{int(ga_sid)}"
+            if ga_sid is not None and str(ga_sid) not in ("", "None", "nan")
+            else str(row["user_pseudo_id"])
+        )
 
         results.append({
             "lead_id": str(row["user_pseudo_id"]),
@@ -230,7 +243,7 @@ def ga4_to_touchpoints(df: pd.DataFrame, conversion_events: list[str] | None = N
             "campaign": str(row.get("campaign") or ""),
             "segment": "",
             "converted": converted,
-            "session_id": str(row["user_pseudo_id"]),
+            "session_id": session_id,
             "revenue": revenue,
         })
 
@@ -265,18 +278,25 @@ def summarize_touchpoints(touchpoints: list[dict]) -> dict:
     conversions = 0
     total_revenue = 0.0
     users = set()
+    sessions = set()
+    converted_users = set()
 
     for tp in touchpoints:
         ch = tp["channel"]
         channels[ch] = channels.get(ch, 0) + 1
         users.add(tp["lead_id"])
-        total_revenue += tp.get("revenue", 0)
+        sessions.add(tp.get("session_id", tp["lead_id"]))
         if tp.get("converted"):
-            conversions += 1
+            uid = tp["lead_id"]
+            if uid not in converted_users:
+                conversions += 1
+                converted_users.add(uid)
+            total_revenue += tp.get("revenue", 0)
 
     return {
         "total_events": len(touchpoints),
         "unique_users": len(users),
+        "sessions": len(sessions),
         "conversions": conversions,
         "total_revenue": round(total_revenue, 2),
         "channels": dict(sorted(channels.items(), key=lambda x: -x[1])),

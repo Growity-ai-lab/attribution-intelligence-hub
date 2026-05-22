@@ -474,17 +474,21 @@ export default function AttributionPanel({ campaign }) {
             </span>
           </div>
           <div className="p-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
                 <p className="text-[10px] text-slate-500 uppercase">Toplam Event</p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(preview.total_events)}</p>
+              </div>
+              <div className="bg-dark-bg rounded-lg p-2.5 text-center">
+                <p className="text-[10px] text-slate-500 uppercase">Oturum</p>
+                <p className="text-sm font-mono text-slate-100">{fmtN(preview.sessions || preview.unique_users)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
                 <p className="text-[10px] text-slate-500 uppercase">Benzersiz Kullanici</p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(preview.unique_users)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Donusum</p>
+                <p className="text-[10px] text-slate-500 uppercase">Donusum (kullanici)</p>
                 <p className="text-sm font-mono text-accent">{fmtN(preview.conversions)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
@@ -529,17 +533,21 @@ export default function AttributionPanel({ campaign }) {
         <>
           {/* BQ Summary KPIs */}
           {ddaResult.bq_summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Etkileşim</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Event</p>
                 <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.total_events)}</p>
+              </div>
+              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Oturum</p>
+                <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.sessions || ddaResult.bq_summary.unique_users)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
                 <p className="text-[10px] text-slate-500 uppercase tracking-wide">Benzersiz Kullanıcı</p>
                 <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.unique_users)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Dönüşüm</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Dönüşüm (kullanıcı)</p>
                 <p className="text-lg font-mono text-accent mt-0.5">{fmtN(ddaResult.bq_summary.conversions)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
