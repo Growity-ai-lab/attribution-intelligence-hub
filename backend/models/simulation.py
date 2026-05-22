@@ -1,6 +1,6 @@
 """Budget simulation using DDA attribution weights.
 
-Given channel spends and DDA weights, computes per-channel ROAS/CPA,
+Given channel spends and DDA weights, computes per-channel ROAS/CPL,
 projects what-if scenarios with modified budgets, and generates
 Turkish-language budget action recommendations.
 """
@@ -20,19 +20,7 @@ def simulate_budget(
     total_conversions: int,
     scenario_spends: dict[str, float] | None = None,
 ) -> dict:
-    """Run budget simulation with optional what-if scenario.
-
-    Args:
-        channel_spends: Current spend per channel.
-        dda_weights: DDA attribution weights (sum ~1.0).
-        total_revenue: Total revenue from BQ summary.
-        total_conversions: Total conversions from BQ summary.
-        scenario_spends: Optional modified spends for what-if projection.
-
-    Returns:
-        Dict with current analysis, optional scenario projection,
-        and budget recommendations.
-    """
+    """Run budget simulation with optional what-if scenario."""
     current_channels: dict[str, dict] = {}
     total_spend = sum(channel_spends.values())
 
@@ -47,7 +35,7 @@ def simulate_budget(
             "attributed_conversions": round(attr_conv, 1),
             "weight": round(weight, 4),
             "roas": round(attr_rev / spend, 2) if spend > 0 else None,
-            "cpa": round(spend / attr_conv, 2) if attr_conv > 0 else None,
+            "cpl": round(spend / attr_conv, 2) if spend > 0 and attr_conv > 0 else None,
             "organic": _is_organic(ch),
         }
         current_channels[ch] = entry
@@ -56,15 +44,26 @@ def simulate_budget(
         round(total_revenue / total_spend, 2) if total_spend > 0 else None
     )
 
+    paid_with_conv = [
+        d for d in current_channels.values()
+        if d.get("cpl") is not None and not d["organic"]
+    ]
+    avg_cpl = (
+        round(sum(d["cpl"] for d in paid_with_conv) / len(paid_with_conv), 2)
+        if paid_with_conv
+        else None
+    )
+
     current = {
         "total_spend": round(total_spend, 2),
         "total_revenue": round(total_revenue, 2),
         "total_conversions": total_conversions,
         "blended_roas": current_blended_roas,
+        "avg_cpl": avg_cpl,
         "channels": current_channels,
     }
 
-    recommendations = generate_budget_recommendations(current_channels)
+    recommendations = generate_budget_recommendations(current_channels, total_spend)
 
     result: dict = {"current": current, "recommendations": recommendations}
 
@@ -107,7 +106,7 @@ def _project_scenario(
             "projected_revenue": round(proj_rev, 2),
             "projected_conversions": round(proj_conv, 1),
             "roas": round(proj_rev / new_spend, 2) if new_spend > 0 else None,
-            "cpa": round(new_spend / proj_conv, 2) if proj_conv > 0 else None,
+            "cpl": round(new_spend / proj_conv, 2) if new_spend > 0 and proj_conv > 0 else None,
             "delta_spend": round(new_spend - old_spend, 2),
         }
 
@@ -143,13 +142,33 @@ def _project_scenario(
 
 def generate_budget_recommendations(
     channels: dict[str, dict],
+    total_spend: float = 0,
 ) -> list[dict]:
-    """Generate Turkish-language budget action recommendations per channel."""
-    paid = {ch: d for ch, d in channels.items() if d.get("roas") is not None}
+    """Generate Turkish-language budget action recommendations per channel.
+
+    Uses ROAS as primary metric when revenue is meaningful,
+    falls back to CPL comparison when it isn't.
+    """
+    paid = {ch: d for ch, d in channels.items() if not d["organic"] and d.get("cpl") is not None}
     if not paid:
         return []
 
-    avg_roas = sum(d["roas"] for d in paid.values()) / len(paid)
+    total_rev = sum(d.get("attributed_revenue", 0) for d in paid.values())
+    revenue_meaningful = total_spend > 0 and total_rev > total_spend * 0.05
+
+    paid_with_roas = [d for d in paid.values() if d.get("roas") is not None]
+    avg_roas = (
+        sum(d["roas"] for d in paid_with_roas) / len(paid_with_roas)
+        if revenue_meaningful and paid_with_roas
+        else 0
+    )
+    paid_with_cpl = [d for d in paid.values() if d.get("cpl") is not None]
+    avg_cpl = (
+        sum(d["cpl"] for d in paid_with_cpl) / len(paid_with_cpl)
+        if paid_with_cpl
+        else 0
+    )
+
     recs: list[dict] = []
 
     for ch, d in channels.items():
@@ -158,44 +177,75 @@ def generate_budget_recommendations(
                 recs.append({
                     "channel": ch,
                     "action": "degerlendirmeli",
-                    "icon": "💡",
+                    "icon": "\U0001f4a1",
                     "reason": (
-                        f"Bu kanal organik trafik getiriyor (katkı payı %{round(d['weight']*100,1)}). "
-                        f"Ücretli destekle test edilebilir."
+                        f"Bu kanal organik trafik getiriyor (katki payi %{round(d['weight']*100,1)}). "
+                        f"Ucretli destekle test edilebilir."
                     ),
                 })
             continue
 
         roas = d.get("roas")
-        if roas is None:
+        cpl = d.get("cpl")
+        if cpl is None:
             continue
 
-        if roas >= avg_roas * 1.5:
-            recs.append({
-                "channel": ch,
-                "action": "artir",
-                "icon": "▲",
-                "reason": (
-                    f"ROAS ({roas:.1f}x) ortalamanın ({avg_roas:.1f}x) çok üstünde — "
-                    f"bütçe artırımı değerlendirilmeli."
-                ),
-            })
-        elif roas <= avg_roas * 0.5:
-            recs.append({
-                "channel": ch,
-                "action": "azalt",
-                "icon": "▼",
-                "reason": (
-                    f"ROAS ({roas:.1f}x) ortalamanın ({avg_roas:.1f}x) çok altında — "
-                    f"bütçeyi verimli kanallara kaydırmak düşünülebilir."
-                ),
-            })
+        if revenue_meaningful and roas is not None:
+            cpl_info = f", CPL {cpl:,.0f}₺"
+            if roas >= avg_roas * 1.5:
+                recs.append({
+                    "channel": ch,
+                    "action": "artir",
+                    "icon": "▲",
+                    "reason": (
+                        f"ROAS ({roas:.1f}x) ortalamanın ({avg_roas:.1f}x) cok ustunde{cpl_info} — "
+                        f"butce artırımı degerlendirilmeli."
+                    ),
+                })
+            elif roas <= avg_roas * 0.5:
+                recs.append({
+                    "channel": ch,
+                    "action": "azalt",
+                    "icon": "▼",
+                    "reason": (
+                        f"ROAS ({roas:.1f}x) ortalamanın ({avg_roas:.1f}x) cok altında{cpl_info} — "
+                        f"butceyi verimli kanallara kaydırmak dusunulebilir."
+                    ),
+                })
+            else:
+                recs.append({
+                    "channel": ch,
+                    "action": "koru",
+                    "icon": "↔",
+                    "reason": f"ROAS ({roas:.1f}x) ortalama seviyede{cpl_info} — mevcut butce korunabilir.",
+                })
         else:
-            recs.append({
-                "channel": ch,
-                "action": "koru",
-                "icon": "↔",
-                "reason": f"ROAS ({roas:.1f}x) ortalama seviyede — mevcut bütçe korunabilir.",
-            })
+            if cpl <= avg_cpl * 0.6:
+                recs.append({
+                    "channel": ch,
+                    "action": "artir",
+                    "icon": "▲",
+                    "reason": (
+                        f"CPL ({cpl:,.0f}₺) ortalamanın ({avg_cpl:,.0f}₺) cok altında — "
+                        f"bu kanal dusuk maliyetle lead getiriyor, butce artırılabilir."
+                    ),
+                })
+            elif cpl >= avg_cpl * 1.5:
+                recs.append({
+                    "channel": ch,
+                    "action": "azalt",
+                    "icon": "▼",
+                    "reason": (
+                        f"CPL ({cpl:,.0f}₺) ortalamanın ({avg_cpl:,.0f}₺) cok ustunde — "
+                        f"lead maliyeti yuksek, butceyi verimli kanallara kaydırın."
+                    ),
+                })
+            else:
+                recs.append({
+                    "channel": ch,
+                    "action": "koru",
+                    "icon": "↔",
+                    "reason": f"CPL ({cpl:,.0f}₺) ortalama seviyede ({avg_cpl:,.0f}₺) — mevcut butce korunabilir.",
+                })
 
     return recs

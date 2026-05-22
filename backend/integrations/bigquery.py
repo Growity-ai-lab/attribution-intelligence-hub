@@ -125,6 +125,7 @@ WITH raw_events AS (
     COALESCE(
       ecommerce.purchase_revenue,
       (SELECT value.double_value FROM UNNEST(event_params) WHERE key = 'value'),
+      (SELECT CAST(value.int_value AS FLOAT64) FROM UNNEST(event_params) WHERE key = 'value'),
       0
     ) AS revenue
   FROM `{project}.{dataset}.events_*`
@@ -214,7 +215,7 @@ def ga4_to_touchpoints(df: pd.DataFrame, conversion_events: list[str] | None = N
         channel = _source_medium_label(row.get("source"), row.get("medium"))
         event = str(row.get("event_name", ""))
         revenue = float(row.get("revenue", 0) or 0)
-        converted = event in conv_set and revenue > 0
+        converted = event in conv_set
 
         results.append({
             "lead_id": str(row["user_pseudo_id"]),
@@ -264,9 +265,9 @@ def summarize_touchpoints(touchpoints: list[dict]) -> dict:
         ch = tp["channel"]
         channels[ch] = channels.get(ch, 0) + 1
         users.add(tp["lead_id"])
+        total_revenue += tp.get("revenue", 0)
         if tp.get("converted"):
             conversions += 1
-            total_revenue += tp.get("revenue", 0)
 
     return {
         "total_events": len(touchpoints),

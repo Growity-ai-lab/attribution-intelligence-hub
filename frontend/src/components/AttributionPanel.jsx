@@ -846,9 +846,18 @@ export default function AttributionPanel({ campaign }) {
                             <InfoTip text="What-if analizi için yeni bütçe değerlerini girin." />
                           </th>
                         )}
-                        {simResult && <th className="text-right py-2 px-2">ROAS</th>}
-                        {simResult && <th className="text-right py-2 px-2">CPA (₺)</th>}
-                        {simResult?.recommendations && <th className="text-center py-2 px-2">Aksiyon</th>}
+                        {simResult && <th className="text-right py-2 px-2">
+                          ROAS
+                          <InfoTip text="Return On Ad Spend — kanala atfedilen gelir / harcama. 1x üstü karlı demektir." />
+                        </th>}
+                        {simResult && <th className="text-right py-2 px-2">
+                          CPL (₺)
+                          <InfoTip text="Cost Per Lead — her bir atfedilen dönüşüm (lead) için harcanan tutar. Düşük = verimli." />
+                        </th>}
+                        {simResult?.recommendations && <th className="text-center py-2 px-2">
+                          Aksiyon
+                          <InfoTip text="ROAS ve CPL karşılaştırmasına göre otomatik bütçe önerisi. Artır: verimli kanal, Azalt: verimsiz, Koru: ortalama." />
+                        </th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -906,7 +915,7 @@ export default function AttributionPanel({ campaign }) {
                               )}
                               {simResult && (
                                 <td className="py-1.5 px-2 text-right font-mono text-slate-300">
-                                  {curCh?.cpa != null ? `${fmtMoney(curCh.cpa)}` : '—'}
+                                  {curCh?.cpl != null ? `${fmtMoney(curCh.cpl)}` : '—'}
                                 </td>
                               )}
                               {simResult?.recommendations && (
@@ -985,7 +994,7 @@ export default function AttributionPanel({ campaign }) {
 
                 {/* Summary KPIs */}
                 {simResult && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
                       <p className="text-[10px] text-slate-500 uppercase">Toplam Harcama</p>
                       <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_spend)} ₺</p>
@@ -999,6 +1008,10 @@ export default function AttributionPanel({ campaign }) {
                       <p className="text-sm font-mono text-slate-100">{simResult.current.blended_roas != null ? `${simResult.current.blended_roas.toFixed(1)}x` : '—'}</p>
                     </div>
                     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-slate-500 uppercase">Ort. CPL</p>
+                      <p className="text-sm font-mono text-slate-100">{simResult.current.avg_cpl != null ? `${fmtMoney(simResult.current.avg_cpl)} ₺` : '—'}</p>
+                    </div>
+                    <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
                       <p className="text-[10px] text-slate-500 uppercase">Dönüşüm</p>
                       <p className="text-sm font-mono text-slate-100">{fmtN(simResult.current.total_conversions)}</p>
                     </div>
@@ -1009,7 +1022,7 @@ export default function AttributionPanel({ campaign }) {
                 {simResult?.scenario && showScenario && (
                   <div className="space-y-3">
                     <div className="text-xs font-medium text-amber-300">Senaryo Sonucu</div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                       <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
                         <p className="text-[10px] text-amber-400/70 uppercase">Projeksiyon Gelir</p>
                         <p className="text-sm font-mono text-amber-200">{fmtMoney(simResult.scenario.projected_revenue)} ₺</p>
@@ -1030,6 +1043,10 @@ export default function AttributionPanel({ campaign }) {
                         <p className={`text-sm font-mono ${(simResult.scenario.delta_roas || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                           {simResult.scenario.delta_roas != null ? `${simResult.scenario.delta_roas >= 0 ? '+' : ''}${simResult.scenario.delta_roas.toFixed(1)}x` : '—'}
                         </p>
+                      </div>
+                      <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-amber-400/70 uppercase">Proj. Dönüşüm</p>
+                        <p className="text-sm font-mono text-amber-200">{fmtN(simResult.scenario.projected_conversions)}</p>
                       </div>
                     </div>
                   </div>
