@@ -122,16 +122,16 @@ WITH raw_events AS (
     traffic_source.source AS source,
     traffic_source.medium AS medium,
     traffic_source.name AS campaign,
-    CASE
-      WHEN event_name IN UNNEST(@conversion_events) THEN
-        COALESCE(
-          ecommerce.purchase_revenue,
-          (SELECT value.double_value FROM UNNEST(event_params) WHERE key = 'value'),
-          (SELECT CAST(value.int_value AS FLOAT64) FROM UNNEST(event_params) WHERE key = 'value'),
-          0
-        )
-      ELSE 0
-    END AS revenue,
+    IF(
+      event_name IN UNNEST(@conversion_events),
+      COALESCE(
+        ecommerce.purchase_revenue,
+        (SELECT value.double_value FROM UNNEST(event_params) WHERE key = 'value'),
+        (SELECT CAST(value.int_value AS FLOAT64) FROM UNNEST(event_params) WHERE key = 'value'),
+        0
+      ),
+      0
+    ) AS revenue,
     (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS ga_session_id
   FROM `{project}.{dataset}.events_*`
   WHERE _TABLE_SUFFIX BETWEEN @start_date AND @end_date
@@ -229,11 +229,11 @@ def ga4_to_touchpoints(df: pd.DataFrame, conversion_events: list[str] | None = N
         converted = event in conv_set
         revenue = float(row.get("revenue", 0) or 0) if converted else 0.0
         ga_sid = row.get("ga_session_id")
-        session_id = (
-            f"{row['user_pseudo_id']}_{int(ga_sid)}"
-            if ga_sid is not None and str(ga_sid) not in ("", "None", "nan")
-            else str(row["user_pseudo_id"])
-        )
+        try:
+            sid_int = int(ga_sid)
+            session_id = f"{row['user_pseudo_id']}_{sid_int}"
+        except (TypeError, ValueError):
+            session_id = str(row["user_pseudo_id"])
 
         results.append({
             "lead_id": str(row["user_pseudo_id"]),
