@@ -174,8 +174,15 @@ export default function AttributionPanel({ campaign }) {
     setDdaLoading(false)
   }, [csvFile, campaign])
 
-  const ORGANIC_KEYWORDS = ['direct', 'organic', 'referral', 'email', '(direct)', '(none)']
-  const isOrganic = ch => ORGANIC_KEYWORDS.some(kw => ch.toLowerCase().includes(kw))
+  const ORGANIC_MEDIUMS = ['organic', 'referral', '(none)', 'social', 'email', 'aylikmail']
+  const ORGANIC_SOURCES = ['(direct)', 'direct']
+  const isOrganic = ch => {
+    const parts = ch.toLowerCase().split(' / ')
+    const source = (parts[0] || '').trim()
+    const medium = (parts[1] || '').trim()
+    if (ORGANIC_SOURCES.includes(source)) return true
+    return ORGANIC_MEDIUMS.some(kw => medium.includes(kw))
+  }
 
   const handleSimulate = useCallback(async (useScenario = false) => {
     if (!ddaResult) return
@@ -847,16 +854,20 @@ export default function AttributionPanel({ campaign }) {
                           </th>
                         )}
                         {simResult && <th className="text-right py-2 px-2">
+                          Atf. Gelir (₺)
+                          <InfoTip text="DDA katkı payına göre bu kanala atfedilen gelir miktarı." />
+                        </th>}
+                        {simResult && <th className="text-right py-2 px-2">
                           ROAS
                           <InfoTip text="Return On Ad Spend — kanala atfedilen gelir / harcama. 1x üstü karlı demektir." />
                         </th>}
                         {simResult && <th className="text-right py-2 px-2">
-                          CPL (₺)
-                          <InfoTip text="Cost Per Lead — her bir atfedilen dönüşüm (lead) için harcanan tutar. Düşük = verimli." />
+                          CPA (₺)
+                          <InfoTip text="Cost Per Acquisition — her bir atfedilen dönüşüm için harcanan tutar. Düşük = verimli." />
                         </th>}
                         {simResult?.recommendations && <th className="text-center py-2 px-2">
                           Aksiyon
-                          <InfoTip text="ROAS ve CPL karşılaştırmasına göre otomatik bütçe önerisi. Artır: verimli kanal, Azalt: verimsiz, Koru: ortalama." />
+                          <InfoTip text="ROAS ve CPA karşılaştırmasına göre otomatik bütçe önerisi. Artır: verimli kanal, Azalt: verimsiz, Koru: ortalama." />
                         </th>}
                       </tr>
                     </thead>
@@ -910,12 +921,17 @@ export default function AttributionPanel({ campaign }) {
                               )}
                               {simResult && (
                                 <td className="py-1.5 px-2 text-right font-mono text-slate-300">
+                                  {curCh?.attributed_revenue != null ? `${fmtMoney(curCh.attributed_revenue)}` : '—'}
+                                </td>
+                              )}
+                              {simResult && (
+                                <td className="py-1.5 px-2 text-right font-mono text-slate-300">
                                   {curCh?.roas != null ? `${curCh.roas.toFixed(1)}x` : '—'}
                                 </td>
                               )}
                               {simResult && (
                                 <td className="py-1.5 px-2 text-right font-mono text-slate-300">
-                                  {curCh?.cpl != null ? `${fmtMoney(curCh.cpl)}` : '—'}
+                                  {curCh?.cpa != null ? `${fmtMoney(curCh.cpa)}` : '—'}
                                 </td>
                               )}
                               {simResult?.recommendations && (
@@ -994,7 +1010,7 @@ export default function AttributionPanel({ campaign }) {
 
                 {/* Summary KPIs */}
                 {simResult && (
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
                       <p className="text-[10px] text-slate-500 uppercase">Toplam Harcama</p>
                       <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_spend)} ₺</p>
@@ -1008,8 +1024,15 @@ export default function AttributionPanel({ campaign }) {
                       <p className="text-sm font-mono text-slate-100">{simResult.current.blended_roas != null ? `${simResult.current.blended_roas.toFixed(1)}x` : '—'}</p>
                     </div>
                     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-slate-500 uppercase">Ort. CPL</p>
-                      <p className="text-sm font-mono text-slate-100">{simResult.current.avg_cpl != null ? `${fmtMoney(simResult.current.avg_cpl)} ₺` : '—'}</p>
+                      <p className="text-[10px] text-slate-500 uppercase">Ort. CPA</p>
+                      <p className="text-sm font-mono text-slate-100">{simResult.current.avg_cpa != null ? `${fmtMoney(simResult.current.avg_cpa)} ₺` : '—'}</p>
+                    </div>
+                    <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-slate-500 uppercase">
+                        AOV
+                        <InfoTip text="Average Order Value — ortalama sipariş değeri. Toplam gelir / toplam dönüşüm." />
+                      </p>
+                      <p className="text-sm font-mono text-slate-100">{simResult.current.aov != null ? `${fmtMoney(simResult.current.aov)} ₺` : '—'}</p>
                     </div>
                     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
                       <p className="text-[10px] text-slate-500 uppercase">Dönüşüm</p>

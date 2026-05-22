@@ -197,6 +197,11 @@ def _source_medium_label(source: str | None, medium: str | None) -> str:
         src = "(direct)"
     if not med:
         med = "(none)"
+    _unavailable = {"data not available", "(not set)", "not available", ""}
+    if src.lower() in _unavailable:
+        src = "(bilinmeyen)"
+    if med.lower() in _unavailable:
+        med = "(bilinmeyen)"
     return f"{src} / {med}"
 
 
