@@ -114,9 +114,10 @@ def test_connection(
 # --------------- GA4 Query ---------------
 
 _GA4_SESSION_QUERY = """
-WITH raw_events AS (
+WITH base_events AS (
   SELECT
     user_pseudo_id,
+    event_timestamp,
     TIMESTAMP_MICROS(event_timestamp) AS event_ts,
     event_name,
     traffic_source.source AS source,
@@ -132,7 +133,8 @@ WITH raw_events AS (
       ),
       0
     ) AS revenue,
-    (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS ga_session_id
+    (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS ga_session_id,
+    ecommerce.transaction_id
   FROM `{project}.{dataset}.events_*`
   WHERE _TABLE_SUFFIX BETWEEN @start_date AND @end_date
     AND (
@@ -140,17 +142,29 @@ WITH raw_events AS (
       OR traffic_source.medium IS NOT NULL
       OR event_name IN UNNEST(@conversion_events)
     )
+),
+deduped AS (
+  SELECT
+    *,
+    ROW_NUMBER() OVER (
+      PARTITION BY user_pseudo_id, event_name,
+        COALESCE(transaction_id, CAST(event_timestamp AS STRING))
+      ORDER BY event_timestamp
+    ) AS _rn
+  FROM base_events
+  WHERE event_name IN UNNEST(@conversion_events)
+),
+non_conversion AS (
+  SELECT * FROM base_events
+  WHERE event_name NOT IN UNNEST(@conversion_events)
 )
-SELECT
-  user_pseudo_id,
-  event_ts,
-  event_name,
-  source,
-  medium,
-  campaign,
-  revenue,
-  ga_session_id
-FROM raw_events
+SELECT user_pseudo_id, event_ts, event_name, source, medium, campaign,
+       revenue, ga_session_id
+FROM deduped WHERE _rn = 1
+UNION ALL
+SELECT user_pseudo_id, event_ts, event_name, source, medium, campaign,
+       revenue, ga_session_id
+FROM non_conversion
 ORDER BY user_pseudo_id, event_ts
 LIMIT @row_limit
 """
