@@ -609,6 +609,54 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
             </div>
           </div>
 
+          {/* Attributed Revenue Chart */}
+          {ddaResult.bq_summary?.total_revenue > 0 && (() => {
+            const hybrid = ddaResult.hybrid_attribution || {}
+            const totalRev = ddaResult.bq_summary.total_revenue
+            const sorted = Object.entries(hybrid)
+              .filter(([ch]) => !isOrganic(ch))
+              .sort((a, b) => b[1] - a[1])
+            const revData = {
+              labels: sorted.map(([ch]) => ch),
+              datasets: [{
+                label: 'Atfedilen Gelir (TL)',
+                data: sorted.map(([, w]) => totalRev * w),
+                backgroundColor: sorted.map(([ch], i) => getChannelColor(ch, i) + '80'),
+                borderColor: sorted.map(([ch], i) => getChannelColor(ch, i)),
+                borderWidth: 1,
+                borderRadius: 3,
+              }],
+            }
+            const revOpts = {
+              indexAxis: 'y',
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => `${fmtMoney(ctx.parsed.x)} TL` } },
+              },
+              scales: {
+                x: { ticks: { callback: v => fmtMoney(v) + ' TL' } },
+                y: { grid: { display: false } },
+              },
+            }
+            return (
+              <div className="dark-card">
+                <div className="card-hdr">
+                  <span className="card-title">Kanal Bazli Atfedilen Gelir</span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    Toplam gelir: {fmtMoney(totalRev)} TL
+                  </span>
+                </div>
+                <div className="p-4">
+                  <div style={{ height: Math.max(180, sorted.length * 32) }}>
+                    <Bar data={revData} options={revOpts} />
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Attribution Table */}
           <div className="dark-card">
             <div className="card-hdr">
@@ -826,7 +874,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                   <InfoTip text="DDA katkı paylarını kullanarak kanal bazlı ROAS ve CPA hesaplar. Harcama verisi manuel girilir veya CSV ile yüklenir. Senaryo modunda bütçe değişikliklerinin gelire etkisini simüle edebilirsiniz." />
                 </span>
                 <span className="text-[10px] font-mono text-slate-500">
-                  Lineer projeksiyon
+                  Hill saturasyon modeli
                 </span>
               </div>
               <div className="p-4 space-y-4">

@@ -41,6 +41,9 @@ def generate_insights(
     _insight_concentration(hybrid_attribution, insights)
     _insight_channel_count(hybrid_attribution, journey_stats, insights)
 
+    if bq_summary:
+        _insight_data_quality(bq_summary, journey_stats, insights)
+
     return insights
 
 
@@ -284,3 +287,70 @@ def _insight_channel_count(
             ),
             "category": "channel_efficiency",
         })
+
+
+def _insight_data_quality(
+    bq_summary: dict,
+    journey_stats: dict,
+    out: list[dict],
+) -> None:
+    total_events = bq_summary.get("total_events", 0)
+    conversions = bq_summary.get("conversions", 0)
+    users = bq_summary.get("unique_users", 0)
+    revenue = bq_summary.get("total_revenue", 0)
+
+    if conversions > 0 and users > 0:
+        conv_rate = conversions / users
+        if conv_rate > 0.5:
+            out.append({
+                "type": "warning",
+                "icon": "⚠️",
+                "text": (
+                    f"Donusum orani cok yuksek (%{round(conv_rate * 100, 1)}) — "
+                    f"{users} benzersiz kullanicidan {conversions}'i donusum yapmis. "
+                    f"Conversion event tanimini kontrol edin, yanlis event secilmis olabilir."
+                ),
+                "category": "data_quality",
+            })
+
+    if conversions > 0 and revenue > 0:
+        aov = revenue / conversions
+        if aov < 1:
+            out.append({
+                "type": "warning",
+                "icon": "⚠️",
+                "text": (
+                    f"Ortalama siparis degeri cok dusuk ({aov:.2f} TL). "
+                    f"GA4'te e-ticaret gelir takibi dogru yapilandirılmamis olabilir."
+                ),
+                "category": "data_quality",
+            })
+        elif aov > 1_000_000:
+            out.append({
+                "type": "warning",
+                "icon": "⚠️",
+                "text": (
+                    f"Ortalama siparis degeri cok yuksek ({aov:,.0f} TL). "
+                    f"Gelir verisinde duplikasyon veya para birimi sorunu olabilir."
+                ),
+                "category": "data_quality",
+            })
+
+    converted_journeys = journey_stats.get("converted", 0)
+    total_journeys = journey_stats.get("total_journeys", 0)
+    if total_journeys > 0 and converted_journeys > 0:
+        single_touch_ratio = 1.0
+        avg_tp = journey_stats.get("avg_path_length") or journey_stats.get("avg_touchpoints") or 0
+        if avg_tp > 0:
+            single_touch_ratio = 1.0 if avg_tp <= 1.05 else 0.0
+        if single_touch_ratio > 0 and avg_tp <= 1.05:
+            out.append({
+                "type": "info",
+                "icon": "\U0001f4a1",
+                "text": (
+                    f"Ortalama temas noktasi {avg_tp:.2f} — kullanicilarin buyuk cogunlugu tek oturumda "
+                    f"donusum yapiyor. GA4 User-ID veya Google Signals aktif edilirse "
+                    f"capraz oturum yolculuklari birlestirilir ve asist analizi daha anlamli hale gelir."
+                ),
+                "category": "data_quality",
+            })

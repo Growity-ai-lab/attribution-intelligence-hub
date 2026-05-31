@@ -3,10 +3,47 @@
 Given channel spends and DDA weights, computes per-channel ROAS/CPA,
 projects what-if scenarios with modified budgets, and generates
 Turkish-language budget action recommendations.
+
+Scenario projections use Hill saturation for diminishing returns
+when channel saturation params are available, linear fallback otherwise.
 """
+
+from backend.models.mmm import compute_saturation
+from backend.config import SATURATION_PARAMS
 
 _ORGANIC_MEDIUMS = {"organic", "referral", "(none)", "social", "email", "aylikmail"}
 _ORGANIC_SOURCES = {"(direct)", "direct"}
+
+_CHANNEL_KEYWORDS: list[tuple[str, list[str]]] = [
+    ("meta", ["facebook", "instagram", "meta", "fb", "ig"]),
+    ("google", ["google"]),
+    ("tiktok", ["tiktok"]),
+    ("linkedin", ["linkedin"]),
+    ("dv360", ["dv360", "dbm", "programatik", "programmatic"]),
+    ("youtube", ["youtube"]),
+    ("tv_match", ["tv_match", "tv match"]),
+    ("tv_news", ["tv_news", "tv news"]),
+    ("radio", ["radio", "radyo"]),
+    ("dooh", ["dooh"]),
+]
+
+
+def _resolve_hub_channel(label: str) -> str | None:
+    """Map a BQ 'source / medium' label to a hub channel for saturation lookup."""
+    lower = label.lower()
+    for hub_ch, keywords in _CHANNEL_KEYWORDS:
+        if any(kw in lower for kw in keywords):
+            return hub_ch
+    return None
+
+
+def _saturation_ratio(old_spend: float, new_spend: float, alpha: float, gamma: float) -> float:
+    """Compute the ratio of saturated values for diminishing returns projection."""
+    sat_old = compute_saturation(old_spend, alpha, gamma)
+    sat_new = compute_saturation(new_spend, alpha, gamma)
+    if sat_old <= 0:
+        return sat_new / compute_saturation(alpha, alpha, gamma) if sat_new > 0 else 1.0
+    return sat_new / sat_old
 
 
 def _is_organic(channel: str) -> bool:
@@ -107,12 +144,23 @@ def _project_scenario(
         old_spend = cur["spend"]
 
         if old_spend > 0 and not cur["organic"]:
-            ratio = new_spend / old_spend
+            hub_ch = _resolve_hub_channel(ch)
+            sat_params = SATURATION_PARAMS.get(hub_ch) if hub_ch else None
+
+            if sat_params:
+                alpha, gamma = sat_params
+                ratio = _saturation_ratio(old_spend, new_spend, alpha, gamma)
+                projection_model = "hill"
+            else:
+                ratio = new_spend / old_spend
+                projection_model = "linear"
+
             proj_rev = cur["attributed_revenue"] * ratio
             proj_conv = cur["attributed_conversions"] * ratio
         else:
             proj_rev = cur["attributed_revenue"]
             proj_conv = cur["attributed_conversions"]
+            projection_model = "organic"
 
         projected_total_rev += proj_rev
         projected_total_conv += proj_conv
@@ -124,6 +172,7 @@ def _project_scenario(
             "roas": round(proj_rev / new_spend, 2) if new_spend > 0 else None,
             "cpa": round(new_spend / proj_conv, 2) if new_spend > 0 and proj_conv > 0 else None,
             "delta_spend": round(new_spend - old_spend, 2),
+            "projection_model": projection_model,
         }
 
     delta_rev = projected_total_rev - total_revenue
