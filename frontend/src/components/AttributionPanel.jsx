@@ -10,7 +10,7 @@ import {
 } from 'chart.js'
 import { Bar } from 'react-chartjs-2'
 import axios from 'axios'
-// Channel colors assigned dynamically by index — no static mapping needed
+import { getChannelColor } from '../utils/colors'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -23,12 +23,6 @@ const fmtMoney = v => {
 }
 const fmtN = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0)
 const fmtPct = v => `%${(v * 100).toFixed(1)}`
-
-const PALETTE = [
-  '#3b82f6', '#f97316', '#ec4899', '#8b5cf6', '#06b6d4',
-  '#ef4444', '#22c55e', '#eab308', '#14b8a6', '#a855f7',
-  '#f472b6', '#64748b', '#fb923c', '#84cc16', '#6366f1',
-]
 
 function InfoTip({ text }) {
   const [show, setShow] = useState(false)
@@ -58,11 +52,7 @@ function InfoTip({ text }) {
   )
 }
 
-function getChannelColor(ch, index) {
-  return PALETTE[index % PALETTE.length]
-}
-
-export default function AttributionPanel({ campaign }) {
+export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) {
   // BQ connection
   const [bqProject, setBqProject] = useState('')
   const [bqDataset, setBqDataset] = useState('')
@@ -74,10 +64,9 @@ export default function AttributionPanel({ campaign }) {
   // Data source tab
   const [sourceTab, setSourceTab] = useState('bigquery') // 'bigquery' | 'csv'
 
-  // Preview & DDA
+  // Preview & DDA (ddaResult/setDdaResult come from props, shared with Dashboard)
   const [preview, setPreview] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
-  const [ddaResult, setDdaResult] = useState(null)
   const [ddaLoading, setDdaLoading] = useState(false)
   const [ddaError, setDdaError] = useState('')
 

@@ -6,13 +6,11 @@ import WorkspaceSelector from './components/WorkspaceSelector'
 import Dashboard from './components/Dashboard'
 import DigitalPlanningPanel from './components/DigitalPlanningPanel'
 import AttributionPanel from './components/AttributionPanel'
-import ProjectPlanPanel from './components/ProjectPlanPanel'
 
 const TABS = [
   { id: 'unified', label: 'Unified Rapor' },
   { id: 'attribution', label: 'Attribution' },
   { id: 'media', label: 'Medya Planlama' },
-  { id: 'plan', label: 'Proje Planı' },
 ]
 
 export default function App() {
@@ -227,10 +225,9 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {activeTab === 'unified' && <Dashboard onDdaResult={setDdaResult} campaign={workspace.campaign} isDemo={isDemo} />}
-        {activeTab === 'attribution' && <AttributionPanel campaign={workspace.campaign} />}
+        {activeTab === 'unified' && <Dashboard ddaResult={ddaResult} campaign={workspace.campaign} isDemo={isDemo} />}
+        {activeTab === 'attribution' && <AttributionPanel campaign={workspace.campaign} ddaResult={ddaResult} setDdaResult={setDdaResult} />}
         {activeTab === 'media' && <DigitalPlanningPanel campaign={workspace.campaign} />}
-        {activeTab === 'plan' && <ProjectPlanPanel />}
       </main>
     </div>
   )
