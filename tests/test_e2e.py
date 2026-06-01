@@ -304,6 +304,73 @@ class TestReallocationFlow:
             assert suggestions[top_ch]["suggested"] > suggestions[bottom_ch]["suggested"]
 
 
+# --------------- Channel Benchmarks (Media-Planning Validation) ---------------
+
+
+class TestChannelBenchmarks:
+    def _make_campaign(self, auth_headers):
+        """Create a client + campaign, return campaign_id."""
+        rc = client.post(
+            "/api/clients",
+            json={"name": "Benchmark Test Co", "year": 2026},
+            headers=auth_headers,
+        )
+        assert rc.status_code == 200
+        client_id = rc.json()["id"]
+        rcamp = client.post(
+            f"/api/clients/{client_id}/campaigns",
+            json={"name": "Benchmark Campaign"},
+            headers=auth_headers,
+        )
+        assert rcamp.status_code == 200
+        return rcamp.json()["id"]
+
+    def test_no_dda_run_returns_unavailable(self, auth_headers):
+        """Benchmark endpoint returns available=False when no DDA run is stored."""
+        campaign_id = self._make_campaign(auth_headers)
+        r = client.get(
+            f"/api/benchmarks/channel-metrics?campaign_id={campaign_id}",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["available"] is False
+
+    def test_dda_run_populates_benchmarks(self, sample_journeys_csv, auth_headers):
+        """After a DDA run with campaign_id, benchmarks become available."""
+        campaign_id = self._make_campaign(auth_headers)
+
+        # Run DDA bound to the campaign — should persist a DDAResult
+        r1 = client.post(
+            f"/api/dda/run-from-csv?campaign_id={campaign_id}",
+            files={"file": ("journeys.csv", io.BytesIO(sample_journeys_csv), "text/csv")},
+            headers=auth_headers,
+        )
+        assert r1.status_code == 200
+        assert r1.json()["persisted"] is True
+
+        # Benchmarks should now be available with per-channel metrics
+        r2 = client.get(
+            f"/api/benchmarks/channel-metrics?campaign_id={campaign_id}",
+            headers=auth_headers,
+        )
+        assert r2.status_code == 200
+        data = r2.json()
+        assert data["available"] is True
+        assert data["data_source"] == "csv"
+        assert "channels" in data and len(data["channels"]) > 0
+        # Every channel carries the benchmark signal fields
+        for metrics in data["channels"].values():
+            assert "dda_weight" in metrics
+            assert "assist_ratio" in metrics
+            assert "touchpoints" in metrics
+        assert 0 <= data["overall_conversion_rate"] <= 1
+
+    def test_benchmark_requires_auth(self):
+        r = client.get("/api/benchmarks/channel-metrics?campaign_id=1")
+        assert r.status_code == 401
+
+
 # --------------- Sample Data Flow ---------------
 
 

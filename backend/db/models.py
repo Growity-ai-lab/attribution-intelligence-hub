@@ -94,6 +94,27 @@ class CampaignModelParams(Base):
     source = Column(String, nullable=False, default="fit")
 
 
+class DDAResult(Base):
+    """Persisted DDA pipeline output (one row per run; latest = active benchmark).
+
+    DDA results were previously computed on every request and only returned in
+    the HTTP response. Persisting them lets the media-planning module read past
+    attribution as an empirical benchmark to validate plan assumptions against.
+    """
+
+    __tablename__ = "dda_results"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True, index=True)
+    run_date = Column(String, nullable=False, index=True)
+    data_source = Column(String, nullable=False, default="csv")  # 'csv' | 'bigquery'
+    start_date = Column(String, default="")  # BQ date range (YYYYMMDD)
+    end_date = Column(String, default="")
+    # JSON: hybrid_attribution, markov, shapley_dda, assist_report, journey_stats, channel_summary
+    result_json = Column(String, nullable=False)
+    created_by = Column(String, default="")
+
+
 class SalesStockData(Base):
     __tablename__ = "sales_stock_data"
 

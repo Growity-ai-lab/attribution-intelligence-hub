@@ -17,6 +17,7 @@ from backend.db.models import (
     Campaign,
     CampaignModelParams,
     Client,
+    DDAResult,
     MediaPlanSimulation,
     SalesStockData,
     TouchpointData,
@@ -452,6 +453,44 @@ def _dda_only_unified_report(hybrid: dict[str, float]) -> dict[str, dict]:
         }
         for ch, w in hybrid.items()
     }
+
+
+def _persist_dda_result(
+    db: Session,
+    campaign_id: int | None,
+    serialized: dict,
+    created_by: str,
+    data_source: str = "csv",
+    start_date: str = "",
+    end_date: str = "",
+) -> None:
+    """Store a DDA run so it can later serve as a media-planning benchmark.
+
+    Only persists when a campaign_id is given (the same gate as TouchpointData).
+    The latest row per campaign is treated as the active benchmark.
+    """
+    if campaign_id is None:
+        return
+
+    snapshot = {
+        "journey_stats": serialized.get("journey_stats", {}),
+        "hybrid_attribution": serialized.get("hybrid_attribution", {}),
+        "markov": serialized.get("markov", {}),
+        "shapley_dda": serialized.get("shapley_dda", {}),
+        "assist_report": serialized.get("assist_report", []),
+        "online_channels": serialized.get("online_channels", []),
+        "channel_summary": serialized.get("channel_summary", {}),
+    }
+    db.add(DDAResult(
+        campaign_id=campaign_id,
+        run_date=datetime.now(timezone.utc).isoformat(),
+        data_source=data_source,
+        start_date=start_date or "",
+        end_date=end_date or "",
+        result_json=json.dumps(snapshot),
+        created_by=created_by,
+    ))
+    db.commit()
 
 
 def _validate_prior_alpha(prior_alpha: float) -> None:
@@ -941,6 +980,12 @@ async def run_dda_from_csv(
     serialized["persisted"] = persisted
     serialized["campaign_id"] = target_campaign_id
     serialized["redirected_to_sandbox"] = persisted and target_campaign_id != campaign_id
+
+    # Persist DDA result as a media-planning benchmark (gated on campaign_id)
+    _persist_dda_result(
+        db, target_campaign_id, serialized,
+        created_by=_user.get("username", ""), data_source="csv",
+    )
     return serialized
 
 
@@ -1178,6 +1223,14 @@ def run_dda_from_bigquery(
     serialized["campaign_id"] = target_campaign_id
     serialized["data_source"] = "bigquery"
     serialized["date_range"] = {"start": start_date, "end": end_date}
+
+    # Persist DDA result as a media-planning benchmark (gated on campaign_id)
+    serialized_with_summary = {**serialized, "channel_summary": summary.get("channels", {})}
+    _persist_dda_result(
+        db, target_campaign_id, serialized_with_summary,
+        created_by=_user.get("username", ""), data_source="bigquery",
+        start_date=start_date, end_date=end_date,
+    )
     return serialized
 
 
@@ -1208,6 +1261,77 @@ def get_reallocation(
     return {
         "total_budget": total_budget if total_budget is not None else sum(current_budgets.values()),
         "suggestions": suggestions,
+    }
+
+
+# --------------- Benchmarks (Media-Planning Validation) ---------------
+
+
+@router.get("/benchmarks/channel-metrics")
+def get_channel_benchmarks(
+    campaign_id: int = Query(...),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Empirical per-channel benchmarks from the latest stored DDA run.
+
+    Media planning runs on assumption-based parameters (CPM/CTR/lead_rate from
+    config). This endpoint surfaces what real GA4/CRM journeys say per channel
+    so plan assumptions can be validated. Returns ``available: False`` when no
+    DDA run has been persisted for the campaign — the planner then stays in
+    assumption mode (see frontend transparency labelling).
+    """
+    last = (
+        db.query(DDAResult)
+        .filter(DDAResult.campaign_id == campaign_id)
+        .order_by(DDAResult.run_date.desc())
+        .first()
+    )
+    if not last:
+        return {"available": False, "campaign_id": campaign_id}
+
+    snapshot = json.loads(last.result_json)
+    hybrid = snapshot.get("hybrid_attribution", {})
+    removal = snapshot.get("markov", {}).get("removal_effects", {})
+    assist_list = snapshot.get("assist_report", [])
+    assist_by_ch = {a["channel"]: a for a in assist_list}
+    ch_summary = snapshot.get("channel_summary", {})  # BQ: channel -> touchpoint count
+
+    # Touchpoint frequency per channel from persisted touchpoints (CSV fallback)
+    if not ch_summary:
+        rows = (
+            db.query(TouchpointData.channel)
+            .filter(TouchpointData.campaign_id == campaign_id)
+            .all()
+        )
+        for (ch,) in rows:
+            ch_summary[ch] = ch_summary.get(ch, 0) + 1
+
+    stats = snapshot.get("journey_stats", {})
+    overall_conv_rate = stats.get("conversion_rate", 0.0)
+
+    channels: dict[str, dict] = {}
+    all_ch = set(hybrid) | set(removal) | set(assist_by_ch) | set(ch_summary)
+    for ch in all_ch:
+        a = assist_by_ch.get(ch, {})
+        channels[ch] = {
+            "dda_weight": round(float(hybrid.get(ch, 0.0)), 4),
+            "removal_effect": round(float(removal.get(ch, 0.0)), 4),
+            "assist_ratio": round(float(a.get("assist_ratio", 0.0)), 4),
+            "last_touch": a.get("last_touch", 0),
+            "first_touch": a.get("first_touch", 0),
+            "touchpoints": ch_summary.get(ch, 0),
+        }
+
+    return {
+        "available": True,
+        "campaign_id": campaign_id,
+        "run_date": last.run_date,
+        "data_source": last.data_source,
+        "date_range": {"start": last.start_date, "end": last.end_date},
+        "overall_conversion_rate": round(float(overall_conv_rate), 4),
+        "journey_stats": stats,
+        "channels": channels,
     }
 
 
