@@ -174,7 +174,7 @@ export default function DigitalPlanningPanel({ campaign }) {
   const {
     simulateDigitalPlan, getMediaPlanPresets,
     saveMediaPlan, listSavedMediaPlans, getSavedMediaPlan, deleteSavedMediaPlan,
-    getChannelBenchmarks,
+    getChannelBenchmarks, reconcilePlan,
   } = useAttribution()
 
   const [selectedChannel, setSelectedChannel] = useState('meta')
@@ -211,6 +211,10 @@ export default function DigitalPlanningPanel({ campaign }) {
 
   // GA4/DDA empirical benchmarks (per campaign) — used to validate plan assumptions
   const [benchmarks, setBenchmarks] = useState(null)
+
+  // Plan reconciliation (plan vs actual)
+  const [reconciliation, setReconciliation] = useState(null)
+  const [reconLoading, setReconLoading] = useState(false)
 
   // Load benchmarks when the campaign changes
   useEffect(() => {
@@ -354,6 +358,16 @@ export default function DigitalPlanningPanel({ campaign }) {
       await deleteSavedMediaPlan(id)
       refreshSavedPlans()
     } catch { /* ignore */ }
+  }
+
+  const handleReconcile = async (planId) => {
+    setReconLoading(true)
+    setReconciliation(null)
+    try {
+      const data = await reconcilePlan(planId)
+      setReconciliation(data)
+    } catch { setReconciliation(null) }
+    setReconLoading(false)
   }
 
   // Excel import handlers
@@ -818,14 +832,121 @@ export default function DigitalPlanningPanel({ campaign }) {
                       <span className="ml-2 text-[10px] text-slate-500 font-mono">{CHANNEL_LABELS[p.channel] || p.channel}</span>
                       <span className="ml-2 text-[10px] text-slate-600">{p.created_at?.slice(0, 10)}</span>
                     </button>
-                    <button
-                      onClick={() => handleDeletePlan(p.id)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 text-xs transition-all ml-2"
-                    >
-                      x
-                    </button>
+                    <div className="flex items-center gap-1 ml-2">
+                      <button
+                        onClick={() => handleReconcile(p.id)}
+                        disabled={reconLoading}
+                        className="opacity-0 group-hover:opacity-100 text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all"
+                      >
+                        {reconLoading ? '...' : 'Dogrula'}
+                      </button>
+                      <button
+                        onClick={() => handleDeletePlan(p.id)}
+                        className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 text-xs transition-all"
+                      >
+                        x
+                      </button>
+                    </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Plan vs Actual — Reconciliation Result */}
+        {reconciliation && (
+          <div className="px-4 py-3 border-b border-dark-border">
+            {!reconciliation.available ? (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-yellow-400">
+                  Saglama verisi yok — bu kampanya icin henuz DDA calistirilmadi. Attribution sekmesinden DDA calistirin.
+                </p>
+                <button onClick={() => setReconciliation(null)} className="text-slate-500 text-xs ml-2">x</button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-slate-200">
+                      Plan vs Gerceklesme — {CHANNEL_LABELS[reconciliation.channel] || reconciliation.channel}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      DDA verisi: {reconciliation.run_date ? new Date(reconciliation.run_date).toLocaleDateString('tr-TR') : ''}
+                      {reconciliation.matched_dda_channel && reconciliation.matched_dda_channel !== reconciliation.channel && (
+                        <span className="ml-1 text-slate-600">({reconciliation.matched_dda_channel})</span>
+                      )}
+                    </p>
+                  </div>
+                  <button onClick={() => setReconciliation(null)} className="text-slate-500 hover:text-slate-300 text-xs">x</button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Planned */}
+                  <div className="bg-dark-bg/50 rounded-lg p-3 border border-dark-border">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Planlanan</p>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Harcama</span>
+                        <span className="font-mono text-slate-200">{fmtMoney(reconciliation.planned.total_spend)} TL</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Lead (Model)</span>
+                        <span className="font-mono text-slate-200">{Math.round(reconciliation.planned.total_leads_mmm)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Lead (Funnel)</span>
+                        <span className="font-mono text-slate-200">{Math.round(reconciliation.planned.total_leads_funnel)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">CPL</span>
+                        <span className="font-mono text-slate-200">{fmtMoney(reconciliation.planned.cpl)} TL</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actual (DDA) */}
+                  <div className="bg-dark-bg/50 rounded-lg p-3 border border-emerald-500/20">
+                    <p className="text-[10px] text-emerald-400 uppercase tracking-wide mb-2">GA4 Gerceklesme (DDA)</p>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Toplam Donusum</span>
+                        <span className="font-mono text-emerald-400">{Math.round(reconciliation.actual.total_conversions)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">DDA Atfi</span>
+                        <span className="font-mono text-emerald-400">%{(reconciliation.actual.dda_weight * 100).toFixed(1)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Atfedilen Lead</span>
+                        <span className="font-mono text-emerald-400">{Math.round(reconciliation.actual.attributed_conversions)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Empirik CPL</span>
+                        <span className="font-mono text-emerald-400">
+                          {reconciliation.actual.empirical_cpl != null ? `${fmtMoney(reconciliation.actual.empirical_cpl)} TL` : '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Deviation summary */}
+                <div className={`p-3 rounded-lg border text-xs ${
+                  reconciliation.deviations.lead_deviation_pct != null && Math.abs(reconciliation.deviations.lead_deviation_pct) > 25
+                    ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'
+                    : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                }`}>
+                  <div className="flex items-center gap-3 mb-1">
+                    {reconciliation.deviations.lead_deviation_pct != null && (
+                      <span className="font-mono">Lead: {reconciliation.deviations.lead_deviation_pct > 0 ? '+' : ''}{reconciliation.deviations.lead_deviation_pct}%</span>
+                    )}
+                    {reconciliation.deviations.cpl_deviation_pct != null && (
+                      <span className="font-mono">CPL: {reconciliation.deviations.cpl_deviation_pct > 0 ? '+' : ''}{reconciliation.deviations.cpl_deviation_pct}%</span>
+                    )}
+                  </div>
+                  <p>{reconciliation.deviations.verdict}</p>
+                </div>
               </div>
             )}
           </div>
