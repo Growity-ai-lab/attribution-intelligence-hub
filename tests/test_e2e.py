@@ -370,6 +370,79 @@ class TestChannelBenchmarks:
         r = client.get("/api/benchmarks/channel-metrics?campaign_id=1")
         assert r.status_code == 401
 
+    def test_plan_reconciliation(self, sample_journeys_csv, auth_headers):
+        """A saved plan reconciled against a stored DDA run returns deviations."""
+        campaign_id = self._make_campaign(auth_headers)
+
+        # Stored DDA run for the campaign
+        r1 = client.post(
+            f"/api/dda/run-from-csv?campaign_id={campaign_id}",
+            files={"file": ("journeys.csv", io.BytesIO(sample_journeys_csv), "text/csv")},
+            headers=auth_headers,
+        )
+        assert r1.status_code == 200
+
+        # Save a digital media plan for the 'meta' channel
+        rsave = client.post(
+            "/api/media-planning/save",
+            json={
+                "name": "Meta Plan",
+                "channel": "meta",
+                "weekly_grps": [1_000_000, 1_000_000],
+                "response_snapshot": {
+                    "summary": {
+                        "total_spend": 2_000_000,
+                        "total_leads": 500,
+                        "total_funnel_leads": 540,
+                        "avg_cpl": 4000,
+                    }
+                },
+                "campaign_id": campaign_id,
+                "mode": "digital",
+            },
+            headers=auth_headers,
+        )
+        assert rsave.status_code == 200
+        plan_id = rsave.json()["id"]
+
+        # Reconcile
+        r2 = client.post(
+            "/api/benchmarks/plan-reconciliation",
+            json={"plan_id": plan_id},
+            headers=auth_headers,
+        )
+        assert r2.status_code == 200
+        data = r2.json()
+        assert data["available"] is True
+        assert data["channel"] == "meta"
+        assert "planned" in data and "actual" in data and "deviations" in data
+        assert data["planned"]["total_spend"] == 2_000_000
+        assert "verdict" in data["deviations"]
+
+    def test_reconciliation_unavailable_without_dda(self, auth_headers):
+        """Reconciliation returns available=False when no DDA run is stored."""
+        campaign_id = self._make_campaign(auth_headers)
+        rsave = client.post(
+            "/api/media-planning/save",
+            json={
+                "name": "Orphan Plan",
+                "channel": "google",
+                "weekly_grps": [500_000],
+                "response_snapshot": {"summary": {"total_spend": 500_000, "total_leads": 100}},
+                "campaign_id": campaign_id,
+                "mode": "digital",
+            },
+            headers=auth_headers,
+        )
+        plan_id = rsave.json()["id"]
+        r = client.post(
+            "/api/benchmarks/plan-reconciliation",
+            json={"plan_id": plan_id},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert r.json()["available"] is False
+
 
 # --------------- Sample Data Flow ---------------
 

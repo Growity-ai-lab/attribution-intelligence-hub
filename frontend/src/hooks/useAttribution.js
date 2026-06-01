@@ -141,6 +141,20 @@ export function useAttribution() {
     return res.data
   }, [])
 
+  const getChannelBenchmarks = useCallback(async (campaignId) => {
+    const res = await axios.get(`${API_BASE}/benchmarks/channel-metrics`, {
+      params: { campaign_id: campaignId },
+    })
+    return res.data
+  }, [])
+
+  const reconcilePlan = useCallback(async (planId) => {
+    const res = await axios.post(`${API_BASE}/benchmarks/plan-reconciliation`, {
+      plan_id: planId,
+    })
+    return res.data
+  }, [])
+
   const uploadSalesStock = useCallback(async (file, campaignId = null) => {
     const formData = new FormData()
     formData.append('file', file)
@@ -208,6 +222,8 @@ export function useAttribution() {
     listSavedMediaPlans,
     getSavedMediaPlan,
     deleteSavedMediaPlan,
+    getChannelBenchmarks,
+    reconcilePlan,
     uploadSalesStock,
     getSalesStockSummary,
     getSalesStockWeekly,

@@ -174,6 +174,7 @@ export default function DigitalPlanningPanel({ campaign }) {
   const {
     simulateDigitalPlan, getMediaPlanPresets,
     saveMediaPlan, listSavedMediaPlans, getSavedMediaPlan, deleteSavedMediaPlan,
+    getChannelBenchmarks,
   } = useAttribution()
 
   const [selectedChannel, setSelectedChannel] = useState('meta')
@@ -207,6 +208,32 @@ export default function DigitalPlanningPanel({ campaign }) {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [saveName, setSaveName] = useState('')
   const [showSavedList, setShowSavedList] = useState(false)
+
+  // GA4/DDA empirical benchmarks (per campaign) — used to validate plan assumptions
+  const [benchmarks, setBenchmarks] = useState(null)
+
+  // Load benchmarks when the campaign changes
+  useEffect(() => {
+    let cancelled = false
+    if (!campaign?.id) { setBenchmarks(null); return }
+    ;(async () => {
+      try {
+        const data = await getChannelBenchmarks(campaign.id)
+        if (!cancelled) setBenchmarks(data)
+      } catch { if (!cancelled) setBenchmarks(null) }
+    })()
+    return () => { cancelled = true }
+  }, [campaign?.id, getChannelBenchmarks])
+
+  // Match the selected channel against benchmark keys (CSV: clean keys; BQ: source/medium labels)
+  const channelBenchmark = useMemo(() => {
+    if (!benchmarks?.available || !benchmarks.channels) return null
+    const keys = Object.keys(benchmarks.channels)
+    if (keys.includes(selectedChannel)) return benchmarks.channels[selectedChannel]
+    const sc = selectedChannel.toLowerCase()
+    const hit = keys.find(k => k.toLowerCase().includes(sc))
+    return hit ? benchmarks.channels[hit] : null
+  }, [benchmarks, selectedChannel])
 
   // Load presets when channel changes
   useEffect(() => {
@@ -1077,6 +1104,60 @@ export default function DigitalPlanningPanel({ campaign }) {
             </div>
           )}
 
+          {/* GA4/DDA Benchmark — validates the assumption-based plan against real data */}
+          {channelBenchmark && (
+            <div className="dark-card p-4 border border-emerald-500/20">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <span className="card-title">GA4 Gerçek Veri — Sağlama</span>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {channelLabel} · {benchmarks.data_source === 'bigquery' ? 'BigQuery GA4 export' : 'CRM/CSV'} ·
+                    {benchmarks.run_date ? ` ${new Date(benchmarks.run_date).toLocaleDateString('tr-TR')}` : ''}
+                  </p>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  Gözleme Dayalı
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-dark-bg rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">DDA Katkı Payı</p>
+                  <p className="text-sm font-mono text-emerald-400 mt-0.5">%{(channelBenchmark.dda_weight * 100).toFixed(1)}</p>
+                </div>
+                <div className="bg-dark-bg rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Asist Oranı</p>
+                  <p className="text-sm font-mono text-slate-100 mt-0.5">%{(channelBenchmark.assist_ratio * 100).toFixed(0)}</p>
+                </div>
+                <div className="bg-dark-bg rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Son Temas</p>
+                  <p className="text-sm font-mono text-slate-100 mt-0.5">{fmtN(channelBenchmark.last_touch || 0)}</p>
+                </div>
+                <div className="bg-dark-bg rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Touchpoint</p>
+                  <p className="text-sm font-mono text-slate-100 mt-0.5">{fmtN(channelBenchmark.touchpoints || 0)}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">
+                Yukarıdaki plan tahminleri sektör varsayımı parametreleriyle (CPM/CTR/Lead Rate) hesaplanır.
+                Bu satır ise gerçek GA4 kullanıcı yolculuklarından gelen DDA sinyalidir — kanalın dönüşüme
+                gerçek katkısını gösterir. Plan ile gerçeğin tutarlılığını buradan denetleyebilirsiniz.
+                {channelBenchmark.dda_weight > 0 && benchmarks.overall_conversion_rate > 0 && (
+                  <> {' '}Kampanya geneli dönüşüm oranı: <span className="text-slate-300">%{(benchmarks.overall_conversion_rate * 100).toFixed(1)}</span>.</>
+                )}
+              </p>
+            </div>
+          )}
+
+          {campaign?.id && benchmarks && !benchmarks.available && (
+            <div className="dark-card p-3 border border-dark-border">
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                <span className="text-yellow-400">⚠ Sağlama verisi yok.</span> Bu kampanya için henüz DDA çalıştırılmadı.
+                Attribution sekmesinden GA4/CSV verisiyle DDA çalıştırınca, plan varsayımları gerçek veriyle
+                karşılaştırılabilir hale gelir. Şu an plan tamamen varsayım bazlıdır.
+              </p>
+            </div>
+          )}
+
           {/* Chart Tabs */}
           <div className="dark-card">
             <div className="card-hdr">
@@ -1123,6 +1204,12 @@ export default function DigitalPlanningPanel({ campaign }) {
               {/* Adstock Tab */}
               {activeChartTab === 'adstock' && (
                 <>
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
+                      ⚠ Varsayım Bazlı Model
+                    </span>
+                    <span className="text-[10px] text-slate-500">λ decay parametresi sektör ortalamasıdır, gerçek veriye fit edilmemiştir</span>
+                  </div>
                   <div className="h-72">
                     {adstockChartData && <Line data={adstockChartData} options={adstockOpts} />}
                   </div>
@@ -1141,6 +1228,12 @@ export default function DigitalPlanningPanel({ campaign }) {
               {/* Saturation Tab */}
               {activeChartTab === 'saturation' && (
                 <>
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
+                      ⚠ Varsayım Bazlı Model
+                    </span>
+                    <span className="text-[10px] text-slate-500">α/γ Hill parametreleri sektör ortalamasıdır; 8+ haftalık veriyle kalibre edilebilir</span>
+                  </div>
                   <div className="h-72">
                     {saturationChartData && <Line data={saturationChartData} options={satOpts} />}
                   </div>

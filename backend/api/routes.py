@@ -1335,6 +1335,118 @@ def get_channel_benchmarks(
     }
 
 
+def _match_benchmark_channel(plan_channel: str, dda_channels: list[str]) -> str | None:
+    """Best-effort map a media-plan channel to a DDA channel key.
+
+    CSV journeys use clean keys ("meta"); BQ uses source/medium labels
+    ("google / cpc"). Try exact match, then substring containment.
+    """
+    if plan_channel in dda_channels:
+        return plan_channel
+    pl = plan_channel.lower()
+    for ch in dda_channels:
+        if pl in ch.lower():
+            return ch
+    return None
+
+
+@router.post("/benchmarks/plan-reconciliation")
+def reconcile_plan(
+    plan_id: int = Body(..., embed=True),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Compare a saved media plan's assumptions against observed GA4/DDA data.
+
+    Reads the planned channel metrics from the saved simulation snapshot and the
+    actual per-channel signal from the latest stored DDA run for the same
+    campaign. Per-channel attributed conversions are estimated as
+    ``total_conversions * dda_weight`` (DDA shares the credit), which yields an
+    empirical CPL to set against the plan's projected CPL.
+
+    Returns ``available: False`` when no DDA benchmark exists for the campaign.
+    """
+    sim = db.query(MediaPlanSimulation).filter(MediaPlanSimulation.id == plan_id).first()
+    if not sim:
+        raise HTTPException(status_code=404, detail="Saved plan not found")
+
+    snapshot = json.loads(sim.response_snapshot)
+    summary = snapshot.get("summary", {})
+    planned_spend = float(summary.get("total_spend") or summary.get("total_grp") or 0.0)
+    planned_leads = float(summary.get("total_leads") or 0.0)
+    planned_funnel_leads = float(summary.get("total_funnel_leads") or 0.0)
+    planned_cpl = float(summary.get("avg_cpl") or 0.0)
+
+    last = (
+        db.query(DDAResult)
+        .filter(DDAResult.campaign_id == sim.campaign_id)
+        .order_by(DDAResult.run_date.desc())
+        .first()
+    )
+    if not last:
+        return {
+            "available": False,
+            "plan_id": plan_id,
+            "channel": sim.channel,
+            "campaign_id": sim.campaign_id,
+        }
+
+    dda = json.loads(last.result_json)
+    hybrid = dda.get("hybrid_attribution", {})
+    stats = dda.get("journey_stats", {})
+    total_conversions = float(stats.get("converted", 0) or 0)
+
+    matched = _match_benchmark_channel(sim.channel, list(hybrid.keys()))
+    dda_weight = float(hybrid.get(matched, 0.0)) if matched else 0.0
+    actual_conversions = total_conversions * dda_weight
+    empirical_cpl = (planned_spend / actual_conversions) if actual_conversions > 0 else None
+
+    def _dev(actual: float, planned: float) -> float | None:
+        if planned <= 0:
+            return None
+        return round((actual - planned) / planned * 100, 1)
+
+    lead_dev = _dev(actual_conversions, planned_leads)
+    cpl_dev = _dev(empirical_cpl, planned_cpl) if empirical_cpl is not None else None
+
+    if not matched:
+        verdict = "Kanal eşleşmedi — GA4 verisinde bu kanal için sinyal yok."
+    elif actual_conversions == 0:
+        verdict = "GA4'te bu kanala atfedilen dönüşüm yok — plan doğrulanamıyor."
+    elif lead_dev is not None and lead_dev < -25:
+        verdict = f"Plan iyimser — gerçek atfedilen dönüşüm planlanandan %{abs(lead_dev):.0f} düşük."
+    elif lead_dev is not None and lead_dev > 25:
+        verdict = f"Plan temkinli — gerçek atfedilen dönüşüm planlanandan %{lead_dev:.0f} yüksek."
+    else:
+        verdict = "Plan gerçekleşmeyle uyumlu (±%25 içinde)."
+
+    return {
+        "available": True,
+        "plan_id": plan_id,
+        "campaign_id": sim.campaign_id,
+        "channel": sim.channel,
+        "matched_dda_channel": matched,
+        "run_date": last.run_date,
+        "planned": {
+            "total_spend": round(planned_spend, 2),
+            "total_leads_mmm": round(planned_leads, 1),
+            "total_leads_funnel": round(planned_funnel_leads, 1),
+            "cpl": round(planned_cpl, 2),
+        },
+        "actual": {
+            "total_conversions": round(total_conversions, 1),
+            "dda_weight": round(dda_weight, 4),
+            "attributed_conversions": round(actual_conversions, 1),
+            "empirical_cpl": round(empirical_cpl, 2) if empirical_cpl is not None else None,
+        },
+        "deviations": {
+            "lead_deviation_pct": lead_dev,
+            "cpl_deviation_pct": cpl_dev,
+            "verdict": verdict,
+        },
+    }
+
+
 # --------------- Sample Data ---------------
 
 
