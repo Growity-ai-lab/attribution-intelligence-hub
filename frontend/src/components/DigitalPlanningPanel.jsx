@@ -431,7 +431,7 @@ export default function DigitalPlanningPanel({ campaign }) {
   // CSV Export
   const exportCSV = () => {
     if (!result) return
-    const headers = ['Hafta', 'Spend (TL)', 'Adstocked Spend', 'Saturation', 'MMM Lead', 'Funnel Lead', 'Impressions', 'Clicks', 'Reach %', 'CPL (TL)']
+    const headers = ['Hafta', 'Spend (TL)', 'Adstocked Spend', 'Saturation', 'Model Lead', 'Funnel Lead', 'Impressions', 'Clicks', 'Reach %', 'CPL (TL)']
     const rows = result.weekly_details.map((d, i) => {
       const f = result.funnel_curve?.[i]
       const cplW = d.estimated_leads > 0 ? (d.grp / d.estimated_leads).toFixed(0) : '-'
@@ -538,7 +538,7 @@ export default function DigitalPlanningPanel({ campaign }) {
         },
         {
           type: 'line',
-          label: 'MMM Lead',
+          label: 'Model Lead',
           data: wd.map(d => d.estimated_leads),
           borderColor: channelColor,
           backgroundColor: channelColor + '20',
@@ -590,7 +590,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     return {
       labels: details.map(d => `W${d.week}`),
       datasets: [{
-        label: 'Tahmini Lead (MMM)',
+        label: 'Tahmini Lead (Yanit Modeli)',
         data: details.map(d => d.estimated_leads),
         backgroundColor: channelColor + '80',
         borderColor: channelColor,
@@ -745,9 +745,11 @@ export default function DigitalPlanningPanel({ campaign }) {
       {/* Deviation warning banner */}
       {result && deviationHigh && (
         <div className="px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-xs text-yellow-300 leading-relaxed">
-          <strong>Kalibrasyon Uyarisi:</strong> MMM tahmini funnel&apos;dan %{Math.abs(deviationPct).toFixed(0)} farkli.
-          {' '}MAX_LIFT kalibre degil veya CPM/CTR/Lead Rate gercegi yansitmiyor olabilir.
-          {' '}Gelismis ayarlardan override girebilir veya MMM parametrelerini guncelleyebilirsiniz.
+          <strong>Tutarlilik Uyarisi:</strong> Iki tahmin yontemi %{Math.abs(deviationPct).toFixed(0)} farkli sonuc veriyor.
+          {' '}Yanit modeli (adstock + doygunluk) ile funnel hesabi (CPM/CTR/Lead Rate) farkli varsayimlara dayanir;
+          bu fark, varsayimlarin birbiriyle tutarsiz oldugunu gosterir — biri yanlis degil, ikisi ayni gercegi yansitmiyor.
+          {' '}Gelismis ayarlardan CPM/CTR/Lead Rate degerlerini gercege yaklastirabilirsiniz.
+          {' '}Gercek dogrulama icin asagidaki GA4 saglama kartina bakin.
         </div>
       )}
 
@@ -1194,7 +1196,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(result.summary?.total_clicks || 0)}</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">MMM Lead</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Model Lead</p>
               <p className="text-lg font-mono text-accent mt-0.5">{result.summary?.total_leads?.toFixed(0) || '-'}</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
@@ -1202,7 +1204,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               <p className="text-lg font-mono text-violet-400 mt-0.5">{result.summary?.total_funnel_leads?.toFixed(0) || '-'}</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">CPL (MMM)</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide">CPL (Model)</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">
                 {result.summary?.avg_cpl > 0 ? `${fmtMoney(result.summary.avg_cpl)} TL` : '-'}
               </p>
@@ -1217,7 +1219,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                   ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
                   : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
               }`}>
-                MMM vs Funnel Sapma: %{Math.abs(deviationPct).toFixed(0)}
+                Model vs Funnel Sapma: %{Math.abs(deviationPct).toFixed(0)}
               </span>
               {!deviationHigh && (
                 <span className="text-[10px] text-slate-500">Modeller uyumlu</span>
@@ -1317,7 +1319,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                   <div className="mt-3 p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed">
                     <strong className="text-slate-300">Funnel Projeksiyon:</strong>
                     {' Spend → Impressions (CPM) → Clicks (CTR) → Leads (Lead Rate). '}
-                    {'MMM ve Funnel lead tahminleri paralel gosterilir — sapma %30\'u asarsa kalibrasyon kontrolu gerekir.'}
+                    {'Yanit modeli ve funnel lead tahminleri paralel gosterilir — ikisi farkli varsayimlara dayanir; sapma %30\'u asarsa varsayimlar birbiriyle tutarsizdir.'}
                   </div>
                 </>
               )}
@@ -1422,7 +1424,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                     {responseChartData && <Bar data={responseChartData} options={barOpts} />}
                   </div>
                   <div className="mt-3 p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed">
-                    <strong className="text-slate-300">Haftalik Lead Tahmini (MMM):</strong>
+                    <strong className="text-slate-300">Haftalik Lead Tahmini (Yanit Modeli):</strong>
                     {' Spend → Adstock → Saturation → Response pipeline sonucu tahmini haftalik lead sayisi. '}
                     {'Peak hafta: W'}{result.summary?.peak_week}
                     {' ('}{result.weekly_details[result.summary?.peak_week - 1]?.estimated_leads.toFixed(0)}{' lead).'}
@@ -1481,7 +1483,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                     <th className="text-right py-2 px-2">Adstocked</th>
                     <th className="text-right py-2 px-2">Impressions</th>
                     <th className="text-right py-2 px-2">Clicks</th>
-                    <th className="text-right py-2 px-2">MMM Lead</th>
+                    <th className="text-right py-2 px-2">Model Lead</th>
                     <th className="text-right py-2 px-2">Funnel Lead</th>
                     <th className="text-right py-2 px-2">Reach %</th>
                     <th className="text-right py-2 px-2">CPL</th>
