@@ -120,8 +120,20 @@ WITH base_events AS (
     event_timestamp,
     TIMESTAMP_MICROS(event_timestamp) AS event_ts,
     event_name,
-    traffic_source.source AS source,
-    traffic_source.medium AS medium,
+    -- Session-scoped acquisition (per-event/session) takes priority over the
+    -- user-scoped first-touch `traffic_source`, so a user arriving from
+    -- different channels across sessions produces a genuine multi-touch journey
+    -- instead of collapsing to a single first-touch channel.
+    COALESCE(
+      collected_traffic_source.manual_source,
+      (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'source'),
+      traffic_source.source
+    ) AS source,
+    COALESCE(
+      collected_traffic_source.manual_medium,
+      (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'medium'),
+      traffic_source.medium
+    ) AS medium,
     traffic_source.name AS campaign,
     IF(
       event_name IN UNNEST(@conversion_events),
@@ -138,7 +150,9 @@ WITH base_events AS (
   FROM `{project}.{dataset}.events_*`
   WHERE _TABLE_SUFFIX BETWEEN @start_date AND @end_date
     AND (
-      traffic_source.source IS NOT NULL
+      collected_traffic_source.manual_source IS NOT NULL
+      OR collected_traffic_source.manual_medium IS NOT NULL
+      OR traffic_source.source IS NOT NULL
       OR traffic_source.medium IS NOT NULL
       OR event_name IN UNNEST(@conversion_events)
     )

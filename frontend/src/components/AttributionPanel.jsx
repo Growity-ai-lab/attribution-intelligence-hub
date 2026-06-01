@@ -254,8 +254,8 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
         {
           label: 'Katkı Payı',
           data: channels.map(ch => hybrid[ch]),
-          backgroundColor: channels.map((_, i) => getChannelColor(null, i) + '80'),
-          borderColor: channels.map((_, i) => getChannelColor(null, i)),
+          backgroundColor: channels.map((ch, i) => getChannelColor(ch, i) + '80'),
+          borderColor: channels.map((ch, i) => getChannelColor(ch, i)),
           borderWidth: 1, borderRadius: 3,
         },
       ],
@@ -578,15 +578,6 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                     <p className="text-slate-400 mt-0.5">Zincir Etkisi (%65) ve Bağımsız Katkı (%35) ağırlıklı ortalaması. Tek bir model yerine ikisini harmanlayarak daha güvenilir bir sonuç elde edilir.</p>
                   </div>
                 </div>
-                {ddaResult.unified_report && (
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-900/15 border border-amber-800/20">
-                    <span className="text-amber-400 font-bold mt-0.5 flex-shrink-0">4</span>
-                    <div>
-                      <p className="font-semibold text-slate-200">Nihai Skor</p>
-                      <p className="text-slate-400 mt-0.5">Kullanıcı yolculuğu analizi (Katkı Payı) ile harcama-dönüşüm modeli (MMM) birleştirilerek oluşturulan son skor. İki farklı bakış açısını tek bir değerde özetler.</p>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -661,17 +652,6 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
           <div className="dark-card">
             <div className="card-hdr">
               <span className="card-title">Kanal Katkı Detayı</span>
-              {ddaResult.mmm_shares_source && (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                  ddaResult.mmm_shares_source === 'fitted_per_campaign'
-                    ? 'bg-emerald-500/15 text-emerald-400'
-                    : 'bg-yellow-500/15 text-yellow-400'
-                }`}>
-                  {ddaResult.mmm_shares_source === 'fitted_per_campaign'
-                    ? 'Harcama modeli: kampanyaya özel'
-                    : 'Harcama modeli: genel varsayılan'}
-                </span>
-              )}
             </div>
             <div className="p-4 overflow-x-auto">
               <table className="w-full text-xs">
@@ -690,12 +670,6 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                       Bağımsız Katkı
                       <InfoTip text="Shapley Value modeli. Kanalın tüm olası kanal kombinasyonlarındaki marjinal katkısını hesaplar. Sıradan bağımsız, adil bir dağılım yapar." />
                     </th>
-                    {ddaResult.unified_report && (
-                      <th className="text-right py-2 px-2">
-                        Nihai Skor
-                        <InfoTip text="Unified Score. Kullanıcı yolculuğu analizi (DDA) ile harcama-dönüşüm modeli (MMM — Marketing Mix Model) birleştirilerek oluşturulan son skor." />
-                      </th>
-                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -704,7 +678,6 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                     .map(([ch, weight], idx) => {
                       const markov = ddaResult.markov?.attribution_weights?.[ch] || 0
                       const shapley = ddaResult.shapley_dda?.[ch] || 0
-                      const unified = ddaResult.unified_report?.[ch]?.unified_score
                       return (
                         <tr key={ch} className="border-b border-dark-border/50 hover:bg-dark-bg/30">
                           <td className="py-2 px-2">
@@ -716,11 +689,6 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                           <td className="py-2 px-2 text-right font-mono text-slate-100">{fmtPct(weight)}</td>
                           <td className="py-2 px-2 text-right font-mono text-slate-400">{fmtPct(markov)}</td>
                           <td className="py-2 px-2 text-right font-mono text-slate-400">{fmtPct(shapley)}</td>
-                          {ddaResult.unified_report && (
-                            <td className="py-2 px-2 text-right font-mono text-accent">
-                              {unified != null ? fmtPct(unified) : '-'}
-                            </td>
-                          )}
                         </tr>
                       )
                     })}

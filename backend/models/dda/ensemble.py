@@ -221,8 +221,13 @@ def run_full_dda_pipeline(
         shapley_blend,
     )
 
-    # Step 5: Cross-validation
-    cross_val = cross_validate_dda_mmm(dda_online, mmm_channel_shares)
+    # Step 5: Cross-validation (only when MMM shares are provided; without a
+    # real MMM the comparison is meaningless and produces spurious deviations)
+    cross_val = (
+        cross_validate_dda_mmm(dda_online, mmm_channel_shares)
+        if mmm_channel_shares
+        else {}
+    )
 
     # Step 6: Merge with offline (MMM)
     # Extract MMM weights for offline channels only

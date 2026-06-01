@@ -72,7 +72,7 @@ from backend.models.mmm import (
     compute_saturation,
 )
 from backend.models.simulation import simulate_budget
-from backend.models.unified import compute_unified_report, suggest_reallocation
+from backend.models.unified import suggest_reallocation
 from backend.integrations.bigquery import (
     get_client as bq_get_client,
     test_connection as bq_test_connection,
@@ -433,6 +433,24 @@ def _serialize_dda_result(result: dict) -> dict:
         "hybrid_attribution": {k: float(v) for k, v in result["hybrid_attribution"].items()},
         "assist_report": result.get("assist_report", []),
         "insights": result.get("insights", []),
+    }
+
+
+def _dda_only_unified_report(hybrid: dict[str, float]) -> dict[str, dict]:
+    """Build a DDA-only unified report.
+
+    MMM is not a fitted model without sufficient time-series data and
+    incrementality has no real signal, so DDA (Markov + Shapley on real
+    journeys) is the sole attribution source. The report keeps the same
+    shape as the legacy unified report (dda_score + unified_score) so the
+    frontend contract is unchanged.
+    """
+    return {
+        ch: {
+            "dda_score": round(float(w), 4),
+            "unified_score": round(float(w), 4),
+        }
+        for ch, w in hybrid.items()
     }
 
 
@@ -910,32 +928,19 @@ async def run_dda_from_csv(
 
     _validate_journey_count(journeys)
 
-    mmm_shares, mmm_source = _compute_mmm_shares(db, target_campaign_id)
-
     result = run_full_dda_pipeline(
         journeys,
-        mmm_shares,
         prior_alpha=prior_alpha,
         markov_blend=DDA_BLEND_WEIGHTS["markov"],
         shapley_blend=DDA_BLEND_WEIGHTS["shapley"],
     )
 
-    # Build unified report
-    hybrid = result["hybrid_attribution"]
-    unified = compute_unified_report(
-        mmm_scores=mmm_shares,
-        dda_scores={k: float(v) for k, v in hybrid.items()},
-    )
-
+    # DDA-only attribution (MMM/incrementality removed — not fitted on real data)
     serialized = _serialize_dda_result(result)
-    serialized["unified_report"] = {
-        ch: {k: round(float(v), 4) for k, v in scores.items()}
-        for ch, scores in unified.items()
-    }
+    serialized["unified_report"] = _dda_only_unified_report(result["hybrid_attribution"])
     serialized["persisted"] = persisted
     serialized["campaign_id"] = target_campaign_id
     serialized["redirected_to_sandbox"] = persisted and target_campaign_id != campaign_id
-    serialized["mmm_shares_source"] = mmm_source
     return serialized
 
 
@@ -1080,10 +1085,8 @@ def run_dda_from_bigquery(
     """Run full DDA pipeline from BigQuery GA4 export.
 
     1. Pull session-level touchpoints from BQ
-    2. Map GA4 source/medium to hub channels
-    3. Extract journeys (filter conversion-event channels)
-    4. Run Markov + Shapley ensemble
-    5. Compute unified report (DDA + MMM blend)
+    2. Extract journeys (filter conversion-event channels)
+    3. Run Markov + Shapley ensemble (DDA-only attribution)
     """
     _validate_prior_alpha(prior_alpha)
 
@@ -1159,34 +1162,20 @@ def run_dda_from_bigquery(
 
     _validate_journey_count(journeys)
 
-    # Step 5: Run DDA (exclude offline MMM channels for BQ-sourced data)
-    mmm_shares, mmm_source = _compute_mmm_shares(db, target_campaign_id)
-    from backend.models.dda.ensemble import OFFLINE_CHANNELS
-    digital_mmm_shares = {k: v for k, v in mmm_shares.items() if k not in OFFLINE_CHANNELS}
+    # Step 5: Run DDA (digital-only; GA4 journeys carry no offline channels)
     result = run_full_dda_pipeline(
         journeys,
-        digital_mmm_shares,
         prior_alpha=prior_alpha,
         markov_blend=DDA_BLEND_WEIGHTS["markov"],
         shapley_blend=DDA_BLEND_WEIGHTS["shapley"],
     )
 
-    # Step 6: Unified report
-    hybrid = result["hybrid_attribution"]
-    unified = compute_unified_report(
-        mmm_scores=mmm_shares,
-        dda_scores={k: float(v) for k, v in hybrid.items()},
-    )
-
+    # Step 6: DDA-only attribution (MMM/incrementality removed)
     serialized = _serialize_dda_result(result)
-    serialized["unified_report"] = {
-        ch: {k: round(float(v), 4) for k, v in scores.items()}
-        for ch, scores in unified.items()
-    }
+    serialized["unified_report"] = _dda_only_unified_report(result["hybrid_attribution"])
     serialized["bq_summary"] = summary
     serialized["persisted"] = persisted
     serialized["campaign_id"] = target_campaign_id
-    serialized["mmm_shares_source"] = mmm_source
     serialized["data_source"] = "bigquery"
     serialized["date_range"] = {"start": start_date, "end": end_date}
     return serialized

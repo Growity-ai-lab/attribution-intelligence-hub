@@ -203,10 +203,11 @@ class TestDDAFromCSVFlow:
         data = r.json()
         report = data["unified_report"]
         assert len(report) > 0
+        # DDA-only attribution: unified_score == dda_score, no MMM/incrementality
         for ch_scores in report.values():
             assert "unified_score" in ch_scores
             assert "dda_score" in ch_scores
-            assert "mmm_score" in ch_scores
+            assert ch_scores["unified_score"] == ch_scores["dda_score"]
 
 
 # --------------- DDA from JSON ---------------

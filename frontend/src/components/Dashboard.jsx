@@ -29,8 +29,6 @@ export default function Dashboard({ ddaResult, campaign, isDemo }) {
     return Object.keys(filtered).length > 0 ? filtered : ddaResult.unified_report
   }, [ddaResult, campaignChannels])
 
-  const crossValidation = ddaResult?.cross_validation || []
-
   const handleReallocation = async () => {
     if (!ddaResult?.unified_report || !campaign?.budget) return
     setReallocationLoading(true)
@@ -121,7 +119,7 @@ export default function Dashboard({ ddaResult, campaign, isDemo }) {
       {filteredUnified && (
         <>
           <UnifiedChart data={filteredUnified} />
-          <UnifiedScoringTable data={filteredUnified} crossValidation={crossValidation} />
+          <UnifiedScoringTable data={filteredUnified} />
 
           {/* Reallocation */}
           {!reallocationData && campaign?.budget > 0 && (
