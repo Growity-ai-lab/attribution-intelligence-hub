@@ -155,6 +155,28 @@ export function useAttribution() {
     return res.data
   }, [])
 
+  const exportDDAReport = useCallback(async (campaignId, resultId = null) => {
+    const params = { campaign_id: campaignId }
+    if (resultId) params.result_id = resultId
+    const res = await axios.get(`${API_BASE}/export/dda-report`, {
+      params,
+      responseType: 'blob',
+    })
+    const blobUrl = window.URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = `attribution_rapor_${campaignId}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    window.URL.revokeObjectURL(blobUrl)
+  }, [])
+
+  const getTrendInsights = useCallback(async (campaignId) => {
+    const res = await axios.get(`${API_BASE}/insights/trend`, {
+      params: { campaign_id: campaignId },
+    })
+    return res.data
+  }, [])
+
   const uploadSalesStock = useCallback(async (file, campaignId = null) => {
     const formData = new FormData()
     formData.append('file', file)
@@ -224,6 +246,8 @@ export function useAttribution() {
     deleteSavedMediaPlan,
     getChannelBenchmarks,
     reconcilePlan,
+    exportDDAReport,
+    getTrendInsights,
     uploadSalesStock,
     getSalesStockSummary,
     getSalesStockWeekly,

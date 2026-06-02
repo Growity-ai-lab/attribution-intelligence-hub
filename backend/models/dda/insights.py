@@ -289,6 +289,256 @@ def _insight_channel_count(
         })
 
 
+def compare_snapshots(
+    current: dict,
+    previous: dict,
+) -> list[dict]:
+    """Compare two DDA result snapshots and generate Turkish temporal insights.
+
+    Args:
+        current: The latest DDAResult.result_json (deserialized).
+        previous: The previous DDAResult.result_json (deserialized).
+
+    Returns:
+        List of insight dicts with {type, icon, text, category}.
+    """
+    out: list[dict] = []
+    cur_hybrid = current.get("hybrid_attribution", {})
+    prev_hybrid = previous.get("hybrid_attribution", {})
+    cur_stats = current.get("journey_stats", {})
+    prev_stats = previous.get("journey_stats", {})
+    cur_assist = current.get("assist_report", [])
+    prev_assist = previous.get("assist_report", [])
+
+    _compare_attribution_weights(cur_hybrid, prev_hybrid, out)
+    _compare_conversion_rate(cur_stats, prev_stats, out)
+    _compare_volume(cur_stats, prev_stats, out)
+    _compare_channel_roles(cur_assist, prev_assist, out)
+    _detect_new_disappeared_channels(cur_hybrid, prev_hybrid, out)
+    _compare_path_length(cur_stats, prev_stats, out)
+    _compare_concentration(cur_hybrid, prev_hybrid, out)
+
+    return out
+
+
+def _compare_attribution_weights(
+    cur: dict[str, float],
+    prev: dict[str, float],
+    out: list[dict],
+) -> None:
+    shifts = []
+    all_ch = set(cur) | set(prev)
+    for ch in all_ch:
+        c_val = cur.get(ch, 0.0)
+        p_val = prev.get(ch, 0.0)
+        delta = c_val - p_val
+        if abs(delta) >= 0.03:
+            shifts.append((ch, p_val, c_val, delta))
+
+    shifts.sort(key=lambda x: -abs(x[3]))
+
+    for ch, p_val, c_val, delta in shifts[:3]:
+        pp = round(delta * 100, 1)
+        p_pct = round(p_val * 100, 1)
+        c_pct = round(c_val * 100, 1)
+        sign = "+" if delta > 0 else ""
+        if delta > 0.05:
+            t = "success"
+            icon = "\U0001f4c8"
+        elif delta < -0.05:
+            t = "warning"
+            icon = "\U0001f4c9"
+        else:
+            t = "info"
+            icon = "\U0001f504"
+        out.append({
+            "type": t,
+            "icon": icon,
+            "text": (
+                f"{ch} katkı payı %{p_pct}'den %{c_pct}'e "
+                f"{'yükseldi' if delta > 0 else 'düştü'} ({sign}{pp}pp)."
+            ),
+            "category": "attribution_shift",
+        })
+
+
+def _compare_conversion_rate(
+    cur_stats: dict,
+    prev_stats: dict,
+    out: list[dict],
+) -> None:
+    c_rate = cur_stats.get("conversion_rate", 0)
+    p_rate = prev_stats.get("conversion_rate", 0)
+    delta = c_rate - p_rate
+    if abs(delta) < 0.005:
+        return
+    pp = round(delta * 100, 1)
+    sign = "+" if delta > 0 else ""
+    out.append({
+        "type": "success" if delta > 0 else "warning",
+        "icon": "\U0001f4c8" if delta > 0 else "\U0001f4c9",
+        "text": (
+            f"Dönüşüm oranı %{round(p_rate * 100, 1)}'den "
+            f"%{round(c_rate * 100, 1)}'e "
+            f"{'yükseldi' if delta > 0 else 'düştü'} ({sign}{pp}pp)."
+        ),
+        "category": "conversion_trend",
+    })
+
+
+def _compare_volume(
+    cur_stats: dict,
+    prev_stats: dict,
+    out: list[dict],
+) -> None:
+    c_total = cur_stats.get("total_journeys", 0)
+    p_total = prev_stats.get("total_journeys", 0)
+    if p_total == 0:
+        return
+    pct_change = (c_total - p_total) / p_total
+    if abs(pct_change) < 0.10:
+        return
+    pct_str = round(abs(pct_change) * 100, 0)
+    if pct_change > 0:
+        out.append({
+            "type": "info",
+            "icon": "\U0001f4c8",
+            "text": f"Toplam yolculuk sayısı %{pct_str:.0f} arttı ({p_total} → {c_total}).",
+            "category": "volume_change",
+        })
+    else:
+        t = "warning" if abs(pct_change) > 0.20 else "info"
+        out.append({
+            "type": t,
+            "icon": "\U0001f4c9",
+            "text": f"Toplam yolculuk sayısı %{pct_str:.0f} azaldı ({p_total} → {c_total}).",
+            "category": "volume_change",
+        })
+
+
+def _compare_channel_roles(
+    cur_assist: list[dict],
+    prev_assist: list[dict],
+    out: list[dict],
+) -> None:
+    if not cur_assist or not prev_assist:
+        return
+
+    cur_top = max(cur_assist, key=lambda r: r.get("last_touch", 0))
+    prev_top = max(prev_assist, key=lambda r: r.get("last_touch", 0))
+    if cur_top.get("last_touch", 0) == 0:
+        return
+
+    if cur_top["channel"] != prev_top["channel"]:
+        out.append({
+            "type": "info",
+            "icon": "\U0001f451",
+            "text": (
+                f"{cur_top['channel']} artık en güçlü dönüştürücü "
+                f"(önceki: {prev_top['channel']})."
+            ),
+            "category": "role_change",
+        })
+
+    cur_ft = max(cur_assist, key=lambda r: r.get("first_touch", 0))
+    prev_ft = max(prev_assist, key=lambda r: r.get("first_touch", 0))
+    if cur_ft.get("first_touch", 0) > 0 and cur_ft["channel"] != prev_ft["channel"]:
+        out.append({
+            "type": "info",
+            "icon": "\U0001f44b",
+            "text": (
+                f"İlk temas lideri değişti: {prev_ft['channel']} → {cur_ft['channel']}."
+            ),
+            "category": "role_change",
+        })
+
+
+def _detect_new_disappeared_channels(
+    cur: dict[str, float],
+    prev: dict[str, float],
+    out: list[dict],
+) -> None:
+    new_chs = set(cur) - set(prev)
+    gone_chs = set(prev) - set(cur)
+
+    for ch in new_chs:
+        pct = round(cur[ch] * 100, 1)
+        out.append({
+            "type": "info",
+            "icon": "\U0001f195",
+            "text": f"{ch} ilk kez yolculuklarda göründü (%{pct} katkı).",
+            "category": "channel_emergence",
+        })
+
+    for ch in gone_chs:
+        out.append({
+            "type": "warning",
+            "icon": "\U0001f6ab",
+            "text": f"{ch} artık yolculuklarda görünmüyor (önceki: %{round(prev[ch] * 100, 1)}).",
+            "category": "channel_emergence",
+        })
+
+
+def _compare_path_length(
+    cur_stats: dict,
+    prev_stats: dict,
+    out: list[dict],
+) -> None:
+    c_len = cur_stats.get("avg_path_length", cur_stats.get("avg_touchpoints", 0))
+    p_len = prev_stats.get("avg_path_length", prev_stats.get("avg_touchpoints", 0))
+    delta = c_len - p_len
+    if abs(delta) < 0.3:
+        return
+    out.append({
+        "type": "info",
+        "icon": "\U0001f4cf",
+        "text": (
+            f"Ortalama yolculuk uzunluğu {p_len:.1f}'den {c_len:.1f}'e "
+            f"{'çıktı' if delta > 0 else 'düştü'} — kullanıcılar "
+            f"{'daha fazla' if delta > 0 else 'daha az'} kanalla etkileşiyor."
+        ),
+        "category": "path_length_change",
+    })
+
+
+def _compare_concentration(
+    cur: dict[str, float],
+    prev: dict[str, float],
+    out: list[dict],
+) -> None:
+    if not cur or not prev:
+        return
+    cur_top = max(cur.values())
+    prev_top = max(prev.values())
+    delta = cur_top - prev_top
+    if abs(delta) < 0.05:
+        return
+
+    cur_ch = max(cur, key=cur.get)
+    c_pct = round(cur_top * 100, 1)
+    p_pct = round(prev_top * 100, 1)
+    if delta > 0:
+        out.append({
+            "type": "warning",
+            "icon": "\U0001f4b0",
+            "text": (
+                f"{cur_ch} yoğunlaşması arttı (%{p_pct} → %{c_pct}) — "
+                f"bütçe tek kanala bağımlı hale geliyor."
+            ),
+            "category": "concentration_change",
+        })
+    else:
+        out.append({
+            "type": "success",
+            "icon": "\U0001f4b0",
+            "text": (
+                f"Kanal yoğunlaşması azaldı (%{p_pct} → %{c_pct}) — "
+                f"bütçe dağılımı iyileşiyor."
+            ),
+            "category": "concentration_change",
+        })
+
+
 def _insight_data_quality(
     bq_summary: dict,
     journey_stats: dict,

@@ -444,6 +444,180 @@ class TestChannelBenchmarks:
         assert r.json()["available"] is False
 
 
+# --------------- Export & Insight Trends ---------------
+
+
+class TestDDAExport:
+    def _make_campaign(self, auth_headers):
+        rc = client.post("/api/clients", json={"name": "ExportCo", "year": 2026}, headers=auth_headers)
+        assert rc.status_code == 200
+        client_id = rc.json()["id"]
+        rp = client.post(
+            f"/api/clients/{client_id}/campaigns",
+            json={"name": "ExportCampaign"},
+            headers=auth_headers,
+        )
+        assert rp.status_code == 200
+        return rp.json()["id"]
+
+    def test_export_returns_xlsx(self, sample_journeys_csv, auth_headers):
+        """Export endpoint returns a valid xlsx file after a DDA run."""
+        campaign_id = self._make_campaign(auth_headers)
+        client.post(
+            f"/api/dda/run-from-csv?campaign_id={campaign_id}",
+            files={"file": ("j.csv", io.BytesIO(sample_journeys_csv), "text/csv")},
+            headers=auth_headers,
+        )
+        r = client.get(
+            f"/api/export/dda-report?campaign_id={campaign_id}",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert "spreadsheetml" in r.headers["content-type"]
+        assert len(r.content) > 500
+
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(r.content))
+        assert len(wb.sheetnames) >= 3
+        assert "Ozet" in wb.sheetnames
+        assert "Kanal Atfetme" in wb.sheetnames
+        assert "Asist Raporu" in wb.sheetnames
+
+    def test_export_404_no_dda_run(self, auth_headers):
+        """Export returns 404 when no DDA run exists."""
+        campaign_id = self._make_campaign(auth_headers)
+        r = client.get(
+            f"/api/export/dda-report?campaign_id={campaign_id}",
+            headers=auth_headers,
+        )
+        assert r.status_code == 404
+
+    def test_export_requires_auth(self):
+        r = client.get("/api/export/dda-report?campaign_id=1")
+        assert r.status_code == 401
+
+
+class TestInsightTrends:
+    def _make_campaign(self, auth_headers):
+        rc = client.post("/api/clients", json={"name": "TrendCo", "year": 2026}, headers=auth_headers)
+        assert rc.status_code == 200
+        client_id = rc.json()["id"]
+        rp = client.post(
+            f"/api/clients/{client_id}/campaigns",
+            json={"name": "TrendCampaign"},
+            headers=auth_headers,
+        )
+        assert rp.status_code == 200
+        return rp.json()["id"]
+
+    def test_no_runs_returns_unavailable(self, auth_headers):
+        campaign_id = self._make_campaign(auth_headers)
+        r = client.get(
+            f"/api/insights/trend?campaign_id={campaign_id}",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert r.json()["available"] is False
+        assert r.json()["run_count"] == 0
+
+    def test_single_run_returns_unavailable(self, sample_journeys_csv, auth_headers):
+        campaign_id = self._make_campaign(auth_headers)
+        client.post(
+            f"/api/dda/run-from-csv?campaign_id={campaign_id}",
+            files={"file": ("j.csv", io.BytesIO(sample_journeys_csv), "text/csv")},
+            headers=auth_headers,
+        )
+        r = client.get(
+            f"/api/insights/trend?campaign_id={campaign_id}",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["available"] is False
+        assert data["run_count"] == 1
+
+    def test_two_runs_returns_comparison(self, sample_journeys_csv, auth_headers):
+        campaign_id = self._make_campaign(auth_headers)
+        for _ in range(2):
+            client.post(
+                f"/api/dda/run-from-csv?campaign_id={campaign_id}",
+                files={"file": ("j.csv", io.BytesIO(sample_journeys_csv), "text/csv")},
+                headers=auth_headers,
+            )
+        r = client.get(
+            f"/api/insights/trend?campaign_id={campaign_id}",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["available"] is True
+        assert isinstance(data["insights"], list)
+        assert "current_run_date" in data
+        assert "previous_run_date" in data
+        assert "summary" in data
+
+    def test_trend_requires_auth(self):
+        r = client.get("/api/insights/trend?campaign_id=1")
+        assert r.status_code == 401
+
+
+class TestCompareSnapshots:
+    def test_weight_shift_detected(self):
+        from backend.models.dda.insights import compare_snapshots
+        current = {
+            "hybrid_attribution": {"meta": 0.30, "google": 0.50, "tiktok": 0.20},
+            "journey_stats": {"total_journeys": 100, "converted": 10, "conversion_rate": 0.10, "avg_path_length": 2.0},
+            "assist_report": [
+                {"channel": "meta", "last_touch": 5, "first_touch": 3, "assists": 2, "assist_ratio": 0.4, "total_involvement": 10},
+                {"channel": "google", "last_touch": 3, "first_touch": 4, "assists": 3, "assist_ratio": 0.5, "total_involvement": 10},
+            ],
+        }
+        previous = {
+            "hybrid_attribution": {"meta": 0.40, "google": 0.40, "tiktok": 0.20},
+            "journey_stats": {"total_journeys": 90, "converted": 9, "conversion_rate": 0.10, "avg_path_length": 2.0},
+            "assist_report": [
+                {"channel": "meta", "last_touch": 5, "first_touch": 3, "assists": 2, "assist_ratio": 0.4, "total_involvement": 10},
+                {"channel": "google", "last_touch": 3, "first_touch": 4, "assists": 3, "assist_ratio": 0.5, "total_involvement": 10},
+            ],
+        }
+        insights = compare_snapshots(current, previous)
+        categories = [i["category"] for i in insights]
+        assert "attribution_shift" in categories
+        shift = next(i for i in insights if i["category"] == "attribution_shift")
+        assert "meta" in shift["text"].lower() or "google" in shift["text"].lower()
+
+    def test_new_channel_detected(self):
+        from backend.models.dda.insights import compare_snapshots
+        current = {
+            "hybrid_attribution": {"meta": 0.50, "google": 0.40, "linkedin": 0.10},
+            "journey_stats": {"total_journeys": 100, "converted": 10, "conversion_rate": 0.10, "avg_path_length": 2.0},
+            "assist_report": [],
+        }
+        previous = {
+            "hybrid_attribution": {"meta": 0.55, "google": 0.45},
+            "journey_stats": {"total_journeys": 100, "converted": 10, "conversion_rate": 0.10, "avg_path_length": 2.0},
+            "assist_report": [],
+        }
+        insights = compare_snapshots(current, previous)
+        categories = [i["category"] for i in insights]
+        assert "channel_emergence" in categories
+        emergence = next(i for i in insights if i["category"] == "channel_emergence")
+        assert "linkedin" in emergence["text"].lower()
+
+    def test_identical_snapshots_no_insights(self):
+        from backend.models.dda.insights import compare_snapshots
+        snap = {
+            "hybrid_attribution": {"meta": 0.50, "google": 0.50},
+            "journey_stats": {"total_journeys": 100, "converted": 10, "conversion_rate": 0.10, "avg_path_length": 2.0},
+            "assist_report": [
+                {"channel": "meta", "last_touch": 5, "first_touch": 5, "assists": 0, "assist_ratio": 0.0, "total_involvement": 10},
+                {"channel": "google", "last_touch": 5, "first_touch": 5, "assists": 0, "assist_ratio": 0.0, "total_involvement": 10},
+            ],
+        }
+        insights = compare_snapshots(snap, snap)
+        assert insights == []
+
+
 # --------------- Sample Data Flow ---------------
 
 

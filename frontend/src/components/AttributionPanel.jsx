@@ -87,6 +87,36 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
   const [simError, setSimError] = useState('')
   const [showScenario, setShowScenario] = useState(false)
 
+  // Trend analysis
+  const [trendData, setTrendData] = useState(null)
+  const [exportLoading, setExportLoading] = useState(false)
+
+  useEffect(() => {
+    if (!ddaResult || !campaign?.id) return
+    axios.get(`${API}/insights/trend`, { params: { campaign_id: campaign.id } })
+      .then(res => setTrendData(res.data))
+      .catch(() => setTrendData(null))
+  }, [ddaResult, campaign?.id])
+
+  const handleExportReport = useCallback(async () => {
+    if (!campaign?.id) return
+    setExportLoading(true)
+    try {
+      const res = await axios.get(`${API}/export/dda-report`, {
+        params: { campaign_id: campaign.id },
+        responseType: 'blob',
+      })
+      const url = window.URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `attribution_rapor_${campaign.id}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } catch { /* silently fail */ } finally {
+      setExportLoading(false)
+    }
+  }, [campaign?.id])
+
   const handleConnect = useCallback(async () => {
     if (!bqProject || !bqDataset || !bqFile) return
     setConnecting(true)
@@ -830,6 +860,49 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                   )
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Trend Analizi */}
+          {trendData?.available && trendData.insights?.length > 0 && (
+            <div className="dark-card">
+              <div className="card-hdr">
+                <span className="card-title">
+                  Trend Analizi
+                  <InfoTip text="Son iki DDA çalışması arasındaki farkları gösterir. Kanal katkı payı, dönüşüm oranı ve yolculuk hacmi değişimlerini takip eder." />
+                </span>
+                <span className="text-[10px] font-mono text-slate-500">
+                  {trendData.previous_run_date?.slice(0, 10)} → {trendData.current_run_date?.slice(0, 10)}
+                </span>
+              </div>
+              <div className="p-4 space-y-2">
+                {trendData.insights.map((insight, i) => {
+                  const bg = insight.type === 'warning'
+                    ? 'bg-amber-900/20 border-amber-800/30'
+                    : insight.type === 'success'
+                      ? 'bg-emerald-900/20 border-emerald-800/30'
+                      : 'bg-blue-900/20 border-blue-800/30'
+                  return (
+                    <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${bg}`}>
+                      <span className="text-base flex-shrink-0">{insight.icon}</span>
+                      <p className="text-xs text-slate-200 leading-relaxed">{insight.text}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Raporu İndir */}
+          {ddaResult && campaign?.id && (
+            <div className="flex justify-end">
+              <button
+                onClick={handleExportReport}
+                disabled={exportLoading}
+                className="px-4 py-2 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-500 disabled:bg-slate-700 transition-colors"
+              >
+                {exportLoading ? 'Hazırlanıyor...' : 'Raporu İndir (.xlsx)'}
+              </button>
             </div>
           )}
 
