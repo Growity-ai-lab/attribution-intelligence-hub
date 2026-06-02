@@ -28,6 +28,17 @@ class Campaign(Base):
     status = Column(String, default="active")  # active, paused, completed
     created_at = Column(String, nullable=False)
 
+    # BQ Sync config
+    bq_project = Column(String, default="")
+    bq_dataset = Column(String, default="")
+    bq_credentials_enc = Column(String, default="")
+    bq_conversion_events = Column(String, default="purchase")
+    sync_enabled = Column(Integer, default=0)
+    sync_frequency_hours = Column(Integer, default=24)
+    last_sync_at = Column(String, default="")
+    last_sync_status = Column(String, default="")
+    last_sync_error = Column(String, default="")
+
     client = relationship("Client", back_populates="campaigns")
 
 
@@ -113,6 +124,21 @@ class DDAResult(Base):
     # JSON: hybrid_attribution, markov, shapley_dda, assist_report, journey_stats, channel_summary
     result_json = Column(String, nullable=False)
     created_by = Column(String, default="")
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    rule_id = Column(String, nullable=False)
+    severity = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    triggered_at = Column(String, nullable=False, index=True)
+    acknowledged = Column(Integer, default=0)
+    acknowledged_at = Column(String, default="")
+    dda_result_id = Column(Integer, ForeignKey("dda_results.id"), nullable=True)
 
 
 class SalesStockData(Base):
