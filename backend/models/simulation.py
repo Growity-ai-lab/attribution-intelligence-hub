@@ -8,33 +8,23 @@ Scenario projections use Hill saturation for diminishing returns
 when channel saturation params are available, linear fallback otherwise.
 """
 
-from backend.models.mmm import compute_saturation
 from backend.config import SATURATION_PARAMS
+from backend.integrations.bigquery import map_channel
+from backend.models.mmm import compute_saturation
 
 _ORGANIC_MEDIUMS = {"organic", "referral", "(none)", "social", "email", "aylikmail"}
 _ORGANIC_SOURCES = {"(direct)", "direct"}
 
-_CHANNEL_KEYWORDS: list[tuple[str, list[str]]] = [
-    ("meta", ["facebook", "instagram", "meta", "fb", "ig"]),
-    ("google", ["google"]),
-    ("tiktok", ["tiktok"]),
-    ("linkedin", ["linkedin"]),
-    ("dv360", ["dv360", "dbm", "programatik", "programmatic"]),
-    ("youtube", ["youtube"]),
-    ("tv_match", ["tv_match", "tv match"]),
-    ("tv_news", ["tv_news", "tv news"]),
-    ("radio", ["radio", "radyo"]),
-    ("dooh", ["dooh"]),
-]
+_NON_PAID_CHANNELS = {"direct", "other", "organic_search", "referral", "email", "affiliate", "organic_social"}
 
 
 def _resolve_hub_channel(label: str) -> str | None:
     """Map a BQ 'source / medium' label to a hub channel for saturation lookup."""
-    lower = label.lower()
-    for hub_ch, keywords in _CHANNEL_KEYWORDS:
-        if any(kw in lower for kw in keywords):
-            return hub_ch
-    return None
+    parts = label.split(" / ", 1)
+    source = parts[0].strip()
+    medium = parts[1].strip() if len(parts) > 1 else ""
+    result = map_channel(source, medium)
+    return result if result not in _NON_PAID_CHANNELS else None
 
 
 def _saturation_ratio(old_spend: float, new_spend: float, alpha: float, gamma: float) -> float:

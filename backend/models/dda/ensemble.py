@@ -231,10 +231,7 @@ def run_full_dda_pipeline(
         if ch in mmm_channel_shares:
             offline_from_mmm[ch] = mmm_channel_shares[ch]
 
-    # Normalize offline MMM weights
-    off_total = sum(offline_from_mmm.values())
-    if off_total > 0:
-        offline_from_mmm = {ch: v / off_total for ch, v in offline_from_mmm.items()}
+    offline_from_mmm = _normalize_weights(offline_from_mmm)
 
     hybrid_weights = build_hybrid_attribution(
         dda_online,
@@ -246,8 +243,8 @@ def run_full_dda_pipeline(
     # Ensure weights sum to exactly 1.0 (correct float drift from chained normalizations)
     if hybrid_weights:
         hw_total = sum(hybrid_weights.values())
-        if hw_total > 0 and abs(hw_total - 1.0) > 1e-9:
-            hybrid_weights = {ch: v / hw_total for ch, v in hybrid_weights.items()}
+        if hw_total > 0 and abs(hw_total - 1.0) > WEIGHT_SUM_TOLERANCE:
+            hybrid_weights = _normalize_weights(hybrid_weights)
         largest = max(hybrid_weights, key=hybrid_weights.get)
         hybrid_weights[largest] = 1.0 - sum(v for ch, v in hybrid_weights.items() if ch != largest)
 

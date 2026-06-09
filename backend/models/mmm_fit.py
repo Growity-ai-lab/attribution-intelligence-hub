@@ -20,6 +20,8 @@ from sqlalchemy.orm import Session
 from backend.config import (
     ADSTOCK_PARAMS,
     BASELINE_LEADS,
+    DECAY_BOUNDS,
+    GAMMA_BOUNDS,
     MAX_LIFT,
     SATURATION_PARAMS,
 )
@@ -37,7 +39,7 @@ def _model_predict(
     T = spend_matrix.shape[0]
     decays = np.clip(params[0:n_channels], 0.0, 0.99)
     log_alphas = params[n_channels:2 * n_channels]
-    gammas = np.clip(params[2 * n_channels:3 * n_channels], 0.3, 3.0)
+    gammas = np.clip(params[2 * n_channels:3 * n_channels], GAMMA_BOUNDS[0], GAMMA_BOUNDS[1])
     max_lifts = np.maximum(params[3 * n_channels:4 * n_channels], 0.0)
     baseline = max(float(params[4 * n_channels]), 0.0)
 
@@ -105,9 +107,9 @@ def fit_mmm(
         return float(np.sum((pred - y) ** 2))
 
     bounds = (
-        [(0.0, 0.95)] * n
+        [DECAY_BOUNDS] * n
         + [(np.log(1e3), np.log(1e10))] * n
-        + [(0.3, 3.0)] * n
+        + [GAMMA_BOUNDS] * n
         + [(0.0, 1e5)] * n
         + [(0.0, 1e5)]
     )
@@ -127,7 +129,7 @@ def fit_mmm(
         params_out[ch] = {
             "decay": float(np.clip(p[j], 0.0, 0.99)),
             "alpha": float(np.exp(p[n + j])),
-            "gamma": float(np.clip(p[2 * n + j], 0.3, 3.0)),
+            "gamma": float(np.clip(p[2 * n + j], GAMMA_BOUNDS[0], GAMMA_BOUNDS[1])),
             "max_lift": float(max(p[3 * n + j], 0.0)),
         }
 

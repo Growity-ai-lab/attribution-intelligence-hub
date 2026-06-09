@@ -70,3 +70,22 @@ def minimal_journeys():
         {"lead_id": "L4", "channels": ["google", "meta"], "converted": False, "segment": "S2"},
         {"lead_id": "L5", "channels": ["meta", "google"], "converted": True, "segment": "S1"},
     ]
+
+
+@pytest.fixture()
+def make_campaign(client, auth_headers):
+    """Factory fixture: creates a client + campaign and returns the campaign ID."""
+    def _make(name="Test Campaign"):
+        rc = client.post(
+            "/api/clients",
+            json={"name": f"{name} Co", "year": 2026},
+            headers=auth_headers,
+        )
+        cid = rc.json()["id"]
+        rp = client.post(
+            f"/api/clients/{cid}/campaigns",
+            json={"name": name},
+            headers=auth_headers,
+        )
+        return rp.json()["id"]
+    return _make

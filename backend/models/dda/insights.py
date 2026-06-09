@@ -4,6 +4,8 @@ Generates Turkish-language insights from assist report, attribution weights,
 cross-validation, and journey statistics.
 """
 
+from backend.config import SINGLE_TOUCH_THRESHOLD
+
 
 def generate_insights(
     assist_report: list[dict],
@@ -25,7 +27,7 @@ def generate_insights(
         or journey_stats.get("avg_touchpoints")
         or 0
     )
-    is_single_touch = avg_tp <= 1.2
+    is_single_touch = avg_tp <= SINGLE_TOUCH_THRESHOLD
 
     if is_single_touch:
         _insight_single_touch_warning(journey_stats, insights)

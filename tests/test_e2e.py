@@ -308,26 +308,9 @@ class TestReallocationFlow:
 
 
 class TestChannelBenchmarks:
-    def _make_campaign(self, auth_headers):
-        """Create a client + campaign, return campaign_id."""
-        rc = client.post(
-            "/api/clients",
-            json={"name": "Benchmark Test Co", "year": 2026},
-            headers=auth_headers,
-        )
-        assert rc.status_code == 200
-        client_id = rc.json()["id"]
-        rcamp = client.post(
-            f"/api/clients/{client_id}/campaigns",
-            json={"name": "Benchmark Campaign"},
-            headers=auth_headers,
-        )
-        assert rcamp.status_code == 200
-        return rcamp.json()["id"]
-
-    def test_no_dda_run_returns_unavailable(self, auth_headers):
+    def test_no_dda_run_returns_unavailable(self, make_campaign, auth_headers):
         """Benchmark endpoint returns available=False when no DDA run is stored."""
-        campaign_id = self._make_campaign(auth_headers)
+        campaign_id = make_campaign("Benchmark Campaign")
         r = client.get(
             f"/api/benchmarks/channel-metrics?campaign_id={campaign_id}",
             headers=auth_headers,
@@ -336,9 +319,9 @@ class TestChannelBenchmarks:
         data = r.json()
         assert data["available"] is False
 
-    def test_dda_run_populates_benchmarks(self, sample_journeys_csv, auth_headers):
+    def test_dda_run_populates_benchmarks(self, sample_journeys_csv, make_campaign, auth_headers):
         """After a DDA run with campaign_id, benchmarks become available."""
-        campaign_id = self._make_campaign(auth_headers)
+        campaign_id = make_campaign("Benchmark Campaign")
 
         # Run DDA bound to the campaign — should persist a DDAResult
         r1 = client.post(
@@ -370,9 +353,9 @@ class TestChannelBenchmarks:
         r = client.get("/api/benchmarks/channel-metrics?campaign_id=1")
         assert r.status_code == 401
 
-    def test_plan_reconciliation(self, sample_journeys_csv, auth_headers):
+    def test_plan_reconciliation(self, sample_journeys_csv, make_campaign, auth_headers):
         """A saved plan reconciled against a stored DDA run returns deviations."""
-        campaign_id = self._make_campaign(auth_headers)
+        campaign_id = make_campaign("Benchmark Campaign")
 
         # Stored DDA run for the campaign
         r1 = client.post(
@@ -419,9 +402,9 @@ class TestChannelBenchmarks:
         assert data["planned"]["total_spend"] == 2_000_000
         assert "verdict" in data["deviations"]
 
-    def test_reconciliation_unavailable_without_dda(self, auth_headers):
+    def test_reconciliation_unavailable_without_dda(self, make_campaign, auth_headers):
         """Reconciliation returns available=False when no DDA run is stored."""
-        campaign_id = self._make_campaign(auth_headers)
+        campaign_id = make_campaign("Benchmark Campaign")
         rsave = client.post(
             "/api/media-planning/save",
             json={
@@ -448,21 +431,9 @@ class TestChannelBenchmarks:
 
 
 class TestDDAExport:
-    def _make_campaign(self, auth_headers):
-        rc = client.post("/api/clients", json={"name": "ExportCo", "year": 2026}, headers=auth_headers)
-        assert rc.status_code == 200
-        client_id = rc.json()["id"]
-        rp = client.post(
-            f"/api/clients/{client_id}/campaigns",
-            json={"name": "ExportCampaign"},
-            headers=auth_headers,
-        )
-        assert rp.status_code == 200
-        return rp.json()["id"]
-
-    def test_export_returns_xlsx(self, sample_journeys_csv, auth_headers):
+    def test_export_returns_xlsx(self, sample_journeys_csv, make_campaign, auth_headers):
         """Export endpoint returns a valid xlsx file after a DDA run."""
-        campaign_id = self._make_campaign(auth_headers)
+        campaign_id = make_campaign("ExportCampaign")
         client.post(
             f"/api/dda/run-from-csv?campaign_id={campaign_id}",
             files={"file": ("j.csv", io.BytesIO(sample_journeys_csv), "text/csv")},
@@ -483,9 +454,9 @@ class TestDDAExport:
         assert "Kanal Atfetme" in wb.sheetnames
         assert "Asist Raporu" in wb.sheetnames
 
-    def test_export_404_no_dda_run(self, auth_headers):
+    def test_export_404_no_dda_run(self, make_campaign, auth_headers):
         """Export returns 404 when no DDA run exists."""
-        campaign_id = self._make_campaign(auth_headers)
+        campaign_id = make_campaign("ExportCampaign")
         r = client.get(
             f"/api/export/dda-report?campaign_id={campaign_id}",
             headers=auth_headers,
@@ -498,20 +469,8 @@ class TestDDAExport:
 
 
 class TestInsightTrends:
-    def _make_campaign(self, auth_headers):
-        rc = client.post("/api/clients", json={"name": "TrendCo", "year": 2026}, headers=auth_headers)
-        assert rc.status_code == 200
-        client_id = rc.json()["id"]
-        rp = client.post(
-            f"/api/clients/{client_id}/campaigns",
-            json={"name": "TrendCampaign"},
-            headers=auth_headers,
-        )
-        assert rp.status_code == 200
-        return rp.json()["id"]
-
-    def test_no_runs_returns_unavailable(self, auth_headers):
-        campaign_id = self._make_campaign(auth_headers)
+    def test_no_runs_returns_unavailable(self, make_campaign, auth_headers):
+        campaign_id = make_campaign("TrendCampaign")
         r = client.get(
             f"/api/insights/trend?campaign_id={campaign_id}",
             headers=auth_headers,
@@ -520,8 +479,8 @@ class TestInsightTrends:
         assert r.json()["available"] is False
         assert r.json()["run_count"] == 0
 
-    def test_single_run_returns_unavailable(self, sample_journeys_csv, auth_headers):
-        campaign_id = self._make_campaign(auth_headers)
+    def test_single_run_returns_unavailable(self, sample_journeys_csv, make_campaign, auth_headers):
+        campaign_id = make_campaign("TrendCampaign")
         client.post(
             f"/api/dda/run-from-csv?campaign_id={campaign_id}",
             files={"file": ("j.csv", io.BytesIO(sample_journeys_csv), "text/csv")},
@@ -536,8 +495,8 @@ class TestInsightTrends:
         assert data["available"] is False
         assert data["run_count"] == 1
 
-    def test_two_runs_returns_comparison(self, sample_journeys_csv, auth_headers):
-        campaign_id = self._make_campaign(auth_headers)
+    def test_two_runs_returns_comparison(self, sample_journeys_csv, make_campaign, auth_headers):
+        campaign_id = make_campaign("TrendCampaign")
         for _ in range(2):
             client.post(
                 f"/api/dda/run-from-csv?campaign_id={campaign_id}",
@@ -815,14 +774,8 @@ class TestMMMFit:
 
 
 class TestMediaPlanningCRUD:
-    def _make_campaign(self, auth_headers):
-        rc = client.post("/api/clients", json={"name": "PlanCo", "year": 2026}, headers=auth_headers)
-        cid = rc.json()["id"]
-        rp = client.post(f"/api/clients/{cid}/campaigns", json={"name": "PlanCamp"}, headers=auth_headers)
-        return rp.json()["id"]
-
-    def test_save_and_list(self, auth_headers):
-        camp_id = self._make_campaign(auth_headers)
+    def test_save_and_list(self, make_campaign, auth_headers):
+        camp_id = make_campaign("PlanCamp")
         plan = {
             "name": "Meta Q1",
             "channel": "meta",
@@ -840,8 +793,8 @@ class TestMediaPlanningCRUD:
         plans = r2.json()
         assert any(p["id"] == plan_id for p in plans)
 
-    def test_get_by_id(self, auth_headers):
-        camp_id = self._make_campaign(auth_headers)
+    def test_get_by_id(self, make_campaign, auth_headers):
+        camp_id = make_campaign("PlanCamp")
         plan = {
             "name": "Google Q2",
             "channel": "google",
@@ -859,8 +812,8 @@ class TestMediaPlanningCRUD:
         assert data["name"] == "Google Q2"
         assert data["channel"] == "google"
 
-    def test_delete_plan(self, auth_headers):
-        camp_id = self._make_campaign(auth_headers)
+    def test_delete_plan(self, make_campaign, auth_headers):
+        camp_id = make_campaign("PlanCamp")
         plan = {
             "name": "Temp Plan",
             "channel": "meta",
