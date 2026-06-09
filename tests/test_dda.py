@@ -507,3 +507,71 @@ class TestSourceCleaning:
         from backend.integrations.bigquery import _source_medium_label
         assert _source_medium_label("(not set)", "(not set)") == "(bilinmeyen) / (bilinmeyen)"
         assert _source_medium_label(None, None) == "(direct) / (none)"
+
+
+# --------------- Channel Role Classification Tests ---------------
+
+
+class TestChannelRoleClassification:
+    def test_mixed_roles_produced(self):
+        """With varied assist ratios, at least 2 different roles should appear."""
+        from backend.models.dda.data_prep import compute_assist_report, Journey
+
+        journeys = [
+            # meta always first/assist, never last → high assist_ratio
+            Journey(lead_id="1", channels=["meta", "google"], converted=True),
+            Journey(lead_id="2", channels=["meta", "tiktok"], converted=True),
+            Journey(lead_id="3", channels=["meta", "linkedin", "google"], converted=True),
+            Journey(lead_id="4", channels=["meta", "google"], converted=True),
+            Journey(lead_id="5", channels=["meta", "tiktok"], converted=True),
+            # google always last → low assist_ratio
+            Journey(lead_id="6", channels=["tiktok", "google"], converted=True),
+            Journey(lead_id="7", channels=["linkedin", "google"], converted=True),
+            Journey(lead_id="8", channels=["meta", "google"], converted=True),
+        ]
+        report = compute_assist_report(journeys)
+        roles = {r["channel_role"] for r in report}
+        assert len(roles) >= 2, f"Expected at least 2 different roles, got: {roles}"
+
+    def test_single_channel_gets_hibrit(self):
+        """A single-channel dataset should default to Hibrit."""
+        from backend.models.dda.data_prep import compute_assist_report, Journey
+
+        journeys = [
+            Journey(lead_id="1", channels=["meta"], converted=True),
+            Journey(lead_id="2", channels=["meta"], converted=True),
+        ]
+        report = compute_assist_report(journeys)
+        assert len(report) == 1
+        assert report[0]["channel_role"] == "Hibrit"
+
+    def test_extreme_assister_gets_farkindalik(self):
+        """Channel that only appears as assist should get Farkındalık."""
+        from backend.models.dda.data_prep import compute_assist_report, Journey
+
+        journeys = [
+            Journey(lead_id="1", channels=["meta", "google"], converted=True),
+            Journey(lead_id="2", channels=["meta", "google"], converted=True),
+            Journey(lead_id="3", channels=["meta", "google"], converted=True),
+            Journey(lead_id="4", channels=["meta", "google"], converted=True),
+            Journey(lead_id="5", channels=["meta", "google"], converted=True),
+        ]
+        report = compute_assist_report(journeys)
+        meta = next(r for r in report if r["channel"] == "meta")
+        google = next(r for r in report if r["channel"] == "google")
+        assert meta["channel_role"] == "Farkındalık"
+        assert google["channel_role"] == "Dönüştürücü"
+
+    def test_channel_role_field_always_present(self):
+        """Every entry in assist_report must have channel_role."""
+        from backend.models.dda.data_prep import compute_assist_report, Journey
+
+        journeys = [
+            Journey(lead_id="1", channels=["meta", "google", "tiktok"], converted=True),
+            Journey(lead_id="2", channels=["google", "meta"], converted=True),
+            Journey(lead_id="3", channels=["tiktok"], converted=True),
+        ]
+        report = compute_assist_report(journeys)
+        for r in report:
+            assert "channel_role" in r, f"Missing channel_role for {r['channel']}"
+            assert r["channel_role"] in {"Farkındalık", "Dönüştürücü", "Hibrit"}

@@ -95,7 +95,7 @@ def _insight_top_converter(
 def _insight_top_assister(assist_report: list[dict], out: list[dict]) -> None:
     candidates = [
         r for r in assist_report
-        if r["assist_ratio"] >= 0.55 and r["total_involvement"] >= 5
+        if r.get("channel_role") == "Farkındalık" and r["total_involvement"] >= 5
     ]
     if not candidates:
         return

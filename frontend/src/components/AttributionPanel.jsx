@@ -800,12 +800,12 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
 
                         const rolLabel = isSingleTouch
                           ? fmtPct(share)
-                          : ratio >= 0.55 ? 'Farkındalık' : ratio <= 0.25 ? 'Dönüştürücü' : 'Hibrit'
+                          : (r.channel_role || 'Hibrit')
                         const rolColor = isSingleTouch
                           ? 'bg-slate-500/15 text-slate-300'
-                          : ratio >= 0.55
+                          : rolLabel === 'Farkındalık'
                             ? 'bg-amber-500/15 text-amber-400'
-                            : ratio <= 0.25
+                            : rolLabel === 'Dönüştürücü'
                               ? 'bg-emerald-500/15 text-emerald-400'
                               : 'bg-blue-500/15 text-blue-400'
                         return (

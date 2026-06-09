@@ -241,6 +241,24 @@ def compute_assist_report(journeys: list[Journey]) -> list[dict]:
         })
 
     results.sort(key=lambda x: -x["total_involvement"])
+
+    ratios = sorted(r["assist_ratio"] for r in results if r["total_involvement"] > 0)
+    if len(ratios) >= 2:
+        mid = len(ratios) // 2
+        median_ratio = (ratios[mid - 1] + ratios[mid]) / 2 if len(ratios) % 2 == 0 else ratios[mid]
+        delta = 0.10
+        for r in results:
+            ar = r["assist_ratio"]
+            if ar >= median_ratio + delta:
+                r["channel_role"] = "Farkındalık"
+            elif ar <= median_ratio - delta:
+                r["channel_role"] = "Dönüştürücü"
+            else:
+                r["channel_role"] = "Hibrit"
+    else:
+        for r in results:
+            r["channel_role"] = "Hibrit"
+
     return results
 
 
