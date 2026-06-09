@@ -43,19 +43,19 @@ def _write_title(ws, campaign_name: str, run_date: str) -> None:
 
 def _build_summary_sheet(wb: Workbook, result: dict, campaign_name: str, run_date: str) -> None:
     ws = wb.active
-    ws.title = "Ozet"
+    ws.title = "Özet"
     _write_title(ws, campaign_name, run_date)
 
     stats = result.get("journey_stats", {})
-    _write_header(ws, 4, ["Metrik", "Deger"])
+    _write_header(ws, 4, ["Metrik", "Değer"])
 
     rows = [
         ("Toplam Yolculuk", stats.get("total_journeys", 0), _NUM_FMT),
-        ("Donusum Yapan", stats.get("converted", 0), _NUM_FMT),
-        ("Donusum Orani", stats.get("conversion_rate", 0), _PCT_FMT),
-        ("Ort. Temas Noktasi", stats.get("avg_path_length", stats.get("avg_touchpoints", 0)), _DEC_FMT),
+        ("Dönüşüm Yapan", stats.get("converted", 0), _NUM_FMT),
+        ("Dönüşüm Oranı", stats.get("conversion_rate", 0), _PCT_FMT),
+        ("Ort. Temas Noktası", stats.get("avg_path_length", stats.get("avg_touchpoints", 0)), _DEC_FMT),
         ("Tek Temas %", stats.get("single_touch_pct", 0), _PCT_FMT),
-        ("Coklu Temas %", stats.get("multi_touch_pct", 0), _PCT_FMT),
+        ("Çoklu Temas %", stats.get("multi_touch_pct", 0), _PCT_FMT),
     ]
     for i, (label, val, fmt) in enumerate(rows, 5):
         ws.cell(row=i, column=1, value=label)
@@ -67,7 +67,7 @@ def _build_summary_sheet(wb: Workbook, result: dict, campaign_name: str, run_dat
     conv_prob = markov.get("conversion_probability", 0)
     if conv_prob:
         r = len(rows) + 6
-        ws.cell(row=r, column=1, value="Markov Donusum Olasiligi")
+        ws.cell(row=r, column=1, value="Markov Dönüşüm Olasılığı")
         c = ws.cell(row=r, column=2, value=conv_prob)
         c.number_format = _PCT_FMT
 
@@ -81,7 +81,7 @@ def _build_attribution_sheet(wb: Workbook, result: dict) -> None:
     shapley = result.get("shapley_dda", {})
     removal = result.get("markov", {}).get("removal_effects", {})
 
-    _write_header(ws, 1, ["Kanal", "DDA Katki (%)", "Markov (%)", "Shapley (%)", "Kaldirim Etkisi"])
+    _write_header(ws, 1, ["Kanal", "DDA Katkı (%)", "Markov (%)", "Shapley (%)", "Kaldırma Etkisi"])
 
     channels = sorted(hybrid.keys(), key=lambda ch: -hybrid.get(ch, 0))
     for i, ch in enumerate(channels, 2):
@@ -100,7 +100,7 @@ def _build_attribution_sheet(wb: Workbook, result: dict) -> None:
 def _build_assist_sheet(wb: Workbook, result: dict) -> None:
     ws = wb.create_sheet("Asist Raporu")
     report = result.get("assist_report", [])
-    _write_header(ws, 1, ["Kanal", "Son Temas", "Ilk Temas", "Asist", "Asist Orani", "Toplam Katilim"])
+    _write_header(ws, 1, ["Kanal", "Son Temas", "İlk Temas", "Asist", "Asist Oranı", "Toplam Katılım"])
 
     for i, row in enumerate(report, 2):
         ws.cell(row=i, column=1, value=row.get("channel", ""))
@@ -117,8 +117,8 @@ def _build_paths_sheet(wb: Workbook, result: dict) -> None:
     paths = result.get("top_paths", [])
     if not paths:
         return
-    ws = wb.create_sheet("Donusum Yollari")
-    _write_header(ws, 1, ["#", "Yol", "Sayi", "Donusum Orani"])
+    ws = wb.create_sheet("Dönüşüm Yolları")
+    _write_header(ws, 1, ["#", "Yol", "Sayı", "Dönüşüm Oranı"])
 
     for i, p in enumerate(paths[:20], 2):
         ws.cell(row=i, column=1, value=i - 1)
@@ -138,7 +138,7 @@ def _build_insights_sheet(wb: Workbook, result: dict) -> None:
     insights = result.get("insights", [])
     if not insights:
         return
-    ws = wb.create_sheet("Cikarimlar")
+    ws = wb.create_sheet("Çıkarımlar")
 
     type_fills = {
         "warning": PatternFill(start_color="451a03", end_color="451a03", fill_type="solid"),
@@ -151,7 +151,7 @@ def _build_insights_sheet(wb: Workbook, result: dict) -> None:
         "info": Font(color="60a5fa", size=10),
     }
 
-    _write_header(ws, 1, ["Tip", "Kategori", "Cikarim"])
+    _write_header(ws, 1, ["Tip", "Kategori", "Çıkarım"])
 
     for i, ins in enumerate(insights, 2):
         t = ins.get("type", "info")

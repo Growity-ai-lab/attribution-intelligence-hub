@@ -133,7 +133,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       if (detail) {
         setConnectError(detail)
       } else if (err.code === 'ERR_NETWORK') {
-        setConnectError('Backend sunucusuna ulasilamiyor. Sunucunun calisiyor oldugundan emin olun.')
+        setConnectError('Backend sunucusuna ulaşılamıyor. Sunucunun çalışıyor olduğundan emin olun.')
       } else {
         setConnectError(err.message || 'Bilinmeyen hata')
       }
@@ -327,7 +327,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
         ))}
         {connected && (
           <span className="ml-auto px-2.5 py-1 rounded-full text-[10px] font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 self-center">
-            BQ Bagli: {connected.event_tables} tablo
+            BQ Bağlı: {connected.event_tables} tablo
           </span>
         )}
       </div>
@@ -336,7 +336,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       {sourceTab === 'bigquery' && (
         <div className="dark-card">
           <div className="card-hdr">
-            <span className="card-title">BigQuery Baglantisi</span>
+            <span className="card-title">BigQuery Bağlantısı</span>
             {connected && (
               <span className="text-[10px] font-mono text-slate-500">
                 {connected.first_date} — {connected.last_date}
@@ -385,18 +385,18 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                   disabled={connecting || !bqProject || !bqDataset || !bqFile}
                   className="px-4 py-2 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {connecting ? 'Baglaniyor...' : 'Baglan'}
+                  {connecting ? 'Bağlanıyor...' : 'Bağlan'}
                 </button>
               </>
             ) : (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                    <p className="text-[10px] text-slate-500 uppercase">Event Tablolari</p>
+                    <p className="text-[10px] text-slate-500 uppercase">Event Tabloları</p>
                     <p className="text-sm font-mono text-slate-100 mt-0.5">{connected.event_tables}</p>
                   </div>
                   <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                    <p className="text-[10px] text-slate-500 uppercase">Ilk Tarih</p>
+                    <p className="text-[10px] text-slate-500 uppercase">İlk Tarih</p>
                     <p className="text-sm font-mono text-slate-100 mt-0.5">{connected.first_date}</p>
                   </div>
                   <div className="bg-dark-bg rounded-lg p-2.5 text-center">
@@ -411,12 +411,12 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
 
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-1">Baslangic</label>
+                    <label className="text-[10px] text-slate-500 block mb-1">Başlangıç</label>
                     <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
                       className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-accent" />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-1">Bitis</label>
+                    <label className="text-[10px] text-slate-500 block mb-1">Bitiş</label>
                     <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
                       className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-accent" />
                   </div>
@@ -434,20 +434,20 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                     disabled={previewLoading}
                     className="px-4 py-2 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-300 hover:text-slate-100 transition-colors disabled:opacity-40"
                   >
-                    {previewLoading ? 'Sorgu calisiyor...' : 'Onizle'}
+                    {previewLoading ? 'Sorgu çalışıyor...' : 'Önizle'}
                   </button>
                   <button
                     onClick={handleRunDDA}
                     disabled={ddaLoading}
                     className="px-4 py-2 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-40"
                   >
-                    {ddaLoading ? 'Analiz calisiyor...' : 'Attribution Analizi Baslat'}
+                    {ddaLoading ? 'Analiz çalışıyor...' : 'Attribution Analizi Başlat'}
                   </button>
                   <button
                     onClick={() => { setConnected(null); setPreview(null); setDdaResult(null) }}
                     className="px-3 py-2 rounded-lg text-xs text-slate-500 hover:text-slate-300 transition-colors ml-auto"
                   >
-                    Baglantıyı Kes
+                    Bağlantıyı Kes
                   </button>
                 </div>
               </>
@@ -464,7 +464,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
           </div>
           <div className="p-4 space-y-3">
             <p className="text-xs text-slate-500">
-              BigQuery baglantisi yoksa, CRM/analytics touchpoint CSV dosyasini yukleyebilirsiniz.
+              BigQuery bağlantısı yoksa, CRM/analytics touchpoint CSV dosyasını yükleyebilirsiniz.
             </p>
             <input
               type="file"
@@ -477,7 +477,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
               disabled={ddaLoading || !csvFile}
               className="px-4 py-2 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {ddaLoading ? 'Analiz calisiyor...' : 'Attribution Analizi Baslat'}
+              {ddaLoading ? 'Analiz çalışıyor...' : 'Attribution Analizi Başlat'}
             </button>
           </div>
         </div>
@@ -487,7 +487,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       {preview && !ddaResult && (
         <div className="dark-card">
           <div className="card-hdr">
-            <span className="card-title">Veri Onizleme</span>
+            <span className="card-title">Veri Önizleme</span>
             <span className="text-[10px] font-mono text-slate-500">
               {preview.start_date} — {preview.end_date}
             </span>
@@ -503,11 +503,11 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                 <p className="text-sm font-mono text-slate-100">{fmtN(preview.sessions || preview.unique_users)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Benzersiz Kullanici</p>
+                <p className="text-[10px] text-slate-500 uppercase">Benzersiz Kullanıcı</p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(preview.unique_users)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Donusum (kullanici)</p>
+                <p className="text-[10px] text-slate-500 uppercase">Dönüşüm (kullanıcı)</p>
                 <p className="text-sm font-mono text-accent">{fmtN(preview.conversions)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
@@ -517,7 +517,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
             </div>
             {preview.channels && (
               <div className="space-y-1">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Kanal Dagilimi</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Kanal Dağılımı</p>
                 {Object.entries(preview.channels).slice(0, 15).map(([ch, count], i) => (
                   <div key={ch} className="flex items-center gap-2 text-xs">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getChannelColor(ch, i) }} />
@@ -664,7 +664,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
             return (
               <div className="dark-card">
                 <div className="card-hdr">
-                  <span className="card-title">Kanal Bazli Atfedilen Gelir</span>
+                  <span className="card-title">Kanal Bazlı Atfedilen Gelir</span>
                   <span className="text-[10px] font-mono text-slate-500">
                     Toplam gelir: {fmtMoney(totalRev)} TL
                   </span>
@@ -1235,7 +1235,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
 
       {/* Loading */}
       {ddaLoading && (
-        <div className="text-center py-12 text-slate-500 text-sm">Attribution analizi calisiyor...</div>
+        <div className="text-center py-12 text-slate-500 text-sm">Attribution analizi çalışıyor...</div>
       )}
     </div>
   )

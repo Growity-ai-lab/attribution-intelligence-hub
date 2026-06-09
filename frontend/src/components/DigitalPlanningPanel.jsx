@@ -39,7 +39,7 @@ const CHANNEL_MAP_KEYWORDS = {
 }
 
 // Header column detection keywords (Turkish media plan conventions)
-const SPEND_COL_KEYWORDS = ['net yayin bedeli', 'net yayın bedeli', 'butce', 'bütçe', 'her sey dahil', 'her şey dahil', 'toplam maliyet', 'total cost', 'spend', 'harcama']
+const SPEND_COL_KEYWORDS = ['net yayin bedeli', 'net yayın bedeli', 'butce', 'bütçe', 'her sey dahil', 'her şey dahil', 'toplam maliyet', 'total cost', 'spend', 'harcama', 'net yayın bedeli']
 const MECRA_COL_KEYWORDS = ['mecra', 'media', 'kanal', 'channel']
 const SITE_COL_KEYWORDS = ['site', 'network', 'site/network', 'platform']
 const IMP_COL_KEYWORDS = ['planlanan', 'impression', 'imp', 'goruntulenme', 'görüntülenme']
@@ -81,7 +81,7 @@ function parseMediaPlanExcel(file) {
           }
         }
         if (headerIdx === -1) {
-          reject(new Error('Baslik satiri bulunamadi. "Mecra" veya "Platform" kolonu gerekli.'))
+          reject(new Error('Başlık satırı bulunamadı. "Mecra" veya "Platform" sütunu gerekli.'))
           return
         }
 
@@ -94,7 +94,7 @@ function parseMediaPlanExcel(file) {
         const durationIdx = findColIndex(headers, DURATION_COL_KEYWORDS)
 
         if (spendIdx === -1) {
-          reject(new Error('Butce/spend kolonu bulunamadi. "Net Yayin Bedeli" veya "Butce" kolonu gerekli.'))
+          reject(new Error('Bütçe/spend sütunu bulunamadı. "Net Yayın Bedeli" veya "Bütçe" sütunu gerekli.'))
           return
         }
 
@@ -745,18 +745,18 @@ export default function DigitalPlanningPanel({ campaign }) {
       {/* Deviation warning banner */}
       {result && deviationHigh && (
         <div className="px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-xs text-yellow-300 leading-relaxed">
-          <strong>Tutarlilik Uyarisi:</strong> Iki tahmin yontemi %{Math.abs(deviationPct).toFixed(0)} farkli sonuc veriyor.
-          {' '}Yanit modeli (adstock + doygunluk) ile funnel hesabi (CPM/CTR/Lead Rate) farkli varsayimlara dayanir;
-          bu fark, varsayimlarin birbiriyle tutarsiz oldugunu gosterir — biri yanlis degil, ikisi ayni gercegi yansitmiyor.
-          {' '}Gelismis ayarlardan CPM/CTR/Lead Rate degerlerini gercege yaklastirabilirsiniz.
-          {' '}Gercek dogrulama icin asagidaki GA4 saglama kartina bakin.
+          <strong>Tutarlılık Uyarısı:</strong> İki tahmin yöntemi %{Math.abs(deviationPct).toFixed(0)} farklı sonuç veriyor.
+          {' '}Yanıt modeli (adstock + doygunluk) ile funnel hesabı (CPM/CTR/Lead Rate) farklı varsayımlara dayanır;
+          bu fark, varsayımların birbiriyle tutarsız olduğunu gösterir — biri yanlış değil, ikisi aynı gerçeği yansıtmıyor.
+          {' '}Gelişmiş ayarlardan CPM/CTR/Lead Rate değerlerini gerçeğe yaklaştırabilirsiniz.
+          {' '}Gerçek doğrulama için aşağıdaki GA4 sağlama kartına bakın.
         </div>
       )}
 
       {/* Row 2: Spend Input Card */}
       <div className="dark-card">
         <div className="card-hdr">
-          <span className="card-title">Haftalik Harcama (TL)</span>
+          <span className="card-title">Haftalık Harcama (TL)</span>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-500 font-mono">
               Toplam: {fmtMoney(totalSpend)} TL
@@ -778,13 +778,13 @@ export default function DigitalPlanningPanel({ campaign }) {
               onClick={() => { refreshSavedPlans(); setShowSavedList(!showSavedList) }}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200 transition-colors"
             >
-              Yukle
+              Yükle
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-500/15 border border-blue-500/30 text-blue-400 hover:bg-blue-500/25 transition-colors"
             >
-              Excel Ice Aktar
+              Excel İçe Aktar
             </button>
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
             {result && (
@@ -806,7 +806,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               value={saveName}
               onChange={e => setSaveName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
-              placeholder="Simulasyon adi..."
+              placeholder="Simülasyon adı..."
               className="flex-1 bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
               autoFocus
             />
@@ -814,7 +814,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               Kaydet
             </button>
             <button onClick={() => setShowSaveModal(false)} className="px-3 py-1.5 bg-dark-card border border-dark-border text-slate-400 rounded-lg text-xs">
-              Iptal
+              İptal
             </button>
           </div>
         )}
@@ -862,7 +862,7 @@ export default function DigitalPlanningPanel({ campaign }) {
             {!reconciliation.available ? (
               <div className="flex items-center justify-between">
                 <p className="text-xs text-yellow-400">
-                  Saglama verisi yok — bu kampanya icin henuz DDA calistirilmadi. Attribution sekmesinden DDA calistirin.
+                  Sağlama verisi yok — bu kampanya için henüz DDA çalıştırılmadı. Attribution sekmesinden DDA çalıştırın.
                 </p>
                 <button onClick={() => setReconciliation(null)} className="text-slate-500 text-xs ml-2">x</button>
               </div>
@@ -871,7 +871,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-medium text-slate-200">
-                      Plan vs Gerceklesme — {CHANNEL_LABELS[reconciliation.channel] || reconciliation.channel}
+                      Plan vs Gerçekleşme — {CHANNEL_LABELS[reconciliation.channel] || reconciliation.channel}
                     </p>
                     <p className="text-[10px] text-slate-500 mt-0.5">
                       DDA verisi: {reconciliation.run_date ? new Date(reconciliation.run_date).toLocaleDateString('tr-TR') : ''}
@@ -909,10 +909,10 @@ export default function DigitalPlanningPanel({ campaign }) {
 
                   {/* Actual (DDA) */}
                   <div className="bg-dark-bg/50 rounded-lg p-3 border border-emerald-500/20">
-                    <p className="text-[10px] text-emerald-400 uppercase tracking-wide mb-2">GA4 Gerceklesme (DDA)</p>
+                    <p className="text-[10px] text-emerald-400 uppercase tracking-wide mb-2">GA4 Gerçekleşme (DDA)</p>
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-xs">
-                        <span className="text-slate-400">Toplam Donusum</span>
+                        <span className="text-slate-400">Toplam Dönüşüm</span>
                         <span className="font-mono text-emerald-400">{Math.round(reconciliation.actual.total_conversions)}</span>
                       </div>
                       <div className="flex justify-between text-xs">
@@ -977,12 +977,12 @@ export default function DigitalPlanningPanel({ campaign }) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-100">
-                    Plan Ice Aktarma
+                    Plan İçe Aktarma
                     {importData.brand && <span className="text-slate-500 ml-2">| {importData.brand}</span>}
                     {importData.campaignName && <span className="text-accent ml-1">{importData.campaignName}</span>}
                   </p>
                   <p className="text-[10px] text-slate-500 mt-0.5">
-                    {importData.lineItems.length} satir okundu | Toplam eslesen: {fmtMoney(totalMapped)} TL
+                    {importData.lineItems.length} satır okundu | Toplam eşleşen: {fmtMoney(totalMapped)} TL
                   </p>
                 </div>
                 <button onClick={() => { setShowImportModal(false); setImportData(null) }}
@@ -991,10 +991,10 @@ export default function DigitalPlanningPanel({ campaign }) {
 
               {/* Distribution mode */}
               <div className="flex items-center gap-3">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wide">Dagitim:</span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-wide">Dağıtım:</span>
                 {[
-                  { id: 'front-loaded', label: 'On Agirlikli' },
-                  { id: 'even', label: 'Esit' },
+                  { id: 'front-loaded', label: 'Ön Ağırlıklı' },
+                  { id: 'even', label: 'Eşit' },
                 ].map(d => (
                   <button
                     key={d.id}
@@ -1014,7 +1014,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               {/* Mapped channels */}
               {mappedChannels.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Eslesen Kanallar</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Eşleşen Kanallar</p>
                   {mappedChannels.map(ch => (
                     <div key={ch} className="flex items-center justify-between px-3 py-2.5 bg-dark-card rounded-lg border border-dark-border group">
                       <div className="flex items-center gap-3">
@@ -1044,7 +1044,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               {/* Unmapped items */}
               {unmappedItems.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Eslenmeyen Satirlar</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Eşlenmeyen Satırlar</p>
                   {unmappedItems.map(item => (
                     <div key={item.rowIndex} className="flex items-center justify-between px-3 py-2 bg-dark-card/50 rounded-lg border border-yellow-500/20">
                       <div>
@@ -1077,7 +1077,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                     onClick={handleImportApplyAll}
                     className="px-4 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors"
                   >
-                    Ilk Kanali Uygula ({CHANNEL_LABELS[mappedChannels[0]]})
+                    İlk Kanalı Uygula ({CHANNEL_LABELS[mappedChannels[0]]})
                   </button>
                 </div>
               )}
@@ -1119,7 +1119,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               onClick={() => setShowAdvanced(!showAdvanced)}
               className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1"
             >
-              Gelismis Ayarlar {showAdvanced ? '▴' : '▾'}
+              Gelişmiş Ayarlar {showAdvanced ? '▴' : '▾'}
             </button>
             {showAdvanced && (
               <div className="mt-2 p-3 bg-dark-bg/50 rounded-lg border border-dark-border">
@@ -1184,7 +1184,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtMoney(result.summary?.total_spend || totalSpend)} TL</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Ort. Haftalik</p>
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Ort. Haftalık</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtMoney(result.summary?.avg_weekly_spend || totalSpend / numWeeks)} TL</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
@@ -1290,7 +1290,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                   { id: 'adstock', label: 'Carryover & Adstock' },
                   { id: 'saturation', label: 'Saturation' },
                   { id: 'reach', label: 'Reach & Frequency' },
-                  { id: 'response', label: 'Haftalik Lead' },
+                  { id: 'response', label: 'Haftalık Lead' },
                 ].map(t => (
                   <button
                     key={t.id}
@@ -1340,10 +1340,10 @@ export default function DigitalPlanningPanel({ campaign }) {
                     <strong className="text-slate-300">{channelLabel}</strong>
                     {' kanalinda λ='}{result.decay}{' decay parametresi ile reklam etkisi '}
                     <strong className="text-accent">{halfLife} haftada</strong>
-                    {' yarisina duser. '}
+                    {' yarısına düşer. '}
                     {result.decay >= 0.3
-                      ? 'Orta-yuksek carry-over: harcama durdurulsa bile etki birden sifirlanmaz.'
-                      : 'Dusuk carry-over: etki hemen sonumlenir, surekli harcama onemlidir.'}
+                      ? 'Orta-yüksek carry-over: harcama durdurulsa bile etki birden sıfırlanmaz.'
+                      : 'Düşük carry-over: etki hemen sönümlenir, sürekli harcama önemlidir.'}
                   </div>
                 </>
               )}
@@ -1424,8 +1424,8 @@ export default function DigitalPlanningPanel({ campaign }) {
                     {responseChartData && <Bar data={responseChartData} options={barOpts} />}
                   </div>
                   <div className="mt-3 p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed">
-                    <strong className="text-slate-300">Haftalik Lead Tahmini (Yanit Modeli):</strong>
-                    {' Spend → Adstock → Saturation → Response pipeline sonucu tahmini haftalik lead sayisi. '}
+                    <strong className="text-slate-300">Haftalık Lead Tahmini (Yanıt Modeli):</strong>
+                    {' Spend → Adstock → Saturation → Response pipeline sonucu tahmini haftalık lead sayısı. '}
                     {'Peak hafta: W'}{result.summary?.peak_week}
                     {' ('}{result.weekly_details[result.summary?.peak_week - 1]?.estimated_leads.toFixed(0)}{' lead).'}
                   </div>
@@ -1466,12 +1466,12 @@ export default function DigitalPlanningPanel({ campaign }) {
           {/* Weekly Detail Table */}
           <div className="dark-card">
             <div className="card-hdr">
-              <span className="card-title">Haftalik Detay</span>
+              <span className="card-title">Haftalık Detay</span>
               <button
                 onClick={exportCSV}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200 transition-colors"
               >
-                CSV Indir
+                CSV İndir
               </button>
             </div>
             <div className="p-4 overflow-x-auto">
@@ -1525,13 +1525,13 @@ export default function DigitalPlanningPanel({ campaign }) {
 
       {/* Loading indicator */}
       {loading && !result && (
-        <div className="text-center py-12 text-slate-500 text-sm">Simulasyon calisiyor...</div>
+        <div className="text-center py-12 text-slate-500 text-sm">Simülasyon çalışıyor...</div>
       )}
 
       {/* Empty state */}
       {!loading && !result && (
         <div className="text-center py-12 text-slate-500 text-sm">
-          Haftalik harcama degerlerini girerek simulasyonu baslatin.
+          Haftalık harcama değerlerini girerek simülasyonu başlatın.
         </div>
       )}
     </div>

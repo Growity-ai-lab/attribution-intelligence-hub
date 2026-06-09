@@ -244,8 +244,8 @@ def generate_budget_recommendations(
                     "action": "degerlendirmeli",
                     "icon": "\U0001f4a1",
                     "reason": (
-                        f"Bu kanal organik trafik getiriyor (katki payi %{round(d['weight']*100,1)}). "
-                        f"Ucretli destekle test edilebilir."
+                        f"Bu kanal organik trafik getiriyor (katkı payı %{round(d['weight']*100,1)}). "
+                        f"Ücretli destekle test edilebilir."
                     ),
                 })
             continue
@@ -263,8 +263,8 @@ def generate_budget_recommendations(
                     "action": "artir",
                     "icon": "▲",
                     "reason": (
-                        f"ROAS ({roas:.1f}x) ortalamanin ({avg_roas:.1f}x) cok ustunde{cpa_info} — "
-                        f"butce artirilabilir."
+                        f"ROAS ({roas:.1f}x) ortalamanın ({avg_roas:.1f}x) çok üstünde{cpa_info} — "
+                        f"bütçe artırılabilir."
                     ),
                 })
             elif roas <= avg_roas * 0.5:
@@ -273,8 +273,8 @@ def generate_budget_recommendations(
                     "action": "azalt",
                     "icon": "▼",
                     "reason": (
-                        f"ROAS ({roas:.1f}x) ortalamanin ({avg_roas:.1f}x) cok altinda{cpa_info} — "
-                        f"butceyi verimli kanallara kaydirmak dusunulebilir."
+                        f"ROAS ({roas:.1f}x) ortalamanın ({avg_roas:.1f}x) çok altında{cpa_info} — "
+                        f"bütçeyi verimli kanallara kaydırmak düşünülebilir."
                     ),
                 })
             else:
@@ -282,7 +282,7 @@ def generate_budget_recommendations(
                     "channel": ch,
                     "action": "koru",
                     "icon": "↔",
-                    "reason": f"ROAS ({roas:.1f}x) ortalama seviyede{cpa_info} — mevcut butce korunabilir.",
+                    "reason": f"ROAS ({roas:.1f}x) ortalama seviyede{cpa_info} — mevcut bütçe korunabilir.",
                 })
         else:
             if cpa <= avg_cpa * 0.6:
@@ -291,8 +291,8 @@ def generate_budget_recommendations(
                     "action": "artir",
                     "icon": "▲",
                     "reason": (
-                        f"CPA ({cpa:,.0f}₺) ortalamanin ({avg_cpa:,.0f}₺) cok altinda — "
-                        f"bu kanal dusuk maliyetle donusum getiriyor, butce artirilabilir."
+                        f"CPA ({cpa:,.0f}₺) ortalamanın ({avg_cpa:,.0f}₺) çok altında — "
+                        f"bu kanal düşük maliyetle dönüşüm getiriyor, bütçe artırılabilir."
                     ),
                 })
             elif cpa >= avg_cpa * 1.5:
@@ -301,8 +301,8 @@ def generate_budget_recommendations(
                     "action": "azalt",
                     "icon": "▼",
                     "reason": (
-                        f"CPA ({cpa:,.0f}₺) ortalamanin ({avg_cpa:,.0f}₺) cok ustunde — "
-                        f"donusum maliyeti yuksek, butceyi verimli kanallara kaydirin."
+                        f"CPA ({cpa:,.0f}₺) ortalamanın ({avg_cpa:,.0f}₺) çok üstünde — "
+                        f"dönüşüm maliyeti yüksek, bütçeyi verimli kanallara kaydırın."
                     ),
                 })
             else:
@@ -310,7 +310,7 @@ def generate_budget_recommendations(
                     "channel": ch,
                     "action": "koru",
                     "icon": "↔",
-                    "reason": f"CPA ({cpa:,.0f}₺) ortalama seviyede ({avg_cpa:,.0f}₺) — mevcut butce korunabilir.",
+                    "reason": f"CPA ({cpa:,.0f}₺) ortalama seviyede ({avg_cpa:,.0f}₺) — mevcut bütçe korunabilir.",
                 })
 
     return recs

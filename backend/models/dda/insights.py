@@ -556,9 +556,9 @@ def _insight_data_quality(
                 "type": "warning",
                 "icon": "⚠️",
                 "text": (
-                    f"Donusum orani cok yuksek (%{round(conv_rate * 100, 1)}) — "
-                    f"{users} benzersiz kullanicidan {conversions}'i donusum yapmis. "
-                    f"Conversion event tanimini kontrol edin, yanlis event secilmis olabilir."
+                    f"Dönüşüm oranı çok yüksek (%{round(conv_rate * 100, 1)}) — "
+                    f"{users} benzersiz kullanıcıdan {conversions}'i dönüşüm yapmış. "
+                    f"Conversion event tanımını kontrol edin, yanlış event seçilmiş olabilir."
                 ),
                 "category": "data_quality",
             })
@@ -570,8 +570,8 @@ def _insight_data_quality(
                 "type": "warning",
                 "icon": "⚠️",
                 "text": (
-                    f"Ortalama siparis degeri cok dusuk ({aov:.2f} TL). "
-                    f"GA4'te e-ticaret gelir takibi dogru yapilandirılmamis olabilir."
+                    f"Ortalama sipariş değeri çok düşük ({aov:.2f} TL). "
+                    f"GA4'te e-ticaret gelir takibi doğru yapılandırılmamış olabilir."
                 ),
                 "category": "data_quality",
             })
@@ -580,7 +580,7 @@ def _insight_data_quality(
                 "type": "warning",
                 "icon": "⚠️",
                 "text": (
-                    f"Ortalama siparis degeri cok yuksek ({aov:,.0f} TL). "
+                    f"Ortalama sipariş değeri çok yüksek ({aov:,.0f} TL). "
                     f"Gelir verisinde duplikasyon veya para birimi sorunu olabilir."
                 ),
                 "category": "data_quality",
@@ -598,9 +598,9 @@ def _insight_data_quality(
                 "type": "info",
                 "icon": "\U0001f4a1",
                 "text": (
-                    f"Ortalama temas noktasi {avg_tp:.2f} — kullanicilarin buyuk cogunlugu tek oturumda "
-                    f"donusum yapiyor. GA4 User-ID veya Google Signals aktif edilirse "
-                    f"capraz oturum yolculuklari birlestirilir ve asist analizi daha anlamli hale gelir."
+                    f"Ortalama temas noktası {avg_tp:.2f} — kullanıcıların büyük çoğunluğu tek oturumda "
+                    f"dönüşüm yapıyor. GA4 User-ID veya Google Signals aktif edilirse "
+                    f"çapraz oturum yolculukları birleştirilir ve asist analizi daha anlamlı hale gelir."
                 ),
                 "category": "data_quality",
             })
