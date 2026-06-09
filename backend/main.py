@@ -10,11 +10,12 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
 from backend.api.routes import router
-from backend.db.database import Base, engine
+from backend.db.database import Base, engine, migrate_add_columns
 from backend.db.seed import seed_clients_and_campaigns
 
-# Create all tables on startup
+# Create all tables on startup, then migrate any missing columns
 Base.metadata.create_all(bind=engine)
+migrate_add_columns()
 
 # Seed demo clients & campaigns (no-op if data already exists)
 seed_clients_and_campaigns()
