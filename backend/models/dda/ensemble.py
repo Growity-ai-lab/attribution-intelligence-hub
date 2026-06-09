@@ -248,6 +248,14 @@ def run_full_dda_pipeline(
         offline_budget_share,
     )
 
+    # Ensure weights sum to exactly 1.0 (correct float drift from chained normalizations)
+    if hybrid_weights:
+        hw_total = sum(hybrid_weights.values())
+        if hw_total > 0 and abs(hw_total - 1.0) > 1e-9:
+            hybrid_weights = {ch: v / hw_total for ch, v in hybrid_weights.items()}
+        largest = max(hybrid_weights, key=hybrid_weights.get)
+        hybrid_weights[largest] = 1.0 - sum(v for ch, v in hybrid_weights.items() if ch != largest)
+
     # Extract top conversion paths
     top_paths = extract_top_paths(journeys, top_n=15)
 
@@ -274,6 +282,7 @@ def run_full_dda_pipeline(
             "removal_effects": markov_result["removal_effects"],
             "attribution_weights": markov_result["attribution_weights"],
             "prior_alpha": prior_alpha,
+            "warnings": markov_result.get("warnings", []),
         },
         "shapley_dda": shapley_weights,
         "blended_dda_online": dda_online,

@@ -1,13 +1,23 @@
 """Authentication module — JWT tokens + password hashing."""
 
+import logging
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-# Secret key — override via AUTH_SECRET_KEY env var in production
-SECRET_KEY = os.environ.get("AUTH_SECRET_KEY", "ah-dev-secret-change-in-production")
+_log = logging.getLogger(__name__)
+
+_env_secret = os.environ.get("AUTH_SECRET_KEY", "")
+if not _env_secret:
+    _env_secret = secrets.token_urlsafe(48)
+    _log.warning(
+        "AUTH_SECRET_KEY not set — using random ephemeral key. "
+        "Tokens will NOT survive restarts. Set AUTH_SECRET_KEY in production."
+    )
+SECRET_KEY = _env_secret
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("AUTH_TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours
 
@@ -22,7 +32,13 @@ def _get_admin_hash() -> str:
     """Lazily compute the admin password hash."""
     global ADMIN_PASSWORD_HASH
     if ADMIN_PASSWORD_HASH is None:
-        raw = os.environ.get("AUTH_ADMIN_PASSWORD", "attribution2026")
+        raw = os.environ.get("AUTH_ADMIN_PASSWORD", "")
+        if not raw:
+            raw = secrets.token_urlsafe(24)
+            _log.warning(
+                "AUTH_ADMIN_PASSWORD not set — using random ephemeral password. "
+                "Login will fail on restart. Set AUTH_ADMIN_PASSWORD in production."
+            )
         ADMIN_PASSWORD_HASH = pwd_context.hash(raw)
     return ADMIN_PASSWORD_HASH
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Component } from 'react'
 import axios from 'axios'
 import { useAuth } from './hooks/useAuth'
 import LoginPage from './components/LoginPage'
@@ -7,11 +7,38 @@ import Dashboard from './components/Dashboard'
 import DigitalPlanningPanel from './components/DigitalPlanningPanel'
 import AttributionPanel from './components/AttributionPanel'
 
+class ErrorBoundary extends Component {
+  state = { hasError: false, error: null }
+  static getDerivedStateFromError(error) { return { hasError: true, error } }
+  componentDidCatch(error, info) { console.error('[ErrorBoundary]', error, info) }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-dark-bg flex items-center justify-center">
+          <div className="dark-card p-8 max-w-md text-center">
+            <p className="text-lg text-slate-200 mb-2">Bir hata oluştu</p>
+            <p className="text-xs text-slate-400 mb-4">{this.state.error?.message}</p>
+            <button
+              onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload() }}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded-lg"
+            >
+              Sayfayı Yenile
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 const TABS = [
   { id: 'unified', label: 'Unified Rapor' },
   { id: 'attribution', label: 'Attribution' },
   { id: 'media', label: 'Medya Planlama' },
 ]
+
+export { ErrorBoundary }
 
 export default function App() {
   const { user, loading, login, loginAsDemo, logout } = useAuth()

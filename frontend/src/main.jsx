@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { Chart } from 'chart.js'
-import App from './App'
+import App, { ErrorBoundary } from './App'
 import './styles/globals.css'
 
 /* Chart.js dark theme globals */
@@ -21,7 +21,9 @@ Chart.defaults.plugins.tooltip.cornerRadius = 8
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>,
 )
 

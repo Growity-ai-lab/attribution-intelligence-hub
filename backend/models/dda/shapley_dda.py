@@ -107,5 +107,13 @@ def run_shapley_dda(
     if not channels:
         return {}
 
+    _MAX_SHAPLEY_CHANNELS = 15
+    if len(channels) > _MAX_SHAPLEY_CHANNELS:
+        raise ValueError(
+            f"Shapley computation requires 2^n evaluations. "
+            f"{len(channels)} channels exceeds the safe limit of {_MAX_SHAPLEY_CHANNELS}. "
+            f"Use consolidate_channels() to reduce channel count first."
+        )
+
     vf = compute_coalition_values(journeys, channels, min_observations)
     return shapley_value(channels, vf)

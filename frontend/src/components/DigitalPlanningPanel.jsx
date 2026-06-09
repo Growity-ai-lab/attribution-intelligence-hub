@@ -224,7 +224,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       try {
         const data = await getChannelBenchmarks(campaign.id)
         if (!cancelled) setBenchmarks(data)
-      } catch { if (!cancelled) setBenchmarks(null) }
+      } catch (err) { console.error('[DigitalPlanning] benchmarks:', err); if (!cancelled) setBenchmarks(null) }
     })()
     return () => { cancelled = true }
   }, [campaign?.id, getChannelBenchmarks])
@@ -254,7 +254,7 @@ export default function DigitalPlanningPanel({ campaign }) {
         setCpmOverride('')
         setCtrOverride('')
         setLeadRateOverride('')
-      } catch { /* ignore */ }
+      } catch (err) { console.error('[DigitalPlanning]', err) }
     })()
     return () => { cancelled = true }
   }, [selectedChannel, getMediaPlanPresets]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -284,7 +284,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     try {
       const res = await simulateDigitalPlan(selectedChannel, spends, buildOverrides())
       setResult(res)
-    } catch { /* ignore */ }
+    } catch (err) { console.error('[DigitalPlanning]', err) }
     setLoading(false)
   }, [simulateDigitalPlan, selectedChannel, buildOverrides])
 
@@ -313,7 +313,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       const presets = await getMediaPlanPresets(selectedChannel, 'digital')
       const spends = presets.preset_grps || []
       setWeeklySpends(Array(numWeeks).fill(0).map((_, i) => spends[i] || 0))
-    } catch { /* ignore */ }
+    } catch (err) { console.error('[DigitalPlanning]', err) }
   }
 
   // Re-simulate when overrides change
@@ -332,14 +332,14 @@ export default function DigitalPlanningPanel({ campaign }) {
       setShowSaveModal(false)
       setSaveName('')
       refreshSavedPlans()
-    } catch { /* ignore */ }
+    } catch (err) { console.error('[DigitalPlanning]', err) }
   }
 
   const refreshSavedPlans = async () => {
     try {
       const plans = await listSavedMediaPlans(campaign?.id || null, 'digital')
       setSavedPlans(plans)
-    } catch { /* ignore */ }
+    } catch (err) { console.error('[DigitalPlanning]', err) }
   }
 
   const handleLoadPlan = async (id) => {
@@ -350,14 +350,14 @@ export default function DigitalPlanningPanel({ campaign }) {
       setNumWeeks(spends.length)
       setWeeklySpends(spends)
       setShowSavedList(false)
-    } catch { /* ignore */ }
+    } catch (err) { console.error('[DigitalPlanning]', err) }
   }
 
   const handleDeletePlan = async (id) => {
     try {
       await deleteSavedMediaPlan(id)
       refreshSavedPlans()
-    } catch { /* ignore */ }
+    } catch (err) { console.error('[DigitalPlanning]', err) }
   }
 
   const handleReconcile = async (planId) => {
@@ -366,7 +366,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     try {
       const data = await reconcilePlan(planId)
       setReconciliation(data)
-    } catch { setReconciliation(null) }
+    } catch (err) { console.error('[DigitalPlanning] reconciliation:', err); setReconciliation(null) }
     setReconLoading(false)
   }
 

@@ -1,6 +1,6 @@
 """SQLAlchemy ORM models."""
 
-from sqlalchemy import Column, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from backend.db.database import Base
@@ -56,6 +56,10 @@ class WeeklyData(Base):
     grp = Column(Float, default=0.0)
     spot_count = Column(Integer, default=0)
     segment = Column(String, default="", index=True)
+
+    __table_args__ = (
+        Index("ix_weekly_data_campaign_week", "campaign_id", "week"),
+    )
 
 
 class MediaPlanSimulation(Base):
@@ -124,6 +128,10 @@ class DDAResult(Base):
     # JSON: hybrid_attribution, markov, shapley_dda, assist_report, journey_stats, channel_summary
     result_json = Column(String, nullable=False)
     created_by = Column(String, default="")
+
+    __table_args__ = (
+        Index("ix_dda_results_campaign_run", "campaign_id", "run_date"),
+    )
 
 
 class Alert(Base):

@@ -1,6 +1,10 @@
 """Shared test fixtures for Time's Hub | Attribution Intelligence."""
 
 import io
+import os
+
+os.environ.setdefault("AUTH_SECRET_KEY", "test-secret-key-for-ci")
+os.environ.setdefault("AUTH_ADMIN_PASSWORD", "test-password-for-ci")
 
 import pytest
 from fastapi.testclient import TestClient

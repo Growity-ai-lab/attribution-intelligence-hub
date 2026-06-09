@@ -1,22 +1,32 @@
 """Symmetric encryption for persisting sensitive data (BQ credentials)."""
 
+import logging
 import os
-from pathlib import Path
 
 from cryptography.fernet import Fernet
 
-_KEY_FILE = Path("attribution_hub.key")
+_log = logging.getLogger(__name__)
+
+_cached_key: bytes | None = None
 
 
 def _get_key() -> bytes:
+    global _cached_key
+    if _cached_key is not None:
+        return _cached_key
+
     env_key = os.environ.get("ENCRYPTION_KEY", "")
     if env_key:
-        return env_key.encode() if isinstance(env_key, str) else env_key
-    if _KEY_FILE.exists():
-        return _KEY_FILE.read_bytes().strip()
-    key = Fernet.generate_key()
-    _KEY_FILE.write_bytes(key)
-    return key
+        _cached_key = env_key.encode() if isinstance(env_key, str) else env_key
+        return _cached_key
+
+    _cached_key = Fernet.generate_key()
+    _log.warning(
+        "ENCRYPTION_KEY not set — using random ephemeral key. "
+        "Encrypted data will NOT be decryptable after restart. "
+        "Set ENCRYPTION_KEY in production."
+    )
+    return _cached_key
 
 
 def encrypt(plaintext: str) -> str:

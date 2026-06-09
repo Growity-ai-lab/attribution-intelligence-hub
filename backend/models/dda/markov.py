@@ -7,7 +7,11 @@ The model treats each user journey as a path through an absorbing
 Markov chain with two absorbing states: Conversion and Null.
 """
 
+import logging
+
 import numpy as np
+
+_log = logging.getLogger(__name__)
 
 from backend.models.dda.data_prep import (
     STATE_CONVERSION,
@@ -143,6 +147,7 @@ def compute_conversion_probability(
     try:
         N = np.linalg.inv(I - Q)
     except np.linalg.LinAlgError:
+        _log.warning("Markov matrix singular (I-Q not invertible) — likely single-touch data")
         return 0.0
 
     # Absorption probabilities: B = N @ R
@@ -261,6 +266,13 @@ def run_markov_attribution(
     removal = compute_removal_effects(matrix, states, channels)
     weights = removal_effects_to_attribution(removal)
 
+    warnings = []
+    if conv_prob == 0.0:
+        warnings.append("degenerate_data: Markov model could not compute conversion probability — data may be single-touch only")
+        _log.warning("Markov conv_prob=0.0 for channels=%s", channels)
+    if all(v == 0.0 for v in removal.values()):
+        warnings.append("no_removal_effect: No channel removal produced a measurable effect")
+
     return {
         "transition_matrix": matrix,
         "states": states,
@@ -268,4 +280,5 @@ def run_markov_attribution(
         "removal_effects": removal,
         "attribution_weights": weights,
         "prior_alpha": prior_alpha,
+        "warnings": warnings,
     }

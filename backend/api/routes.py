@@ -89,8 +89,24 @@ from backend.integrations.bigquery import (
 
 router = APIRouter()
 
-# In-memory BQ client cache (per-process; lost on restart)
-_bq_clients: dict[str, object] = {}
+# In-memory BQ client cache with 1-hour TTL (per-process; lost on restart)
+import time as _time
+
+_BQ_CACHE_TTL = 3600  # seconds
+_bq_clients: dict[str, dict] = {}
+
+
+def _bq_cache_get(key: str) -> dict | None:
+    entry = _bq_clients.get(key)
+    if entry and _time.monotonic() - entry.get("_ts", 0) < _BQ_CACHE_TTL:
+        return entry
+    _bq_clients.pop(key, None)
+    return None
+
+
+def _bq_cache_set(key: str, value: dict) -> None:
+    value["_ts"] = _time.monotonic()
+    _bq_clients[key] = value
 
 
 @router.get("/health")
@@ -1077,7 +1093,7 @@ async def bq_connect(
         raise HTTPException(status_code=400, detail=info.get("error", "Connection failed"))
 
     cache_key = f"{project}:{dataset}"
-    _bq_clients[cache_key] = {"client": client, "creds": creds_str}
+    _bq_cache_set(cache_key, {"client": client, "creds": creds_str})
 
     return info
 
@@ -1096,7 +1112,7 @@ def bq_preview(
     Use this to preview data before committing to a full DDA run.
     """
     cache_key = f"{project}:{dataset}"
-    cached = _bq_clients.get(cache_key)
+    cached = _bq_cache_get(cache_key)
     if not cached:
         raise HTTPException(status_code=400, detail="BigQuery not connected. Call /connect first.")
 
@@ -1141,7 +1157,7 @@ def run_dda_from_bigquery(
     _validate_prior_alpha(prior_alpha)
 
     cache_key = f"{project}:{dataset}"
-    cached = _bq_clients.get(cache_key)
+    cached = _bq_cache_get(cache_key)
     if not cached:
         raise HTTPException(status_code=400, detail="BigQuery not connected. Call /connect first.")
 

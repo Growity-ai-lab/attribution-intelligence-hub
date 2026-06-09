@@ -24,7 +24,7 @@ class TestAuthEndpoints:
     def test_login_success(self):
         r = client.post(
             "/api/auth/login",
-            data={"username": "admin", "password": "attribution2026"},
+            data={"username": "admin", "password": "test-password-for-ci"},
         )
         assert r.status_code == 200
         data = r.json()
@@ -41,7 +41,7 @@ class TestAuthEndpoints:
     def test_login_wrong_username(self):
         r = client.post(
             "/api/auth/login",
-            data={"username": "nobody", "password": "attribution2026"},
+            data={"username": "nobody", "password": "test-password-for-ci"},
         )
         assert r.status_code == 401
 
