@@ -479,7 +479,7 @@ class TestDDAExport:
         from openpyxl import load_workbook
         wb = load_workbook(io.BytesIO(r.content))
         assert len(wb.sheetnames) >= 3
-        assert "Ozet" in wb.sheetnames
+        assert "Özet" in wb.sheetnames
         assert "Kanal Atfetme" in wb.sheetnames
         assert "Asist Raporu" in wb.sheetnames
 
@@ -667,3 +667,262 @@ class TestSampleDataFlow:
         # Verify hybrid attribution sums to ~1
         hybrid = data["hybrid_attribution"]
         assert sum(hybrid.values()) == pytest.approx(1.0, abs=0.01)
+
+
+# --------------- Demo Auth ---------------
+
+
+class TestDemoAuth:
+    def test_demo_login(self):
+        r = client.post("/api/auth/demo")
+        assert r.status_code == 200
+        data = r.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+
+    def test_demo_user_can_access_me(self):
+        r = client.post("/api/auth/demo")
+        token = r.json()["access_token"]
+        r2 = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert r2.status_code == 200
+        assert r2.json()["role"] == "demo"
+
+
+# --------------- Campaign CRUD ---------------
+
+
+class TestCampaignCRUD:
+    def _make_client(self, auth_headers):
+        r = client.post("/api/clients", json={"name": "CRUD Co", "year": 2026}, headers=auth_headers)
+        assert r.status_code == 200
+        return r.json()["id"]
+
+    def test_create_and_list_campaigns(self, auth_headers):
+        cid = self._make_client(auth_headers)
+        r = client.post(
+            f"/api/clients/{cid}/campaigns",
+            json={"name": "Camp Alpha", "budget": 1_000_000, "channels": "meta,google"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        camp = r.json()
+        assert camp["name"] == "Camp Alpha"
+
+        r2 = client.get(f"/api/clients/{cid}/campaigns", headers=auth_headers)
+        assert r2.status_code == 200
+        names = [c["name"] for c in r2.json()]
+        assert "Camp Alpha" in names
+
+    def test_delete_campaign(self, auth_headers):
+        cid = self._make_client(auth_headers)
+        r = client.post(
+            f"/api/clients/{cid}/campaigns",
+            json={"name": "ToDelete"},
+            headers=auth_headers,
+        )
+        camp_id = r.json()["id"]
+        r2 = client.delete(f"/api/campaigns/{camp_id}", headers=auth_headers)
+        assert r2.status_code == 200
+        r3 = client.get(f"/api/clients/{cid}/campaigns", headers=auth_headers)
+        ids = [c["id"] for c in r3.json()]
+        assert camp_id not in ids
+
+    def test_delete_campaign_requires_auth(self):
+        r = client.delete("/api/campaigns/999")
+        assert r.status_code == 401
+
+    def test_delete_client(self, auth_headers):
+        cid = self._make_client(auth_headers)
+        r = client.delete(f"/api/clients/{cid}", headers=auth_headers)
+        assert r.status_code == 200
+
+
+# --------------- Data Templates ---------------
+
+
+class TestDataTemplates:
+    def test_weekly_template(self):
+        r = client.get("/api/data/template/weekly")
+        assert r.status_code == 200
+        text = r.content.decode()
+        assert "week" in text
+        assert "channel" in text
+
+    def test_crm_template(self):
+        r = client.get("/api/data/template/crm")
+        assert r.status_code == 200
+        text = r.content.decode()
+        assert "lead_id" in text
+
+    def test_sales_stock_template(self):
+        r = client.get("/api/data/template/sales-stock")
+        assert r.status_code == 200
+        text = r.content.decode()
+        assert "week" in text
+        assert "sales_units" in text
+
+
+# --------------- MMM Fit ---------------
+
+
+class TestMMMFit:
+    def _make_campaign_with_data(self, auth_headers):
+        rc = client.post("/api/clients", json={"name": "FitCo", "year": 2026}, headers=auth_headers)
+        cid = rc.json()["id"]
+        rp = client.post(f"/api/clients/{cid}/campaigns", json={"name": "FitCamp"}, headers=auth_headers)
+        camp_id = rp.json()["id"]
+        weeks = [f"2026-W{w:02d}" for w in range(1, 13)]
+        csv_lines = ["week,channel,spend,impressions,clicks,leads"]
+        for w in weeks:
+            csv_lines.append(f"{w},meta,{200_000},{400_000},{8000},{100}")
+            csv_lines.append(f"{w},google,{80_000},{160_000},{4800},{60}")
+        csv_bytes = "\n".join(csv_lines).encode()
+        client.post(
+            f"/api/data/upload?campaign_id={camp_id}",
+            files={"file": ("weekly.csv", io.BytesIO(csv_bytes), "text/csv")},
+            headers=auth_headers,
+        )
+        return camp_id
+
+    def test_fit_and_status(self, auth_headers):
+        camp_id = self._make_campaign_with_data(auth_headers)
+        r = client.post(f"/api/mmm/fit?campaign_id={camp_id}", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        assert "channels" in data
+        assert "fit_quality" in data
+
+        r2 = client.get(f"/api/mmm/fit-status?campaign_id={camp_id}", headers=auth_headers)
+        assert r2.status_code == 200
+        status = r2.json()
+        assert status["has_fit"] is True
+
+    def test_fit_status_no_data(self, auth_headers):
+        rc = client.post("/api/clients", json={"name": "EmptyFit", "year": 2026}, headers=auth_headers)
+        cid = rc.json()["id"]
+        rp = client.post(f"/api/clients/{cid}/campaigns", json={"name": "NoCamp"}, headers=auth_headers)
+        camp_id = rp.json()["id"]
+        r = client.get(f"/api/mmm/fit-status?campaign_id={camp_id}", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json()["has_fit"] is False
+
+    def test_fit_requires_auth(self):
+        r = client.post("/api/mmm/fit?campaign_id=1")
+        assert r.status_code == 401
+
+
+# --------------- Media Planning CRUD ---------------
+
+
+class TestMediaPlanningCRUD:
+    def _make_campaign(self, auth_headers):
+        rc = client.post("/api/clients", json={"name": "PlanCo", "year": 2026}, headers=auth_headers)
+        cid = rc.json()["id"]
+        rp = client.post(f"/api/clients/{cid}/campaigns", json={"name": "PlanCamp"}, headers=auth_headers)
+        return rp.json()["id"]
+
+    def test_save_and_list(self, auth_headers):
+        camp_id = self._make_campaign(auth_headers)
+        plan = {
+            "name": "Meta Q1",
+            "channel": "meta",
+            "weekly_grps": [500_000, 600_000, 700_000],
+            "response_snapshot": {"summary": {"total_spend": 1_800_000}},
+            "campaign_id": camp_id,
+            "mode": "digital",
+        }
+        r = client.post("/api/media-planning/save", json=plan, headers=auth_headers)
+        assert r.status_code == 200
+        plan_id = r.json()["id"]
+
+        r2 = client.get(f"/api/media-planning/saved?campaign_id={camp_id}", headers=auth_headers)
+        assert r2.status_code == 200
+        plans = r2.json()
+        assert any(p["id"] == plan_id for p in plans)
+
+    def test_get_by_id(self, auth_headers):
+        camp_id = self._make_campaign(auth_headers)
+        plan = {
+            "name": "Google Q2",
+            "channel": "google",
+            "weekly_grps": [300_000],
+            "response_snapshot": {"summary": {"total_spend": 300_000}},
+            "campaign_id": camp_id,
+            "mode": "digital",
+        }
+        r = client.post("/api/media-planning/save", json=plan, headers=auth_headers)
+        plan_id = r.json()["id"]
+
+        r2 = client.get(f"/api/media-planning/saved/{plan_id}", headers=auth_headers)
+        assert r2.status_code == 200
+        data = r2.json()
+        assert data["name"] == "Google Q2"
+        assert data["channel"] == "google"
+
+    def test_delete_plan(self, auth_headers):
+        camp_id = self._make_campaign(auth_headers)
+        plan = {
+            "name": "Temp Plan",
+            "channel": "meta",
+            "weekly_grps": [100_000],
+            "response_snapshot": {},
+            "campaign_id": camp_id,
+            "mode": "digital",
+        }
+        r = client.post("/api/media-planning/save", json=plan, headers=auth_headers)
+        plan_id = r.json()["id"]
+
+        r2 = client.delete(f"/api/media-planning/saved/{plan_id}", headers=auth_headers)
+        assert r2.status_code == 200
+
+        r3 = client.get(f"/api/media-planning/saved/{plan_id}", headers=auth_headers)
+        assert r3.status_code == 404
+
+    def test_save_requires_auth(self):
+        r = client.post("/api/media-planning/save", json={"name": "x"})
+        assert r.status_code == 401
+
+    def test_presets_endpoint(self, auth_headers):
+        r = client.get("/api/media-planning/presets/tv_match", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        assert "channel" in data
+
+
+# --------------- Budget Simulation Endpoint ---------------
+
+
+class TestBudgetSimulationEndpoint:
+    def test_simulate_budget(self, auth_headers):
+        r = client.post(
+            "/api/simulation/budget",
+            json={
+                "channel_spends": {"meta": 200_000, "google": 100_000},
+                "dda_weights": {"meta": 0.6, "google": 0.4},
+                "total_revenue": 1_000_000,
+                "total_conversions": 200,
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert "current" in data
+        assert "recommendations" in data
+
+    def test_simulate_requires_auth(self):
+        r = client.post("/api/simulation/budget", json={})
+        assert r.status_code == 401
+
+
+# --------------- Alerts (unit tests only — endpoints not yet implemented) ------
+# Alert API endpoints are planned but not yet built. Alert rule evaluation
+# is tested in tests/test_modules.py::TestAlertRules.
+
+
+# --------------- Health Check ---------------
+
+
+class TestHealthCheck:
+    def test_health(self):
+        r = client.get("/api/health")
+        assert r.status_code == 200
