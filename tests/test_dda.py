@@ -466,3 +466,44 @@ class TestFullPipeline:
         stats = result["journey_stats"]
         assert stats["total_journeys"] == 20
         assert stats["converted"] == 10
+
+
+# --------------- Channel Source Cleaning Tests ---------------
+
+
+class TestSourceCleaning:
+    def test_strips_query_params(self):
+        from backend.integrations.bigquery import _source_medium_label
+        label = _source_medium_label("google?utm_source=google", "cpc")
+        assert label == "google / cpc"
+
+    def test_strips_url_path(self):
+        from backend.integrations.bigquery import _source_medium_label
+        label = _source_medium_label("facebook.com/something", "referral")
+        assert label == "facebook / referral"
+
+    def test_normalizes_instagram_variants(self):
+        from backend.integrations.bigquery import _source_medium_label
+        assert _source_medium_label("l.instagram.com", "referral") == "instagram / referral"
+        assert _source_medium_label("lm.instagram.com", "referral") == "instagram / referral"
+        assert _source_medium_label("m.instagram.com", "referral") == "instagram / referral"
+
+    def test_normalizes_facebook_variants(self):
+        from backend.integrations.bigquery import _source_medium_label
+        assert _source_medium_label("l.facebook.com", "referral") == "facebook / referral"
+        assert _source_medium_label("m.facebook.com", "referral") == "facebook / referral"
+
+    def test_normalizes_youtube(self):
+        from backend.integrations.bigquery import _source_medium_label
+        assert _source_medium_label("youtube.com", "referral") == "youtube / referral"
+        assert _source_medium_label("m.youtube.com", "referral") == "youtube / referral"
+
+    def test_preserves_clean_sources(self):
+        from backend.integrations.bigquery import _source_medium_label
+        assert _source_medium_label("google", "cpc") == "google / cpc"
+        assert _source_medium_label("(direct)", "(none)") == "(direct) / (none)"
+
+    def test_unavailable_still_works(self):
+        from backend.integrations.bigquery import _source_medium_label
+        assert _source_medium_label("(not set)", "(not set)") == "(bilinmeyen) / (bilinmeyen)"
+        assert _source_medium_label(None, None) == "(direct) / (none)"

@@ -223,6 +223,30 @@ def query_ga4_sessions(
 # --------------- Transform to Touchpoints ---------------
 
 
+def _clean_source(raw: str) -> str:
+    """Strip URL query params and path fragments from GA4 source values."""
+    s = raw.split("?", 1)[0]
+    s = s.split("/", 1)[0]
+    return s.strip() or raw
+
+
+_SOURCE_ALIASES: dict[str, str] = {
+    "l.instagram.com": "instagram",
+    "lm.instagram.com": "instagram",
+    "m.instagram.com": "instagram",
+    "instagram.com": "instagram",
+    "l.facebook.com": "facebook",
+    "lm.facebook.com": "facebook",
+    "m.facebook.com": "facebook",
+    "facebook.com": "facebook",
+    "youtube.com": "youtube",
+    "m.youtube.com": "youtube",
+    "t.co": "twitter",
+    "linkedin.com": "linkedin",
+    "lnkd.in": "linkedin",
+}
+
+
 def _source_medium_label(source: str | None, medium: str | None) -> str:
     """Build a 'source / medium' channel label from GA4 fields."""
     src = (source or "(direct)").strip()
@@ -236,6 +260,8 @@ def _source_medium_label(source: str | None, medium: str | None) -> str:
         src = "(bilinmeyen)"
     if med.lower() in _unavailable:
         med = "(bilinmeyen)"
+    src = _clean_source(src)
+    src = _SOURCE_ALIASES.get(src.lower(), src)
     return f"{src} / {med}"
 
 
