@@ -10,6 +10,7 @@ ONLY those channels are present in a journey.
 from collections import defaultdict
 from itertools import combinations
 
+from backend.config import MAX_SHAPLEY_CHANNELS
 from backend.models.dda.data_prep import Journey
 from backend.models.mta import shapley_value
 
@@ -107,11 +108,10 @@ def run_shapley_dda(
     if not channels:
         return {}
 
-    _MAX_SHAPLEY_CHANNELS = 15
-    if len(channels) > _MAX_SHAPLEY_CHANNELS:
+    if len(channels) > MAX_SHAPLEY_CHANNELS:
         raise ValueError(
             f"Shapley computation requires 2^n evaluations. "
-            f"{len(channels)} channels exceeds the safe limit of {_MAX_SHAPLEY_CHANNELS}. "
+            f"{len(channels)} channels exceeds the safe limit of {MAX_SHAPLEY_CHANNELS}. "
             f"Use consolidate_channels() to reduce channel count first."
         )
 

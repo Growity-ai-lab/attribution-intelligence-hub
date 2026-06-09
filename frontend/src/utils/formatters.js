@@ -31,3 +31,14 @@ export function formatCompactTL(value) {
   if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K TL`
   return `${value} TL`
 }
+
+export const fmtMoney = v => {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`
+  return v.toFixed(0)
+}
+
+export const fmtN = v =>
+  v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0)
+
+export const fmtPct = v => `%${(v * 100).toFixed(1)}`

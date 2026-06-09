@@ -1,16 +1,10 @@
 import { useState, useMemo } from 'react'
 import { useAttribution } from '../hooks/useAttribution'
+import { fmtMoney, fmtN } from '../utils/formatters'
 import UnifiedChart from './UnifiedChart'
 import UnifiedScoringTable from './UnifiedScoringTable'
 import ReallocationPanel from './ReallocationPanel'
 import DataUpload from './DataUpload'
-
-const fmtMoney = v => {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`
-  return v.toFixed(0)
-}
-const fmtN = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v)
 
 export default function Dashboard({ ddaResult, campaign, isDemo }) {
   const { getReallocation } = useAttribution()

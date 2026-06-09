@@ -1,5 +1,12 @@
 """Rule-based alert engine evaluated after each DDA run."""
 
+from backend.config import (
+    CONCENTRATION_THRESHOLD,
+    CONVERSION_DROP_THRESHOLD,
+    SUSTAINED_DECLINE_MIN_POINTS,
+    VOLUME_DROP_THRESHOLD,
+)
+
 
 def _safe_rate(snapshot: dict) -> float:
     return snapshot.get("journey_stats", {}).get("conversion_rate", 0)
@@ -29,7 +36,7 @@ def evaluate_alerts(
         prev_hybrid = _safe_hybrid(previous)
 
         # Conversion rate drop > 2pp
-        if prev_rate > 0 and (prev_rate - cur_rate) > 0.02:
+        if prev_rate > 0 and (prev_rate - cur_rate) > CONVERSION_DROP_THRESHOLD:
             out.append({
                 "rule_id": "conversion_drop",
                 "severity": "critical",
@@ -45,7 +52,7 @@ def evaluate_alerts(
         cur_total = _safe_total(current)
         if prev_total > 0:
             vol_change = (cur_total - prev_total) / prev_total
-            if vol_change < -0.25:
+            if vol_change < VOLUME_DROP_THRESHOLD:
                 out.append({
                     "rule_id": "volume_drop",
                     "severity": "warning",
@@ -70,7 +77,7 @@ def evaluate_alerts(
     # Concentration > 50%
     if cur_hybrid:
         top_val = max(cur_hybrid.values())
-        if top_val > 0.50:
+        if top_val > CONCENTRATION_THRESHOLD:
             top_ch = max(cur_hybrid, key=cur_hybrid.get)
             out.append({
                 "rule_id": "channel_concentration",
@@ -85,9 +92,9 @@ def evaluate_alerts(
     # Sustained decline (3+ consecutive drops in any channel)
     if trend_data and trend_data.get("channel_trends"):
         for ch, points in trend_data["channel_trends"].items():
-            if len(points) < 3:
+            if len(points) < SUSTAINED_DECLINE_MIN_POINTS:
                 continue
-            last3 = points[-3:]
+            last3 = points[-SUSTAINED_DECLINE_MIN_POINTS:]
             weights = [p["weight"] for p in last3]
             if all(weights[i] > weights[i + 1] for i in range(len(weights) - 1)):
                 total_drop = weights[0] - weights[-1]

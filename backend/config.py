@@ -182,3 +182,24 @@ MAX_JOURNEY_COUNT = 100_000
 PRIOR_ALPHA_MIN = 0.01
 PRIOR_ALPHA_MAX = 10.0
 ALLOWED_FILE_EXTENSIONS = {".csv", ".xlsx", ".xls"}
+
+# BigQuery cache
+BQ_CACHE_TTL = 3600  # seconds
+
+# Alert thresholds
+CONVERSION_DROP_THRESHOLD = 0.02  # 2pp drop
+VOLUME_DROP_THRESHOLD = -0.25  # 25% decline
+CONCENTRATION_THRESHOLD = 0.50  # single channel > 50%
+SUSTAINED_DECLINE_MIN_POINTS = 3  # consecutive declining snapshots
+
+# Attribution classification
+ASSIST_ROLE_DELTA = 0.10  # median ± delta for role assignment
+WEIGHT_SUM_TOLERANCE = 1e-9
+MAX_SHAPLEY_CHANNELS = 15
+
+# Insight thresholds
+SINGLE_TOUCH_THRESHOLD = 1.2  # avg_path_length <= this → single-touch data
+
+# MMM fitting bounds
+DECAY_BOUNDS = (0.0, 0.95)
+GAMMA_BOUNDS = (0.3, 3.0)

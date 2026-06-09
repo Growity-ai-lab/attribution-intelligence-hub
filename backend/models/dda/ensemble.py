@@ -5,6 +5,7 @@ and provides cross-validation against MMM decomposition to detect
 and report deviations.
 """
 
+from backend.config import WEIGHT_SUM_TOLERANCE
 from backend.models.dda.data_prep import (
     Journey,
     compute_assist_report,
@@ -26,6 +27,14 @@ DEFAULT_SHAPLEY_WEIGHT = 0.35
 
 # Cross-validation deviation threshold
 DEVIATION_THRESHOLD = 0.20  # 20%
+
+
+def _normalize_weights(weights: dict[str, float]) -> dict[str, float]:
+    """Normalize weight dict to sum to 1.0. Returns copy unchanged if sum is zero."""
+    total = sum(weights.values())
+    if total > 0:
+        return {k: v / total for k, v in weights.items()}
+    return dict(weights)
 
 
 def classify_channels(
@@ -69,12 +78,7 @@ def blend_attributions(
         s = shapley_weights.get(ch, 0.0)
         blended[ch] = markov_blend * m + shapley_blend * s
 
-    # Normalize
-    total = sum(blended.values())
-    if total > 0:
-        blended = {ch: v / total for ch, v in blended.items()}
-
-    return blended
+    return _normalize_weights(blended)
 
 
 def cross_validate_dda_mmm(
@@ -95,10 +99,9 @@ def cross_validate_dda_mmm(
         Dict mapping channel -> {dda, mmm, deviation, flagged}.
     """
     # Normalize MMM weights to only online channels for fair comparison
-    online_mmm = {ch: mmm_weights[ch] for ch in dda_weights if ch in mmm_weights}
-    mmm_total = sum(online_mmm.values())
-    if mmm_total > 0:
-        online_mmm = {ch: v / mmm_total for ch, v in online_mmm.items()}
+    online_mmm = _normalize_weights(
+        {ch: mmm_weights[ch] for ch in dda_weights if ch in mmm_weights}
+    )
 
     report: dict[str, dict] = {}
     for ch in dda_weights:
@@ -155,12 +158,7 @@ def build_hybrid_attribution(
     for ch, w in mmm_offline_weights.items():
         combined[ch] = w * offline_share
 
-    # Normalize
-    total = sum(combined.values())
-    if total > 0:
-        combined = {ch: v / total for ch, v in combined.items()}
-
-    return combined
+    return _normalize_weights(combined)
 
 
 def run_full_dda_pipeline(
@@ -208,10 +206,7 @@ def run_full_dda_pipeline(
     # Step 3: Data-Driven Shapley
     shapley_weights = run_shapley_dda(journeys, online_channels)
 
-    # Normalize shapley to sum to 1
-    s_total = sum(shapley_weights.values())
-    if s_total > 0:
-        shapley_weights = {ch: v / s_total for ch, v in shapley_weights.items()}
+    shapley_weights = _normalize_weights(shapley_weights)
 
     # Step 4: Blend
     dda_online = blend_attributions(

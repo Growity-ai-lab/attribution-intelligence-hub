@@ -16,6 +16,7 @@ import annotationPlugin from 'chartjs-plugin-annotation'
 import * as XLSX from 'xlsx'
 import { useAttribution } from '../hooks/useAttribution'
 import { CHANNEL_LABELS, CHANNEL_COLORS } from '../utils/colors'
+import { fmtMoney, fmtN } from '../utils/formatters'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, Filler, annotationPlugin)
 
@@ -163,12 +164,6 @@ function distributeSpend(totalSpend, numWeeks, mode = 'front-loaded') {
   return weights.map(w => Math.round((w / totalW) * totalSpend / 1000) * 1000)
 }
 
-const fmtN = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0)
-const fmtMoney = v => {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`
-  return v.toFixed(0)
-}
 
 export default function DigitalPlanningPanel({ campaign }) {
   const {

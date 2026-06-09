@@ -7,6 +7,8 @@ suitable for Markov Chain and Shapley analysis.
 from collections import defaultdict
 from dataclasses import dataclass
 
+from backend.config import ASSIST_ROLE_DELTA
+
 
 # Sentinel states for Markov Chain
 STATE_START = "__start__"
@@ -246,7 +248,7 @@ def compute_assist_report(journeys: list[Journey]) -> list[dict]:
     if len(ratios) >= 2:
         mid = len(ratios) // 2
         median_ratio = (ratios[mid - 1] + ratios[mid]) / 2 if len(ratios) % 2 == 0 else ratios[mid]
-        delta = 0.10
+        delta = ASSIST_ROLE_DELTA
         for r in results:
             ar = r["assist_ratio"]
             if ar >= median_ratio + delta:

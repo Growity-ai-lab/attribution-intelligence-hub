@@ -11,18 +11,11 @@ import {
 import { Bar } from 'react-chartjs-2'
 import axios from 'axios'
 import { getChannelColor } from '../utils/colors'
+import { fmtMoney, fmtN, fmtPct } from '../utils/formatters'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const API = '/api'
-
-const fmtMoney = v => {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`
-  return v.toFixed(0)
-}
-const fmtN = v => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0)
-const fmtPct = v => `%${(v * 100).toFixed(1)}`
 
 function InfoTip({ text }) {
   const [show, setShow] = useState(false)
