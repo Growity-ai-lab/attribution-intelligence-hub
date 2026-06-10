@@ -13,6 +13,7 @@ class Client(Base):
     name = Column(String, nullable=False)
     year = Column(Integer, nullable=False, index=True)
     created_at = Column(String, nullable=False)
+    objective = Column(String, default="lead")  # "lead" | "revenue" — default for new campaigns
 
     campaigns = relationship("Campaign", back_populates="client", cascade="all, delete-orphan")
 
@@ -26,6 +27,8 @@ class Campaign(Base):
     budget = Column(Float, default=0.0)
     channels = Column(String, default="")  # comma-separated channel list
     status = Column(String, default="active")  # active, paused, completed
+    objective = Column(String, default="lead")  # "lead" | "revenue" — drives reports/sim/export
+    lead_value = Column(Float, default=0.0)  # estimated TL value per lead (optional, lead mode)
     created_at = Column(String, nullable=False)
 
     # BQ Sync config

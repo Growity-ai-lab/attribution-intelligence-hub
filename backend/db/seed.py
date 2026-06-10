@@ -7,8 +7,8 @@ from backend.db.models import Campaign, Client
 
 SEED_DATA: dict[str, list[dict]] = {
     "Petrol Ofisi": [
-        {"name": "Premium Market", "budget": 12_000_000, "channels": "meta,google,youtube,dv360,dooh"},
-        {"name": "AutoMatic Filo", "budget": 55_000_000, "channels": "meta,google,tiktok,linkedin,dv360,youtube,tv_match,tv_news,radio,dooh"},
+        {"name": "Premium Market", "budget": 12_000_000, "channels": "meta,google,youtube,dv360,dooh", "objective": "revenue"},
+        {"name": "AutoMatic Filo", "budget": 55_000_000, "channels": "meta,google,tiktok,linkedin,dv360,youtube,tv_match,tv_news,radio,dooh", "objective": "lead"},
     ],
     "EnerjiSA": [
         {"name": "30.Yıl İletişimi", "budget": 8_500_000, "channels": "meta,google,youtube,tv_match,tv_news,radio,dooh"},
@@ -59,7 +59,10 @@ def seed_clients_and_campaigns() -> bool:
 
         now = datetime.now(timezone.utc).isoformat()
         for client_name, campaigns in SEED_DATA.items():
-            client = Client(name=client_name, year=SEED_YEAR, created_at=now)
+            # Client default objective = most common objective among its campaigns
+            objectives = [c.get("objective", "lead") for c in campaigns]
+            client_objective = "revenue" if objectives.count("revenue") > objectives.count("lead") else "lead"
+            client = Client(name=client_name, year=SEED_YEAR, created_at=now, objective=client_objective)
             db.add(client)
             db.flush()  # get client.id
 
@@ -70,6 +73,7 @@ def seed_clients_and_campaigns() -> bool:
                     budget=camp["budget"],
                     channels=camp["channels"],
                     status="active",
+                    objective=camp.get("objective", client_objective),
                     created_at=now,
                 ))
 

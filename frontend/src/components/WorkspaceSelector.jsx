@@ -22,8 +22,9 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
   const [selectedClient, setSelectedClient] = useState(null)
   const [showNewClient, setShowNewClient] = useState(false)
   const [newClientName, setNewClientName] = useState('')
+  const [newClientObjective, setNewClientObjective] = useState('lead')
   const [showNewCampaign, setShowNewCampaign] = useState(false)
-  const [newCampaign, setNewCampaign] = useState({ name: '', budget: '' })
+  const [newCampaign, setNewCampaign] = useState({ name: '', budget: '', objective: 'lead', leadValue: '' })
 
   useEffect(() => {
     fetchClients(year)
@@ -37,8 +38,9 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
 
   const handleCreateClient = async () => {
     if (!newClientName.trim()) return
-    await createClient(newClientName.trim(), year)
+    await createClient(newClientName.trim(), year, newClientObjective)
     setNewClientName('')
+    setNewClientObjective('lead')
     setShowNewClient(false)
     fetchClients(year)
   }
@@ -57,10 +59,19 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
       selectedClient.id,
       newCampaign.name.trim(),
       parseFloat(newCampaign.budget) || 0,
+      '',
+      newCampaign.objective,
+      newCampaign.objective === 'lead' ? (parseFloat(newCampaign.leadValue) || 0) : 0,
     )
-    setNewCampaign({ name: '', budget: '' })
+    setNewCampaign({ name: '', budget: '', objective: selectedClient.objective || 'lead', leadValue: '' })
     setShowNewCampaign(false)
     fetchCampaigns(selectedClient.id)
+  }
+
+  // Pre-select campaign objective from the client's default when opening the form
+  const openNewCampaign = () => {
+    setNewCampaign(prev => ({ ...prev, objective: selectedClient?.objective || 'lead' }))
+    setShowNewCampaign(!showNewCampaign)
   }
 
   const handleDeleteCampaign = async (e, campaignId) => {
@@ -114,22 +125,42 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
 
             <div className="p-4 space-y-2">
               {showNewClient && (
-                <div className="flex gap-2 mb-3">
-                  <input
-                    type="text"
-                    value={newClientName}
-                    onChange={e => setNewClientName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleCreateClient()}
-                    placeholder="Müşteri adı..."
-                    className="flex-1 bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
-                    autoFocus
-                  />
-                  <button
-                    onClick={handleCreateClient}
-                    className="px-3 py-2 bg-accent text-white rounded-lg text-xs font-medium"
-                  >
-                    Ekle
-                  </button>
+                <div className="space-y-2 mb-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newClientName}
+                      onChange={e => setNewClientName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleCreateClient()}
+                      placeholder="Müşteri adı..."
+                      className="flex-1 bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleCreateClient}
+                      className="px-3 py-2 bg-accent text-white rounded-lg text-xs font-medium"
+                    >
+                      Ekle
+                    </button>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Varsayılan Hedef</span>
+                    <div className="flex gap-2 mt-1">
+                      {['lead', 'revenue'].map(o => (
+                        <button
+                          key={o}
+                          onClick={() => setNewClientObjective(o)}
+                          className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                            newClientObjective === o
+                              ? (o === 'lead' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-blue-500 bg-blue-500/10 text-blue-400')
+                              : 'border-dark-border text-slate-400 hover:border-slate-600'
+                          }`}
+                        >
+                          {o === 'lead' ? 'Lead' : 'Gelir'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -181,7 +212,7 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
               </h3>
               {selectedClient && (
                 <button
-                  onClick={() => setShowNewCampaign(!showNewCampaign)}
+                  onClick={openNewCampaign}
                   className="px-3 py-1 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent-dark transition-colors"
                 >
                   + Yeni Kampanya
@@ -207,21 +238,46 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
                     className="w-full bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
                     autoFocus
                   />
-                  <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={newCampaign.budget}
+                    onChange={e => setNewCampaign(prev => ({ ...prev, budget: e.target.value }))}
+                    placeholder="Bütçe (TL)..."
+                    className="w-full bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
+                  />
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Kampanya Hedefi</span>
+                    <div className="flex gap-2 mt-1">
+                      {['lead', 'revenue'].map(o => (
+                        <button
+                          key={o}
+                          onClick={() => setNewCampaign(prev => ({ ...prev, objective: o }))}
+                          className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                            newCampaign.objective === o
+                              ? (o === 'lead' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-blue-500 bg-blue-500/10 text-blue-400')
+                              : 'border-dark-border text-slate-400 hover:border-slate-600'
+                          }`}
+                        >
+                          {o === 'lead' ? 'Lead' : 'Gelir'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {newCampaign.objective === 'lead' && (
                     <input
                       type="number"
-                      value={newCampaign.budget}
-                      onChange={e => setNewCampaign(prev => ({ ...prev, budget: e.target.value }))}
-                      placeholder="Bütçe (TL)..."
-                      className="flex-1 bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
+                      value={newCampaign.leadValue}
+                      onChange={e => setNewCampaign(prev => ({ ...prev, leadValue: e.target.value }))}
+                      placeholder="Lead başına değer (₺, opsiyonel)..."
+                      className="w-full bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
                     />
-                    <button
-                      onClick={handleCreateCampaign}
-                      className="px-4 py-2 bg-accent text-white rounded-lg text-xs font-medium"
-                    >
-                      Oluştur
-                    </button>
-                  </div>
+                  )}
+                  <button
+                    onClick={handleCreateCampaign}
+                    className="w-full px-4 py-2 bg-accent text-white rounded-lg text-xs font-medium"
+                  >
+                    Oluştur
+                  </button>
                 </div>
               )}
 
@@ -247,6 +303,13 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                        (c.objective || 'lead') === 'lead'
+                          ? 'bg-emerald-500/15 text-emerald-400'
+                          : 'bg-blue-500/15 text-blue-400'
+                      }`}>
+                        {(c.objective || 'lead') === 'lead' ? 'Lead' : 'Gelir'}
+                      </span>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
                         c.status === 'active'
                           ? 'bg-emerald-500/15 text-emerald-400'

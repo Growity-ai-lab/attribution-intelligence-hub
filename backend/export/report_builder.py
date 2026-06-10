@@ -41,22 +41,34 @@ def _write_title(ws, campaign_name: str, run_date: str) -> None:
     ws.cell(row=2, column=1, value=f"Rapor Tarihi: {run_date}").font = Font(size=9, color="64748b")
 
 
-def _build_summary_sheet(wb: Workbook, result: dict, campaign_name: str, run_date: str) -> None:
+def _build_summary_sheet(
+    wb: Workbook, result: dict, campaign_name: str, run_date: str, objective: str = "lead"
+) -> None:
     ws = wb.active
     ws.title = "Özet"
     _write_title(ws, campaign_name, run_date)
 
     stats = result.get("journey_stats", {})
+    lead_label = "Toplam Lead" if objective == "lead" else "Dönüşüm Yapan"
     _write_header(ws, 4, ["Metrik", "Değer"])
 
     rows = [
         ("Toplam Yolculuk", stats.get("total_journeys", 0), _NUM_FMT),
-        ("Dönüşüm Yapan", stats.get("converted", 0), _NUM_FMT),
+        (lead_label, stats.get("converted", 0), _NUM_FMT),
         ("Dönüşüm Oranı", stats.get("conversion_rate", 0), _PCT_FMT),
         ("Ort. Temas Noktası", stats.get("avg_path_length", stats.get("avg_touchpoints", 0)), _DEC_FMT),
         ("Tek Temas %", stats.get("single_touch_pct", 0), _PCT_FMT),
         ("Çoklu Temas %", stats.get("multi_touch_pct", 0), _PCT_FMT),
     ]
+
+    # Revenue mode: append revenue totals when available
+    total_revenue = result.get("bq_summary", {}).get("total_revenue", 0)
+    if objective == "revenue" and total_revenue:
+        converted = stats.get("converted", 0)
+        aov = total_revenue / converted if converted else 0
+        rows.append(("Toplam Gelir", total_revenue, _NUM_FMT))
+        rows.append(("AOV (Ort. Sipariş Değeri)", aov, _NUM_FMT))
+
     for i, (label, val, fmt) in enumerate(rows, 5):
         ws.cell(row=i, column=1, value=label)
         c = ws.cell(row=i, column=2, value=val)
@@ -74,14 +86,26 @@ def _build_summary_sheet(wb: Workbook, result: dict, campaign_name: str, run_dat
     _auto_widths(ws)
 
 
-def _build_attribution_sheet(wb: Workbook, result: dict) -> None:
+def _build_attribution_sheet(wb: Workbook, result: dict, objective: str = "lead") -> None:
     ws = wb.create_sheet("Kanal Atfetme")
     hybrid = result.get("hybrid_attribution", {})
     markov_w = result.get("markov", {}).get("attribution_weights", {})
     shapley = result.get("shapley_dda", {})
     removal = result.get("markov", {}).get("removal_effects", {})
 
-    _write_header(ws, 1, ["Kanal", "DDA Katkı (%)", "Markov (%)", "Shapley (%)", "Kaldırma Etkisi"])
+    # Attributed total: leads (converted) for lead mode, revenue for revenue mode
+    stats = result.get("journey_stats", {})
+    total_leads = stats.get("converted", 0)
+    total_revenue = result.get("bq_summary", {}).get("total_revenue", 0)
+    if objective == "revenue" and total_revenue:
+        attr_label, attr_total, attr_fmt = "Atf. Gelir (₺)", total_revenue, _NUM_FMT
+    else:
+        attr_label, attr_total, attr_fmt = "Atf. Lead", total_leads, _NUM_FMT
+
+    _write_header(
+        ws, 1,
+        ["Kanal", "DDA Katkı (%)", "Markov (%)", "Shapley (%)", "Kaldırma Etkisi", attr_label],
+    )
 
     channels = sorted(hybrid.keys(), key=lambda ch: -hybrid.get(ch, 0))
     for i, ch in enumerate(channels, 2):
@@ -92,6 +116,10 @@ def _build_attribution_sheet(wb: Workbook, result: dict) -> None:
             c.alignment = Alignment(horizontal="right")
         c = ws.cell(row=i, column=5, value=removal.get(ch, 0))
         c.number_format = _DEC_FMT
+        c.alignment = Alignment(horizontal="right")
+        # Attributed value = total × hybrid weight
+        c = ws.cell(row=i, column=6, value=round(attr_total * hybrid.get(ch, 0), 1))
+        c.number_format = attr_fmt
         c.alignment = Alignment(horizontal="right")
 
     _auto_widths(ws)
@@ -169,11 +197,17 @@ def _build_insights_sheet(wb: Workbook, result: dict) -> None:
     _auto_widths(ws)
 
 
-def build_dda_report(result: dict, campaign_name: str = "", run_date: str = "") -> Workbook:
-    """Build a multi-sheet Excel workbook from a DDA result snapshot."""
+def build_dda_report(
+    result: dict, campaign_name: str = "", run_date: str = "", objective: str = "lead"
+) -> Workbook:
+    """Build a multi-sheet Excel workbook from a DDA result snapshot.
+
+    objective ("lead" | "revenue") drives whether the attributed-value column
+    shows leads or revenue, and whether revenue totals appear in the summary.
+    """
     wb = Workbook()
-    _build_summary_sheet(wb, result, campaign_name, run_date)
-    _build_attribution_sheet(wb, result)
+    _build_summary_sheet(wb, result, campaign_name, run_date, objective)
+    _build_attribution_sheet(wb, result, objective)
     _build_assist_sheet(wb, result)
     _build_paths_sheet(wb, result)
     _build_insights_sheet(wb, result)

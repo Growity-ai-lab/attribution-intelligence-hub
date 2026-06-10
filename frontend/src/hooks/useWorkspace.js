@@ -20,8 +20,8 @@ export function useWorkspace() {
     }
   }, [])
 
-  const createClient = useCallback(async (name, year) => {
-    const res = await axios.post(`${API}/clients`, { name, year })
+  const createClient = useCallback(async (name, year, objective = 'lead') => {
+    const res = await axios.post(`${API}/clients`, { name, year, objective })
     return res.data
   }, [])
 
@@ -40,10 +40,15 @@ export function useWorkspace() {
     }
   }, [])
 
-  const createCampaign = useCallback(async (clientId, name, budget = 0, channels = '') => {
+  const createCampaign = useCallback(async (clientId, name, budget = 0, channels = '', objective = null, leadValue = 0) => {
     const res = await axios.post(`${API}/clients/${clientId}/campaigns`, {
-      name, budget, channels,
+      name, budget, channels, objective, lead_value: leadValue,
     })
+    return res.data
+  }, [])
+
+  const updateCampaign = useCallback(async (campaignId, fields) => {
+    const res = await axios.patch(`${API}/campaigns/${campaignId}`, fields)
     return res.data
   }, [])
 
@@ -54,6 +59,6 @@ export function useWorkspace() {
   return {
     clients, campaigns, loading,
     fetchClients, createClient, deleteClient,
-    fetchCampaigns, createCampaign, deleteCampaign,
+    fetchCampaigns, createCampaign, updateCampaign, deleteCampaign,
   }
 }

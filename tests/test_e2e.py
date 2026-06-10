@@ -696,6 +696,137 @@ class TestCampaignCRUD:
         assert r.status_code == 200
 
 
+class TestCampaignObjective:
+    """Lead vs revenue objective on clients and campaigns."""
+
+    def test_client_objective_default_and_explicit(self, auth_headers):
+        r = client.post("/api/clients", json={"name": "Obj Co", "year": 2026}, headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json()["objective"] == "lead"  # default
+
+        r2 = client.post(
+            "/api/clients",
+            json={"name": "Rev Co", "year": 2026, "objective": "revenue"},
+            headers=auth_headers,
+        )
+        assert r2.json()["objective"] == "revenue"
+
+    def test_client_invalid_objective(self, auth_headers):
+        r = client.post(
+            "/api/clients",
+            json={"name": "Bad Co", "year": 2026, "objective": "sales"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+
+    def test_campaign_inherits_client_objective(self, auth_headers):
+        rc = client.post(
+            "/api/clients",
+            json={"name": "Inherit Co", "year": 2026, "objective": "revenue"},
+            headers=auth_headers,
+        )
+        cid = rc.json()["id"]
+        rp = client.post(f"/api/clients/{cid}/campaigns", json={"name": "Camp"}, headers=auth_headers)
+        assert rp.status_code == 200
+        assert rp.json()["objective"] == "revenue"  # inherited from client
+
+    def test_campaign_objective_override_and_lead_value(self, auth_headers):
+        rc = client.post(
+            "/api/clients",
+            json={"name": "Override Co", "year": 2026, "objective": "revenue"},
+            headers=auth_headers,
+        )
+        cid = rc.json()["id"]
+        rp = client.post(
+            f"/api/clients/{cid}/campaigns",
+            json={"name": "LeadCamp", "objective": "lead", "lead_value": 15000},
+            headers=auth_headers,
+        )
+        assert rp.json()["objective"] == "lead"
+        assert rp.json()["lead_value"] == 15000
+
+    def test_campaign_invalid_objective(self, auth_headers):
+        rc = client.post("/api/clients", json={"name": "X Co", "year": 2026}, headers=auth_headers)
+        cid = rc.json()["id"]
+        rp = client.post(
+            f"/api/clients/{cid}/campaigns",
+            json={"name": "Bad", "objective": "foo"},
+            headers=auth_headers,
+        )
+        assert rp.status_code == 400
+
+    def test_patch_campaign_objective(self, auth_headers):
+        rc = client.post("/api/clients", json={"name": "Patch Co", "year": 2026}, headers=auth_headers)
+        cid = rc.json()["id"]
+        rp = client.post(f"/api/clients/{cid}/campaigns", json={"name": "P"}, headers=auth_headers)
+        camp_id = rp.json()["id"]
+        assert rp.json()["objective"] == "lead"
+
+        ru = client.patch(
+            f"/api/campaigns/{camp_id}",
+            json={"objective": "revenue", "lead_value": 5000},
+            headers=auth_headers,
+        )
+        assert ru.status_code == 200
+        assert ru.json()["objective"] == "revenue"
+        assert ru.json()["lead_value"] == 5000
+
+    def test_patch_campaign_requires_auth(self):
+        r = client.patch("/api/campaigns/999", json={"objective": "lead"})
+        assert r.status_code == 401
+
+
+class TestBudgetSimulationModes:
+    """simulate_budget objective-aware output."""
+
+    def test_lead_mode_simulation(self, auth_headers):
+        body = {
+            "channel_spends": {"google / cpc": 85000, "meta / cpc": 95000},
+            "dda_weights": {"google / cpc": 0.6, "meta / cpc": 0.4},
+            "total_revenue": 0,
+            "total_conversions": 571,
+            "objective": "lead",
+            "lead_value": 15000,
+        }
+        r = client.post("/api/simulation/budget", json=body, headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["objective"] == "lead"
+        assert data["primary_metric"] == "leads"
+        g = data["current"]["channels"]["google / cpc"]
+        assert g["attributed_leads"] == pytest.approx(342.6, abs=1)
+        assert g["cpl"] is not None
+        assert g["value_roas"] is not None  # lead_value > 0
+        assert data["current"]["total_attributed_value"] == pytest.approx(571 * 15000)
+
+    def test_lead_mode_without_revenue_ok(self, auth_headers):
+        # Lead mode does not require total_revenue (CSV flow has none)
+        body = {
+            "channel_spends": {"google / cpc": 50000},
+            "dda_weights": {"google / cpc": 1.0},
+            "total_conversions": 100,
+            "objective": "lead",
+        }
+        r = client.post("/api/simulation/budget", json=body, headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json()["current"]["total_leads"] == 100
+
+    def test_revenue_mode_unchanged(self, auth_headers):
+        body = {
+            "channel_spends": {"google / cpc": 85000},
+            "dda_weights": {"google / cpc": 1.0},
+            "total_revenue": 1100000,
+            "total_conversions": 571,
+            "objective": "revenue",
+        }
+        r = client.post("/api/simulation/budget", json=body, headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["objective"] == "revenue"
+        assert data["current"]["channels"]["google / cpc"]["roas"] is not None
+        assert data["current"]["aov"] is not None
+
+
 # --------------- Data Templates ---------------
 
 

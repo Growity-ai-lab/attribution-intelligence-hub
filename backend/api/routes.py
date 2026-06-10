@@ -146,6 +146,7 @@ def list_clients(
             "id": c.id,
             "name": c.name,
             "year": c.year,
+            "objective": c.objective or "lead",
             "created_at": c.created_at,
             "campaign_count": len(c.campaigns),
         }
@@ -157,21 +158,31 @@ def list_clients(
 def create_client(
     name: str = Body(..., embed=True),
     year: int = Body(..., embed=True),
+    objective: str = Body("lead", embed=True),
     _user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     """Create a new client."""
     if not name or not name.strip():
         raise HTTPException(status_code=400, detail="Client name is required")
+    if objective not in ("lead", "revenue"):
+        raise HTTPException(status_code=400, detail="objective must be 'lead' or 'revenue'")
     client = Client(
         name=name.strip(),
         year=year,
+        objective=objective,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
     db.add(client)
     db.commit()
     db.refresh(client)
-    return {"id": client.id, "name": client.name, "year": client.year, "created_at": client.created_at}
+    return {
+        "id": client.id,
+        "name": client.name,
+        "year": client.year,
+        "objective": client.objective,
+        "created_at": client.created_at,
+    }
 
 
 @router.delete("/clients/{client_id}")
@@ -210,6 +221,8 @@ def list_campaigns(
             "budget": c.budget,
             "channels": c.channels.split(",") if c.channels else [],
             "status": c.status,
+            "objective": c.objective or "lead",
+            "lead_value": c.lead_value or 0.0,
             "created_at": c.created_at,
         }
         for c in client.campaigns
@@ -222,20 +235,30 @@ def create_campaign(
     name: str = Body(..., embed=True),
     budget: float = Body(0.0, embed=True),
     channels: str = Body("", embed=True),
+    objective: str | None = Body(None, embed=True),
+    lead_value: float = Body(0.0, embed=True),
     _user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Create a new campaign under a client."""
+    """Create a new campaign under a client.
+
+    objective defaults to the client's objective when not provided.
+    """
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     if not name or not name.strip():
         raise HTTPException(status_code=400, detail="Campaign name is required")
+    resolved_objective = objective if objective is not None else (client.objective or "lead")
+    if resolved_objective not in ("lead", "revenue"):
+        raise HTTPException(status_code=400, detail="objective must be 'lead' or 'revenue'")
     campaign = Campaign(
         client_id=client_id,
         name=name.strip(),
         budget=budget,
         channels=channels,
+        objective=resolved_objective,
+        lead_value=max(0.0, lead_value),
         created_at=datetime.now(timezone.utc).isoformat(),
     )
     db.add(campaign)
@@ -248,6 +271,50 @@ def create_campaign(
         "budget": campaign.budget,
         "channels": campaign.channels.split(",") if campaign.channels else [],
         "status": campaign.status,
+        "objective": campaign.objective,
+        "lead_value": campaign.lead_value,
+        "created_at": campaign.created_at,
+    }
+
+
+@router.patch("/campaigns/{campaign_id}")
+def update_campaign(
+    campaign_id: int,
+    name: str | None = Body(None, embed=True),
+    budget: float | None = Body(None, embed=True),
+    status: str | None = Body(None, embed=True),
+    objective: str | None = Body(None, embed=True),
+    lead_value: float | None = Body(None, embed=True),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Update campaign fields — objective/lead_value/name/budget/status."""
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if objective is not None:
+        if objective not in ("lead", "revenue"):
+            raise HTTPException(status_code=400, detail="objective must be 'lead' or 'revenue'")
+        campaign.objective = objective
+    if lead_value is not None:
+        campaign.lead_value = max(0.0, lead_value)
+    if name is not None and name.strip():
+        campaign.name = name.strip()
+    if budget is not None:
+        campaign.budget = budget
+    if status is not None:
+        campaign.status = status
+    db.commit()
+    db.refresh(campaign)
+    return {
+        "id": campaign.id,
+        "client_id": campaign.client_id,
+        "name": campaign.name,
+        "budget": campaign.budget,
+        "channels": campaign.channels.split(",") if campaign.channels else [],
+        "status": campaign.status,
+        "objective": campaign.objective,
+        "lead_value": campaign.lead_value,
         "created_at": campaign.created_at,
     }
 
@@ -481,6 +548,7 @@ def _persist_dda_result(
         "assist_report": serialized.get("assist_report", []),
         "online_channels": serialized.get("online_channels", []),
         "channel_summary": serialized.get("channel_summary", {}),
+        "bq_summary": serialized.get("bq_summary", {}),
         "insights": serialized.get("insights", []),
         "top_paths": serialized.get("top_paths", []),
     }
@@ -1362,7 +1430,9 @@ def run_budget_simulation(
       "dda_weights": {"google/cpc": 0.326, ...},
       "total_revenue": 1100000,
       "total_conversions": 571,
-      "scenario_spends": {"google/cpc": 60000, ...}  // optional
+      "scenario_spends": {"google/cpc": 60000, ...},  // optional
+      "objective": "lead" | "revenue",                // optional, default revenue
+      "lead_value": 15000                              // optional, lead mode
     }
     """
     channel_spends = payload.get("channel_spends")
@@ -1370,13 +1440,21 @@ def run_budget_simulation(
     total_revenue = payload.get("total_revenue")
     total_conversions = payload.get("total_conversions")
     scenario_spends = payload.get("scenario_spends")
+    objective = payload.get("objective", "revenue")
+    lead_value = payload.get("lead_value", 0.0)
 
     if not channel_spends or not dda_weights:
         raise HTTPException(
             status_code=400,
             detail="channel_spends ve dda_weights zorunludur.",
         )
-    if total_revenue is None or total_conversions is None:
+    if total_conversions is None:
+        raise HTTPException(
+            status_code=400,
+            detail="total_conversions zorunludur.",
+        )
+    # In lead mode revenue is optional (CSV flow has no revenue)
+    if objective != "lead" and total_revenue is None:
         raise HTTPException(
             status_code=400,
             detail="total_revenue ve total_conversions zorunludur.",
@@ -1385,9 +1463,11 @@ def run_budget_simulation(
     result = simulate_budget(
         channel_spends=channel_spends,
         dda_weights=dda_weights,
-        total_revenue=float(total_revenue),
+        total_revenue=float(total_revenue or 0.0),
         total_conversions=int(total_conversions),
         scenario_spends=scenario_spends,
+        objective=objective,
+        lead_value=float(lead_value or 0.0),
     )
     return result
 

@@ -12,6 +12,7 @@ import { Bar } from 'react-chartjs-2'
 import axios from 'axios'
 import { getChannelColor } from '../utils/colors'
 import { fmtMoney, fmtN, fmtPct } from '../utils/formatters'
+import { objectiveLabels } from '../utils/objectiveLabels'
 import InfoTip from './InfoTip'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
@@ -19,6 +20,10 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 const API = '/api'
 
 export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) {
+  const objective = campaign?.objective || 'lead'
+  const leadValue = campaign?.lead_value || 0
+  const L = objectiveLabels(objective)
+  const isLead = objective === 'lead'
   // BQ connection
   const [bqProject, setBqProject] = useState('')
   const [bqDataset, setBqDataset] = useState('')
@@ -174,7 +179,9 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
     const weights = ddaResult.hybrid_attribution || {}
     const bq = ddaResult.bq_summary || {}
     const totalRevenue = bq.total_revenue || 0
-    const totalConversions = bq.total_conversions || bq.conversions || 0
+    // Lead mode / CSV flow: conversions come from journey_stats when bq_summary is absent
+    const totalConversions = bq.total_conversions || bq.conversions
+      || ddaResult.journey_stats?.converted || 0
 
     const spends = {}
     for (const ch of Object.keys(weights)) {
@@ -195,6 +202,8 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
         dda_weights: weights,
         total_revenue: totalRevenue,
         total_conversions: totalConversions,
+        objective,
+        lead_value: leadValue,
       }
       if (useScenario) {
         const sSpends = {}
@@ -532,13 +541,15 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                 <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.unique_users)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Dönüşüm (kullanıcı)</p>
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">{isLead ? 'Lead (kullanıcı)' : 'Dönüşüm (kullanıcı)'}</p>
                 <p className="text-lg font-mono text-accent mt-0.5">{fmtN(ddaResult.bq_summary.conversions)}</p>
               </div>
-              <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Gelir</p>
-                <p className="text-lg font-mono text-emerald-400 mt-0.5">{fmtMoney(ddaResult.bq_summary.total_revenue)} TL</p>
-              </div>
+              {!isLead && (
+                <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Gelir</p>
+                  <p className="text-lg font-mono text-emerald-400 mt-0.5">{fmtMoney(ddaResult.bq_summary.total_revenue)} TL</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -596,48 +607,53 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
             </div>
           </div>
 
-          {/* Attributed Revenue Chart */}
-          {ddaResult.bq_summary?.total_revenue > 0 && (() => {
+          {/* Attributed Revenue / Lead Chart */}
+          {(() => {
+            const totalRev = ddaResult.bq_summary?.total_revenue || 0
+            const totalLeads = ddaResult.journey_stats?.converted || 0
+            // Lead mode → distribute leads; revenue mode → distribute revenue (only if present)
+            const attrTotal = isLead ? totalLeads : totalRev
+            if (attrTotal <= 0) return null
             const hybrid = ddaResult.hybrid_attribution || {}
-            const totalRev = ddaResult.bq_summary.total_revenue
             const sorted = Object.entries(hybrid)
               .filter(([ch]) => !isOrganic(ch))
               .sort((a, b) => b[1] - a[1])
-            const revData = {
+            const fmtVal = v => isLead ? `${fmtN(v)} lead` : `${fmtMoney(v)} TL`
+            const attrData = {
               labels: sorted.map(([ch]) => ch),
               datasets: [{
-                label: 'Atfedilen Gelir (TL)',
-                data: sorted.map(([, w]) => totalRev * w),
+                label: L.attributedChart,
+                data: sorted.map(([, w]) => attrTotal * w),
                 backgroundColor: sorted.map(([ch], i) => getChannelColor(ch, i) + '80'),
                 borderColor: sorted.map(([ch], i) => getChannelColor(ch, i)),
                 borderWidth: 1,
                 borderRadius: 3,
               }],
             }
-            const revOpts = {
+            const attrOpts = {
               indexAxis: 'y',
               responsive: true,
               maintainAspectRatio: false,
               plugins: {
                 legend: { display: false },
-                tooltip: { callbacks: { label: ctx => `${fmtMoney(ctx.parsed.x)} TL` } },
+                tooltip: { callbacks: { label: ctx => fmtVal(ctx.parsed.x) } },
               },
               scales: {
-                x: { ticks: { callback: v => fmtMoney(v) + ' TL' } },
+                x: { ticks: { callback: v => fmtVal(v) } },
                 y: { grid: { display: false } },
               },
             }
             return (
               <div className="dark-card">
                 <div className="card-hdr">
-                  <span className="card-title">Kanal Bazlı Atfedilen Gelir</span>
+                  <span className="card-title">Kanal Bazlı {L.attributedChart}</span>
                   <span className="text-[10px] font-mono text-slate-500">
-                    Toplam gelir: {fmtMoney(totalRev)} TL
+                    {isLead ? `Toplam lead: ${fmtN(totalLeads)}` : `Toplam gelir: ${fmtMoney(totalRev)} TL`}
                   </span>
                 </div>
                 <div className="p-4">
                   <div style={{ height: Math.max(180, sorted.length * 32) }}>
-                    <Bar data={revData} options={revOpts} />
+                    <Bar data={attrData} options={attrOpts} />
                   </div>
                 </div>
               </div>
@@ -872,13 +888,15 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
             </div>
           )}
 
-          {/* Bütçe & Gelir Simülasyonu */}
+          {/* Bütçe & Gelir/Lead Simülasyonu */}
           {ddaResult.hybrid_attribution && (
             <div className="dark-card">
               <div className="card-hdr">
                 <span className="card-title">
-                  Bütçe & Gelir Simülasyonu
-                  <InfoTip text="DDA katkı paylarını kullanarak kanal bazlı ROAS ve CPA hesaplar. Harcama verisi manuel girilir veya CSV ile yüklenir. Senaryo modunda bütçe değişikliklerinin gelire etkisini simüle edebilirsiniz." />
+                  {L.section}
+                  <InfoTip text={isLead
+                    ? "DDA katkı paylarını kullanarak kanal bazlı atfedilen lead ve CPL hesaplar. Harcama verisi manuel girilir veya CSV ile yüklenir. Senaryo modunda bütçe değişikliklerinin lead'e etkisini simüle edebilirsiniz."
+                    : "DDA katkı paylarını kullanarak kanal bazlı ROAS ve CPA hesaplar. Harcama verisi manuel girilir veya CSV ile yüklenir. Senaryo modunda bütçe değişikliklerinin gelire etkisini simüle edebilirsiniz."} />
                 </span>
                 <span className="text-[10px] font-mono text-slate-500">
                   Hill saturasyon modeli
@@ -906,20 +924,30 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                           </th>
                         )}
                         {simResult && <th className="text-right py-2 px-2">
-                          Atf. Gelir (₺)
-                          <InfoTip text="DDA katkı payına göre bu kanala atfedilen gelir miktarı." />
+                          {L.attributedCol}
+                          <InfoTip text={isLead
+                            ? "DDA katkı payına göre bu kanala atfedilen lead sayısı."
+                            : "DDA katkı payına göre bu kanala atfedilen gelir miktarı."} />
                         </th>}
-                        {simResult && <th className="text-right py-2 px-2">
+                        {simResult && !isLead && <th className="text-right py-2 px-2">
                           ROAS
                           <InfoTip text="Return On Ad Spend — kanala atfedilen gelir / harcama. 1x üstü karlı demektir." />
                         </th>}
                         {simResult && <th className="text-right py-2 px-2">
-                          CPA (₺)
-                          <InfoTip text="Cost Per Acquisition — her bir atfedilen dönüşüm için harcanan tutar. Düşük = verimli." />
+                          {isLead ? 'CPL (₺)' : 'CPA (₺)'}
+                          <InfoTip text={isLead
+                            ? "Cost Per Lead — her bir atfedilen lead için harcanan tutar. Düşük = verimli."
+                            : "Cost Per Acquisition — her bir atfedilen dönüşüm için harcanan tutar. Düşük = verimli."} />
+                        </th>}
+                        {simResult && isLead && leadValue > 0 && <th className="text-right py-2 px-2">
+                          Değer-ROAS
+                          <InfoTip text="Lead başına tahmini değer × atfedilen lead / harcama. Lead'in iş değerine göre verimlilik." />
                         </th>}
                         {simResult?.recommendations && <th className="text-center py-2 px-2">
                           Aksiyon
-                          <InfoTip text="ROAS ve CPA karşılaştırmasına göre otomatik bütçe önerisi. Artır: verimli kanal, Azalt: verimsiz, Koru: ortalama." />
+                          <InfoTip text={isLead
+                            ? "CPL karşılaştırmasına göre otomatik bütçe önerisi. Artır: düşük CPL, Azalt: yüksek CPL, Koru: ortalama."
+                            : "ROAS ve CPA karşılaştırmasına göre otomatik bütçe önerisi. Artır: verimli kanal, Azalt: verimsiz, Koru: ortalama."} />
                         </th>}
                       </tr>
                     </thead>
@@ -973,10 +1001,12 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                               )}
                               {simResult && (
                                 <td className="py-1.5 px-2 text-right font-mono text-slate-300">
-                                  {curCh?.attributed_revenue != null ? `${fmtMoney(curCh.attributed_revenue)}` : '—'}
+                                  {isLead
+                                    ? (curCh?.attributed_leads != null ? fmtN(curCh.attributed_leads) : '—')
+                                    : (curCh?.attributed_revenue != null ? `${fmtMoney(curCh.attributed_revenue)}` : '—')}
                                 </td>
                               )}
-                              {simResult && (
+                              {simResult && !isLead && (
                                 <td className="py-1.5 px-2 text-right font-mono text-slate-300">
                                   {curCh?.roas != null ? `${curCh.roas.toFixed(1)}x` : '—'}
                                 </td>
@@ -984,6 +1014,11 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                               {simResult && (
                                 <td className="py-1.5 px-2 text-right font-mono text-slate-300">
                                   {curCh?.cpa != null ? `${fmtMoney(curCh.cpa)}` : '—'}
+                                </td>
+                              )}
+                              {simResult && isLead && leadValue > 0 && (
+                                <td className="py-1.5 px-2 text-right font-mono text-slate-300">
+                                  {curCh?.value_roas != null ? `${curCh.value_roas.toFixed(1)}x` : '—'}
                                 </td>
                               )}
                               {simResult?.recommendations && (
@@ -1067,27 +1102,57 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                       <p className="text-[10px] text-slate-500 uppercase">Toplam Harcama</p>
                       <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_spend)} ₺</p>
                     </div>
+                    {isLead ? (
+                      <>
+                        <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                          <p className="text-[10px] text-slate-500 uppercase">Toplam Lead</p>
+                          <p className="text-sm font-mono text-emerald-400">{fmtN(simResult.current.total_leads)}</p>
+                        </div>
+                        <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                          <p className="text-[10px] text-slate-500 uppercase">Ort. CPL</p>
+                          <p className="text-sm font-mono text-amber-400">{simResult.current.avg_cpl != null ? `${fmtMoney(simResult.current.avg_cpl)} ₺` : '—'}</p>
+                        </div>
+                        {leadValue > 0 && (
+                          <>
+                            <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                              <p className="text-[10px] text-slate-500 uppercase">Tahmini Değer</p>
+                              <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_attributed_value)} ₺</p>
+                            </div>
+                            <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                              <p className="text-[10px] text-slate-500 uppercase">
+                                Değer-ROAS
+                                <InfoTip text="Tahmini toplam değer / harcama. Lead başına girilen değere dayanır." />
+                              </p>
+                              <p className="text-sm font-mono text-blue-300">{simResult.current.blended_value_roas != null ? `${simResult.current.blended_value_roas.toFixed(1)}x` : '—'}</p>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                          <p className="text-[10px] text-slate-500 uppercase">Toplam Gelir</p>
+                          <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_revenue)} ₺</p>
+                        </div>
+                        <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                          <p className="text-[10px] text-slate-500 uppercase">Karma ROAS</p>
+                          <p className="text-sm font-mono text-slate-100">{simResult.current.blended_roas != null ? `${simResult.current.blended_roas.toFixed(1)}x` : '—'}</p>
+                        </div>
+                        <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                          <p className="text-[10px] text-slate-500 uppercase">Ort. CPA</p>
+                          <p className="text-sm font-mono text-slate-100">{simResult.current.avg_cpa != null ? `${fmtMoney(simResult.current.avg_cpa)} ₺` : '—'}</p>
+                        </div>
+                        <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                          <p className="text-[10px] text-slate-500 uppercase">
+                            AOV
+                            <InfoTip text="Average Order Value — ortalama sipariş değeri. Toplam gelir / toplam dönüşüm." />
+                          </p>
+                          <p className="text-sm font-mono text-slate-100">{simResult.current.aov != null ? `${fmtMoney(simResult.current.aov)} ₺` : '—'}</p>
+                        </div>
+                      </>
+                    )}
                     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-slate-500 uppercase">Toplam Gelir</p>
-                      <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_revenue)} ₺</p>
-                    </div>
-                    <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-slate-500 uppercase">Karma ROAS</p>
-                      <p className="text-sm font-mono text-slate-100">{simResult.current.blended_roas != null ? `${simResult.current.blended_roas.toFixed(1)}x` : '—'}</p>
-                    </div>
-                    <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-slate-500 uppercase">Ort. CPA</p>
-                      <p className="text-sm font-mono text-slate-100">{simResult.current.avg_cpa != null ? `${fmtMoney(simResult.current.avg_cpa)} ₺` : '—'}</p>
-                    </div>
-                    <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-slate-500 uppercase">
-                        AOV
-                        <InfoTip text="Average Order Value — ortalama sipariş değeri. Toplam gelir / toplam dönüşüm." />
-                      </p>
-                      <p className="text-sm font-mono text-slate-100">{simResult.current.aov != null ? `${fmtMoney(simResult.current.aov)} ₺` : '—'}</p>
-                    </div>
-                    <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-slate-500 uppercase">Dönüşüm</p>
+                      <p className="text-[10px] text-slate-500 uppercase">{isLead ? 'Lead' : 'Dönüşüm'}</p>
                       <p className="text-sm font-mono text-slate-100">{fmtN(simResult.current.total_conversions)}</p>
                     </div>
                   </div>
@@ -1098,31 +1163,62 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                   <div className="space-y-3">
                     <div className="text-xs font-medium text-amber-300">Senaryo Sonucu</div>
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                      <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-amber-400/70 uppercase">Projeksiyon Gelir</p>
-                        <p className="text-sm font-mono text-amber-200">{fmtMoney(simResult.scenario.projected_revenue)} ₺</p>
-                      </div>
-                      <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-amber-400/70 uppercase">Gelir Farkı</p>
-                        <p className={`text-sm font-mono ${simResult.scenario.delta_revenue >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                          {simResult.scenario.delta_revenue >= 0 ? '+' : ''}{fmtMoney(simResult.scenario.delta_revenue)} ₺
-                          <span className="text-[10px] ml-1">({simResult.scenario.delta_revenue_pct >= 0 ? '+' : ''}{simResult.scenario.delta_revenue_pct}%)</span>
-                        </p>
-                      </div>
-                      <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-amber-400/70 uppercase">Yeni ROAS</p>
-                        <p className="text-sm font-mono text-amber-200">{simResult.scenario.blended_roas != null ? `${simResult.scenario.blended_roas.toFixed(1)}x` : '—'}</p>
-                      </div>
-                      <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-amber-400/70 uppercase">ROAS Değişim</p>
-                        <p className={`text-sm font-mono ${(simResult.scenario.delta_roas || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                          {simResult.scenario.delta_roas != null ? `${simResult.scenario.delta_roas >= 0 ? '+' : ''}${simResult.scenario.delta_roas.toFixed(1)}x` : '—'}
-                        </p>
-                      </div>
-                      <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-amber-400/70 uppercase">Proj. Dönüşüm</p>
-                        <p className="text-sm font-mono text-amber-200">{fmtN(simResult.scenario.projected_conversions)}</p>
-                      </div>
+                      {isLead ? (
+                        <>
+                          <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                            <p className="text-[10px] text-amber-400/70 uppercase">Projeksiyon Lead</p>
+                            <p className="text-sm font-mono text-amber-200">{fmtN(simResult.scenario.projected_leads)}</p>
+                          </div>
+                          <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                            <p className="text-[10px] text-amber-400/70 uppercase">Lead Farkı</p>
+                            <p className={`text-sm font-mono ${(simResult.scenario.projected_leads - simResult.current.total_leads) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                              {(simResult.scenario.projected_leads - simResult.current.total_leads) >= 0 ? '+' : ''}{fmtN(simResult.scenario.projected_leads - simResult.current.total_leads)}
+                            </p>
+                          </div>
+                          <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                            <p className="text-[10px] text-amber-400/70 uppercase">Yeni CPL</p>
+                            <p className="text-sm font-mono text-amber-200">{simResult.scenario.blended_cpl != null ? `${fmtMoney(simResult.scenario.blended_cpl)} ₺` : '—'}</p>
+                          </div>
+                          <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                            <p className="text-[10px] text-amber-400/70 uppercase">CPL Değişim</p>
+                            <p className={`text-sm font-mono ${(simResult.scenario.delta_cpl || 0) <= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                              {simResult.scenario.delta_cpl != null ? `${simResult.scenario.delta_cpl >= 0 ? '+' : ''}${fmtMoney(simResult.scenario.delta_cpl)} ₺` : '—'}
+                            </p>
+                          </div>
+                          <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                            <p className="text-[10px] text-amber-400/70 uppercase">Toplam Harcama</p>
+                            <p className="text-sm font-mono text-amber-200">{fmtMoney(simResult.scenario.total_spend)} ₺</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                            <p className="text-[10px] text-amber-400/70 uppercase">Projeksiyon Gelir</p>
+                            <p className="text-sm font-mono text-amber-200">{fmtMoney(simResult.scenario.projected_revenue)} ₺</p>
+                          </div>
+                          <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                            <p className="text-[10px] text-amber-400/70 uppercase">Gelir Farkı</p>
+                            <p className={`text-sm font-mono ${simResult.scenario.delta_revenue >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                              {simResult.scenario.delta_revenue >= 0 ? '+' : ''}{fmtMoney(simResult.scenario.delta_revenue)} ₺
+                              <span className="text-[10px] ml-1">({simResult.scenario.delta_revenue_pct >= 0 ? '+' : ''}{simResult.scenario.delta_revenue_pct}%)</span>
+                            </p>
+                          </div>
+                          <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                            <p className="text-[10px] text-amber-400/70 uppercase">Yeni ROAS</p>
+                            <p className="text-sm font-mono text-amber-200">{simResult.scenario.blended_roas != null ? `${simResult.scenario.blended_roas.toFixed(1)}x` : '—'}</p>
+                          </div>
+                          <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                            <p className="text-[10px] text-amber-400/70 uppercase">ROAS Değişim</p>
+                            <p className={`text-sm font-mono ${(simResult.scenario.delta_roas || 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                              {simResult.scenario.delta_roas != null ? `${simResult.scenario.delta_roas >= 0 ? '+' : ''}${simResult.scenario.delta_roas.toFixed(1)}x` : '—'}
+                            </p>
+                          </div>
+                          <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
+                            <p className="text-[10px] text-amber-400/70 uppercase">Proj. Dönüşüm</p>
+                            <p className="text-sm font-mono text-amber-200">{fmtN(simResult.scenario.projected_conversions)}</p>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

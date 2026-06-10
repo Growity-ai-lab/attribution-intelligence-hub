@@ -56,8 +56,18 @@ def simulate_budget(
     total_revenue: float,
     total_conversions: int,
     scenario_spends: dict[str, float] | None = None,
+    objective: str = "revenue",
+    lead_value: float = 0.0,
 ) -> dict:
-    """Run budget simulation with optional what-if scenario."""
+    """Run budget simulation with optional what-if scenario.
+
+    objective: "revenue" (ROAS/AOV) or "lead" (CPL/attributed leads).
+    lead_value: optional TL value per lead — in lead mode enables value-ROAS.
+    """
+    objective = objective if objective in ("lead", "revenue") else "revenue"
+    lead_value = max(0.0, float(lead_value or 0.0))
+    primary_metric = "leads" if objective == "lead" else "revenue"
+
     current_channels: dict[str, dict] = {}
     total_spend = sum(channel_spends.values())
 
@@ -70,11 +80,17 @@ def simulate_budget(
             "spend": round(spend, 2),
             "attributed_revenue": round(attr_rev, 2),
             "attributed_conversions": round(attr_conv, 1),
+            "attributed_leads": round(attr_conv, 1),
             "weight": round(weight, 4),
             "roas": round(attr_rev / spend, 2) if spend > 0 else None,
             "cpa": round(spend / attr_conv, 2) if spend > 0 and attr_conv > 0 else None,
+            "cpl": round(spend / attr_conv, 2) if spend > 0 and attr_conv > 0 else None,
             "organic": _is_organic(ch),
         }
+        if objective == "lead" and lead_value > 0:
+            attr_val = attr_conv * lead_value
+            entry["attributed_value"] = round(attr_val, 2)
+            entry["value_roas"] = round(attr_val / spend, 2) if spend > 0 else None
         current_channels[ch] = entry
 
     current_blended_roas = (
@@ -100,19 +116,38 @@ def simulate_budget(
         "total_spend": round(total_spend, 2),
         "total_revenue": round(total_revenue, 2),
         "total_conversions": total_conversions,
+        "total_leads": total_conversions,
         "blended_roas": current_blended_roas,
         "avg_cpa": avg_cpa,
+        "avg_cpl": avg_cpa,
         "aov": aov,
         "channels": current_channels,
     }
+    if objective == "lead" and lead_value > 0:
+        total_value = total_conversions * lead_value
+        current["lead_value"] = round(lead_value, 2)
+        current["total_attributed_value"] = round(total_value, 2)
+        current["blended_value_roas"] = (
+            round(total_value / total_spend, 2) if total_spend > 0 else None
+        )
 
-    recommendations = generate_budget_recommendations(current_channels, total_spend)
+    # In lead mode, recommendations are CPL-based (revenue not meaningful)
+    force_cpa = objective == "lead"
+    recommendations = generate_budget_recommendations(
+        current_channels, total_spend, force_cpa=force_cpa
+    )
 
-    result: dict = {"current": current, "recommendations": recommendations}
+    result: dict = {
+        "objective": objective,
+        "primary_metric": primary_metric,
+        "current": current,
+        "recommendations": recommendations,
+    }
 
     if scenario_spends:
         result["scenario"] = _project_scenario(
-            current_channels, scenario_spends, total_revenue, total_spend
+            current_channels, scenario_spends, total_revenue, total_spend,
+            objective=objective, lead_value=lead_value,
         )
 
     return result
@@ -123,6 +158,8 @@ def _project_scenario(
     scenario_spends: dict[str, float],
     total_revenue: float,
     current_total_spend: float,
+    objective: str = "revenue",
+    lead_value: float = 0.0,
 ) -> dict:
     scenario_channels: dict[str, dict] = {}
     projected_total_rev = 0.0
@@ -159,8 +196,10 @@ def _project_scenario(
             "spend": round(new_spend, 2),
             "projected_revenue": round(proj_rev, 2),
             "projected_conversions": round(proj_conv, 1),
+            "projected_leads": round(proj_conv, 1),
             "roas": round(proj_rev / new_spend, 2) if new_spend > 0 else None,
             "cpa": round(new_spend / proj_conv, 2) if new_spend > 0 and proj_conv > 0 else None,
+            "cpl": round(new_spend / proj_conv, 2) if new_spend > 0 and proj_conv > 0 else None,
             "delta_spend": round(new_spend - old_spend, 2),
             "projection_model": projection_model,
         }
@@ -177,11 +216,25 @@ def _project_scenario(
         else None
     )
 
-    return {
+    # Lead-mode blended CPL (spend / projected leads)
+    new_cpl = (
+        round(scenario_total_spend / projected_total_conv, 2)
+        if projected_total_conv > 0
+        else None
+    )
+    old_cpl = (
+        round(current_total_spend / sum(c["attributed_conversions"] for c in current_channels.values()), 2)
+        if sum(c["attributed_conversions"] for c in current_channels.values()) > 0
+        else None
+    )
+
+    out = {
         "total_spend": round(scenario_total_spend, 2),
         "projected_revenue": round(projected_total_rev, 2),
         "projected_conversions": round(projected_total_conv, 1),
+        "projected_leads": round(projected_total_conv, 1),
         "blended_roas": new_blended,
+        "blended_cpl": new_cpl,
         "delta_revenue": round(delta_rev, 2),
         "delta_revenue_pct": (
             round(delta_rev / total_revenue * 100, 1) if total_revenue > 0 else 0
@@ -191,25 +244,37 @@ def _project_scenario(
             if new_blended is not None and old_blended is not None
             else None
         ),
+        "delta_cpl": (
+            round(new_cpl - old_cpl, 2)
+            if new_cpl is not None and old_cpl is not None
+            else None
+        ),
         "channels": scenario_channels,
     }
+    if objective == "lead" and lead_value > 0:
+        out["projected_attributed_value"] = round(projected_total_conv * lead_value, 2)
+    return out
 
 
 def generate_budget_recommendations(
     channels: dict[str, dict],
     total_spend: float = 0,
+    force_cpa: bool = False,
 ) -> list[dict]:
     """Generate Turkish-language budget action recommendations per channel.
 
     Uses ROAS as primary metric when revenue is meaningful,
-    falls back to CPA comparison when it isn't.
+    falls back to CPA comparison when it isn't (or when force_cpa=True,
+    e.g. in lead-objective mode where revenue is not the goal).
     """
     paid = {ch: d for ch, d in channels.items() if not d["organic"] and d.get("cpa") is not None}
     if not paid:
         return []
 
     total_rev = sum(d.get("attributed_revenue", 0) for d in paid.values())
-    revenue_meaningful = total_spend > 0 and total_rev > total_spend * 0.05
+    revenue_meaningful = (
+        not force_cpa and total_spend > 0 and total_rev > total_spend * 0.05
+    )
 
     paid_with_roas = [d for d in paid.values() if d.get("roas") is not None]
     avg_roas = (

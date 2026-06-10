@@ -43,11 +43,14 @@ def export_dda_report(
 
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     campaign_name = campaign.name if campaign else f"Kampanya {campaign_id}"
+    objective = (campaign.objective if campaign else "lead") or "lead"
 
-    wb = build_dda_report(snapshot, campaign_name, dda.run_date or "")
+    wb = build_dda_report(snapshot, campaign_name, dda.run_date or "", objective)
     buf = workbook_to_bytes(wb)
 
-    filename = f"attribution_rapor_{campaign_id}_{dda.run_date[:10] if dda.run_date else 'unknown'}.xlsx"
+    mode_tag = "lead" if objective == "lead" else "gelir"
+    date_tag = dda.run_date[:10] if dda.run_date else "unknown"
+    filename = f"attribution_{mode_tag}_rapor_{campaign_id}_{date_tag}.xlsx"
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
