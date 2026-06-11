@@ -55,6 +55,20 @@ def compute_saturation(x: float, alpha: float, gamma: float) -> float:
     return x_g / (a_g + x_g)
 
 
+def compute_hill_inverse(s: float, alpha: float, gamma: float) -> float:
+    """Closed-form inverse of Hill saturation: given target saturation s, return spend x.
+
+    Formula: x = alpha * (s / (1 - s)) ^ (1 / gamma)
+    """
+    if not (0.0 < s < 1.0):
+        raise ValueError(f"s must be in (0, 1), got {s}")
+    if alpha <= 0:
+        raise ValueError(f"Alpha must be positive, got {alpha}")
+    if gamma <= 0:
+        raise ValueError(f"Gamma must be positive, got {gamma}")
+    return alpha * (s / (1.0 - s)) ** (1.0 / gamma)
+
+
 def compute_response(
     saturated_value: float, baseline: float, max_lift: float
 ) -> float:

@@ -62,6 +62,13 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
   const [trendData, setTrendData] = useState(null)
   const [exportLoading, setExportLoading] = useState(false)
 
+  // CPL target planner (lead mode only)
+  const [targetCpl, setTargetCpl] = useState('')
+  const [targetLeads, setTargetLeads] = useState('')
+  const [cplPlanResult, setCplPlanResult] = useState(null)
+  const [cplPlanLoading, setCplPlanLoading] = useState(false)
+  const [cplPlanError, setCplPlanError] = useState('')
+
   useEffect(() => {
     if (!ddaResult || !campaign?.id) return
     axios.get(`${API}/insights/trend`, { params: { campaign_id: campaign.id } })
@@ -221,7 +228,28 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       setSimError(err.response?.data?.detail || err.message)
     }
     setSimLoading(false)
-  }, [ddaResult, channelSpends, scenarioSpends])
+  }, [ddaResult, channelSpends, scenarioSpends, objective, leadValue])
+
+  const handleCplPlan = useCallback(async () => {
+    if (!ddaResult || !targetCpl || !targetLeads) return
+    setCplPlanLoading(true)
+    setCplPlanError('')
+    try {
+      const weights = ddaResult.hybrid_attribution || {}
+      const body = {
+        target_cpl: Number(targetCpl),
+        target_leads: Number(targetLeads),
+        channel_weights: weights,
+        current_spends: channelSpends,
+        lead_value: leadValue,
+      }
+      const res = await axios.post(`${API}/simulation/cpl-target`, body)
+      setCplPlanResult(res.data)
+    } catch (err) {
+      setCplPlanError(err.response?.data?.detail || err.message)
+    }
+    setCplPlanLoading(false)
+  }, [ddaResult, targetCpl, targetLeads, channelSpends, leadValue])
 
   const handleCsvSpendUpload = useCallback((e) => {
     const file = e.target.files?.[0]
@@ -1220,6 +1248,113 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                         </>
                       )}
                     </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* CPL Target Planner (lead mode only) */}
+          {isLead && ddaResult && simResult && (
+            <div className="dark-card">
+              <div className="card-hdr">
+                <span className="card-title">
+                  Hedef CPL Planlayıcı
+                  <InfoTip text="Hedef CPL ve lead sayısı girdiğinizde, DDA katkı paylarına göre kanal bazlı bütçe dağılımını hesaplar. Hill saturasyon modeli ile fizibilite değerlendirir." />
+                </span>
+                <span className="text-[10px] font-mono text-slate-500">Lead modu</span>
+              </div>
+              <div className="p-4 space-y-4">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 uppercase mb-1">Hedef CPL (₺)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="w-32 bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 font-mono focus:border-emerald-500 focus:outline-none"
+                      placeholder="örn. 500"
+                      value={targetCpl}
+                      onChange={e => setTargetCpl(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 uppercase mb-1">Hedef Lead Sayısı</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="w-32 bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200 font-mono focus:border-emerald-500 focus:outline-none"
+                      placeholder="örn. 1000"
+                      value={targetLeads}
+                      onChange={e => setTargetLeads(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    onClick={handleCplPlan}
+                    disabled={cplPlanLoading || !targetCpl || !targetLeads}
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    {cplPlanLoading ? 'Hesaplanıyor…' : 'Hesapla'}
+                  </button>
+                </div>
+                {cplPlanError && (
+                  <p className="text-red-400 text-xs">{cplPlanError}</p>
+                )}
+                {cplPlanResult && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className={`rounded-xl p-3 text-center border ${cplPlanResult.feasibility?.achievable ? 'bg-emerald-900/15 border-emerald-800/30' : 'bg-red-900/15 border-red-800/30'}`}>
+                        <p className="text-[10px] text-slate-500 uppercase">Fizibilite</p>
+                        <p className={`text-sm font-bold ${cplPlanResult.feasibility?.achievable ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {cplPlanResult.feasibility?.achievable ? 'Ulaşılabilir' : 'Riskli'}
+                        </p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">{cplPlanResult.feasibility?.label || ''}</p>
+                      </div>
+                      <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-slate-500 uppercase">Toplam Bütçe</p>
+                        <p className="text-sm font-mono text-slate-100">{fmtMoney(cplPlanResult.total_budget)} ₺</p>
+                      </div>
+                      <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-slate-500 uppercase">Proj. Lead</p>
+                        <p className="text-sm font-mono text-accent">{fmtN(cplPlanResult.projected_total_leads || 0)}</p>
+                      </div>
+                      <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-slate-500 uppercase">Güven</p>
+                        <p className="text-sm font-mono text-slate-100">{fmtPct(cplPlanResult.confidence?.score || 0)}</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">{cplPlanResult.confidence?.basis === 'assumption' ? 'Varsayım bazlı' : 'Veri bazlı'}</p>
+                      </div>
+                    </div>
+                    {cplPlanResult.channels && Object.keys(cplPlanResult.channels).length > 0 && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-[10px] text-slate-500 uppercase border-b border-slate-700/50">
+                              <th className="text-left py-2 px-2">Kanal</th>
+                              <th className="text-right py-2 px-2">DDA Katkı</th>
+                              <th className="text-right py-2 px-2">Önerilen Bütçe</th>
+                              <th className="text-right py-2 px-2">Bütçe Payı</th>
+                              <th className="text-right py-2 px-2">Proj. Lead</th>
+                              <th className="text-right py-2 px-2">Proj. CPL</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(cplPlanResult.channels)
+                              .sort((a, b) => (b[1].allocated_budget || 0) - (a[1].allocated_budget || 0))
+                              .map(([ch, info]) => (
+                                <tr key={ch} className="border-b border-slate-800/50 hover:bg-slate-800/20">
+                                  <td className="py-1.5 px-2 text-slate-200 font-medium">{ch}</td>
+                                  <td className="py-1.5 px-2 text-right font-mono text-slate-300">{fmtPct(info.dda_weight || 0)}</td>
+                                  <td className="py-1.5 px-2 text-right font-mono text-emerald-300">{fmtMoney(info.allocated_budget || 0)} ₺</td>
+                                  <td className="py-1.5 px-2 text-right font-mono text-slate-300">{fmtPct(info.budget_share || 0)}</td>
+                                  <td className="py-1.5 px-2 text-right font-mono text-slate-300">{fmtN(info.projected_leads || 0)}</td>
+                                  <td className="py-1.5 px-2 text-right font-mono text-slate-300">
+                                    {info.projected_cpl != null ? `${fmtMoney(info.projected_cpl)} ₺` : '—'}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

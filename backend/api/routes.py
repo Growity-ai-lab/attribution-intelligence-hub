@@ -58,7 +58,7 @@ from backend.models.mmm import (
     compute_response,
     compute_saturation,
 )
-from backend.models.simulation import simulate_budget
+from backend.models.simulation import plan_cpl_target, simulate_budget
 from backend.models.unified import suggest_reallocation
 from backend.integrations.bigquery import (
     get_client as bq_get_client,
@@ -1470,6 +1470,32 @@ def run_budget_simulation(
         lead_value=float(lead_value or 0.0),
     )
     return result
+
+
+@router.post("/simulation/cpl-target")
+def run_cpl_target_planner(
+    payload: dict = Body(...),
+    _user: dict = Depends(get_current_user),
+) -> dict:
+    """Plan budget allocation to achieve a target CPL and lead count."""
+    target_cpl = payload.get("target_cpl")
+    target_leads = payload.get("target_leads")
+    channel_weights = payload.get("channel_weights")
+    current_spends = payload.get("current_spends", {})
+    lead_value = payload.get("lead_value", 0.0)
+
+    if not target_cpl or not target_leads:
+        raise HTTPException(status_code=400, detail="target_cpl ve target_leads zorunludur.")
+    if not channel_weights:
+        raise HTTPException(status_code=400, detail="channel_weights zorunludur.")
+
+    return plan_cpl_target(
+        target_cpl=float(target_cpl),
+        target_leads=int(target_leads),
+        channel_weights=channel_weights,
+        current_spends={ch: float(v) for ch, v in current_spends.items()} if current_spends else {},
+        lead_value=float(lead_value or 0),
+    )
 
 
 # ── Sales & Stock Endpoints ──────────────────────────────

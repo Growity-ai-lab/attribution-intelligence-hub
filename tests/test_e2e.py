@@ -1010,3 +1010,106 @@ class TestHealthCheck:
     def test_health(self):
         r = client.get("/api/health")
         assert r.status_code == 200
+
+
+# --------------- CPL Target Planner ---------------
+
+
+class TestCplTargetPlanner:
+    def test_cpl_plan_basic(self, sample_journeys_csv, auth_headers):
+        cr = client.post(
+            "/api/clients",
+            json={"name": "CplPlanClient", "year": 2099, "objective": "lead"},
+            headers=auth_headers,
+        )
+        client_id = cr.json()["id"]
+        camp = client.post(
+            f"/api/clients/{client_id}/campaigns",
+            json={"name": "CplCamp", "budget": 50000, "channels": "meta,google", "lead_value": 500},
+            headers=auth_headers,
+        )
+        camp_id = camp.json()["id"]
+        dda = client.post(
+            f"/api/dda/run-from-csv?campaign_id={camp_id}",
+            files={"file": ("j.csv", io.BytesIO(sample_journeys_csv), "text/csv")},
+            headers=auth_headers,
+        )
+        weights = dda.json()["hybrid_attribution"]
+
+        r = client.post(
+            "/api/simulation/cpl-target",
+            json={
+                "target_cpl": 500,
+                "target_leads": 100,
+                "channel_weights": weights,
+                "current_spends": {ch: 5000 for ch in list(weights.keys())[:3]},
+                "lead_value": 500,
+            },
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total_budget"] == 50000
+        assert data["target_cpl"] == 500
+        assert data["target_leads"] == 100
+        assert "feasibility" in data
+        assert "channels" in data
+        assert "confidence" in data
+
+    def test_cpl_plan_missing_fields(self, auth_headers):
+        r = client.post(
+            "/api/simulation/cpl-target",
+            json={"target_cpl": 500},
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+
+    def test_cpl_plan_requires_auth(self):
+        r = client.post("/api/simulation/cpl-target", json={})
+        assert r.status_code == 401
+
+
+# --------------- Hill Inverse & Blended CPA ---------------
+
+
+class TestHillInverseAndBlendedCPA:
+    def test_hill_inverse_basic(self):
+        from backend.models.mmm import compute_hill_inverse
+        x = compute_hill_inverse(0.5, alpha=1000, gamma=1.5)
+        assert x == pytest.approx(1000, rel=0.01)
+
+    def test_hill_inverse_low_saturation(self):
+        from backend.models.mmm import compute_hill_inverse
+        x = compute_hill_inverse(0.1, alpha=1000, gamma=1.5)
+        assert x < 1000
+        assert x > 0
+
+    def test_hill_inverse_high_saturation(self):
+        from backend.models.mmm import compute_hill_inverse
+        x = compute_hill_inverse(0.9, alpha=1000, gamma=1.5)
+        assert x > 1000
+
+    def test_hill_inverse_invalid_s(self):
+        from backend.models.mmm import compute_hill_inverse
+        with pytest.raises(ValueError):
+            compute_hill_inverse(0.0, alpha=1000, gamma=1.5)
+        with pytest.raises(ValueError):
+            compute_hill_inverse(1.0, alpha=1000, gamma=1.5)
+
+    def test_blended_cpa_is_spend_weighted(self):
+        from backend.models.simulation import _blended_metric
+        channels = [
+            {"spend": 20000, "attributed_conversions": 5},
+            {"spend": 10000, "attributed_conversions": 5},
+        ]
+        result = _blended_metric(channels)
+        assert result == 3000.0
+
+    def test_blended_cpa_zero_conversions(self):
+        from backend.models.simulation import _blended_metric
+        channels = [
+            {"spend": 20000, "attributed_conversions": 0},
+            {"spend": 10000, "attributed_conversions": 0},
+        ]
+        result = _blended_metric(channels)
+        assert result is None

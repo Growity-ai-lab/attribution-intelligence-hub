@@ -50,6 +50,19 @@ def _is_organic(channel: str) -> bool:
     return any(kw in medium for kw in _ORGANIC_MEDIUMS)
 
 
+def _blended_metric(
+    channels: list[dict],
+    spend_key: str = "spend",
+    conv_key: str = "attributed_conversions",
+) -> float | None:
+    """Spend-weighted blended CPA/CPL = total_spend / total_conversions."""
+    total_s = sum(d[spend_key] for d in channels)
+    total_c = sum(d[conv_key] for d in channels)
+    if total_c > 0 and total_s > 0:
+        return round(total_s / total_c, 2)
+    return None
+
+
 def simulate_budget(
     channel_spends: dict[str, float],
     dda_weights: dict[str, float],
@@ -97,15 +110,11 @@ def simulate_budget(
         round(total_revenue / total_spend, 2) if total_spend > 0 else None
     )
 
-    paid_with_conv = [
+    paid_channels = [
         d for d in current_channels.values()
-        if d.get("cpa") is not None and not d["organic"]
+        if not d["organic"] and d["spend"] > 0
     ]
-    avg_cpa = (
-        round(sum(d["cpa"] for d in paid_with_conv) / len(paid_with_conv), 2)
-        if paid_with_conv
-        else None
-    )
+    avg_cpa = _blended_metric(paid_channels) if paid_channels else None
     aov = (
         round(total_revenue / total_conversions, 2)
         if total_conversions > 0
@@ -369,3 +378,93 @@ def generate_budget_recommendations(
                 })
 
     return recs
+
+
+def plan_cpl_target(
+    target_cpl: float,
+    target_leads: int,
+    channel_weights: dict[str, float],
+    current_spends: dict[str, float] | None = None,
+    lead_value: float = 0.0,
+) -> dict:
+    """Plan budget allocation to achieve a target CPL and lead count.
+
+    Uses efficiency-weighted proportional allocation: channels with higher
+    DDA weight and lower current saturation get more budget.
+    """
+    current_spends = current_spends or {}
+    total_budget = target_cpl * target_leads
+
+    paid = {
+        ch: w for ch, w in channel_weights.items()
+        if w > 0 and not _is_organic(ch)
+    }
+    if not paid:
+        return {
+            "feasibility": {"achievable": False, "label": "Ücretli kanal bulunamadı"},
+            "total_budget": total_budget,
+            "target_cpl": target_cpl,
+            "target_leads": target_leads,
+            "projected_total_leads": 0,
+            "channels": {},
+            "confidence": {"score": 0, "basis": "assumption"},
+        }
+
+    efficiencies = {}
+    for ch, w in paid.items():
+        hub_ch = _resolve_hub_channel(ch)
+        sat_params = SATURATION_PARAMS.get(hub_ch) if hub_ch else None
+        if sat_params:
+            cur_spend = current_spends.get(ch, 0)
+            alpha, gamma = sat_params
+            sat_current = compute_saturation(cur_spend, alpha, gamma) if cur_spend > 0 else 0
+        else:
+            sat_current = 0
+        efficiencies[ch] = w * max(1.0 - sat_current, 0.05)
+
+    total_eff = sum(efficiencies.values())
+    channels_out = {}
+    total_projected_leads = 0.0
+
+    for ch, eff in efficiencies.items():
+        share = eff / total_eff if total_eff > 0 else 1.0 / len(efficiencies)
+        alloc = total_budget * share
+        leads_for_ch = target_leads * (channel_weights[ch] / sum(paid.values()))
+
+        hub_ch = _resolve_hub_channel(ch)
+        sat_params = SATURATION_PARAMS.get(hub_ch) if hub_ch else None
+        if sat_params:
+            alpha, gamma = sat_params
+            sat_at_alloc = compute_saturation(alloc, alpha, gamma)
+            proj_leads = leads_for_ch * min(sat_at_alloc / 0.5, 2.0)
+        else:
+            proj_leads = leads_for_ch
+
+        total_projected_leads += proj_leads
+        channels_out[ch] = {
+            "dda_weight": round(channel_weights[ch], 4),
+            "allocated_budget": round(alloc, 2),
+            "budget_share": round(share, 4),
+            "projected_leads": round(proj_leads, 1),
+            "projected_cpl": round(alloc / proj_leads, 2) if proj_leads > 0 else None,
+        }
+
+    achievable = total_projected_leads >= target_leads * 0.8
+    coverage = len(current_spends) / max(len(paid), 1)
+    confidence_score = 0.55 + (coverage * 0.25)
+
+    return {
+        "feasibility": {
+            "achievable": achievable,
+            "label": "Ulaşılabilir" if achievable else "Riskli — hedefin %80'ine ulaşılamıyor",
+        },
+        "total_budget": round(total_budget, 2),
+        "target_cpl": target_cpl,
+        "target_leads": target_leads,
+        "projected_total_leads": round(total_projected_leads, 1),
+        "channels": channels_out,
+        "confidence": {
+            "score": round(min(confidence_score, 1.0), 2),
+            "basis": "assumption",
+        },
+    }
