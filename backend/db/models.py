@@ -149,6 +149,10 @@ class Alert(Base):
     acknowledged_at = Column(String, default="")
     dda_result_id = Column(Integer, ForeignKey("dda_results.id"), nullable=True)
 
+    __table_args__ = (
+        Index("ix_alerts_campaign_ack", "campaign_id", "acknowledged"),
+    )
+
 
 class SalesStockData(Base):
     __tablename__ = "sales_stock_data"

@@ -142,3 +142,35 @@ SINGLE_TOUCH_THRESHOLD = 1.2  # avg_path_length <= this → single-touch data
 # MMM fitting bounds
 DECAY_BOUNDS = (0.0, 0.95)
 GAMMA_BOUNDS = (0.3, 3.0)
+
+
+def validate_config() -> None:
+    """Verify channel parameter dicts are consistent at startup."""
+    _channel_dicts = {
+        "ADSTOCK_PARAMS": set(ADSTOCK_PARAMS),
+        "SATURATION_PARAMS": set(SATURATION_PARAMS),
+        "MAX_LIFT": set(MAX_LIFT),
+        "DIGITAL_CHANNEL_METRICS": set(DIGITAL_CHANNEL_METRICS),
+        "DIGITAL_PRESETS": set(DIGITAL_PRESETS),
+    }
+    for name, keys in _channel_dicts.items():
+        if keys != CHANNELS_SET:
+            missing = CHANNELS_SET - keys
+            extra = keys - CHANNELS_SET
+            parts = []
+            if missing:
+                parts.append(f"missing {missing}")
+            if extra:
+                parts.append(f"extra {extra}")
+            raise RuntimeError(f"Config mismatch: {name} {', '.join(parts)} vs CHANNELS_SET")
+
+    dda_sum = sum(DDA_BLEND_WEIGHTS.values())
+    if abs(dda_sum - 1.0) > 1e-6:
+        raise RuntimeError(f"DDA_BLEND_WEIGHTS must sum to 1.0, got {dda_sum}")
+
+    unified_sum = sum(UNIFIED_WEIGHTS.values())
+    if abs(unified_sum - 1.0) > 1e-6:
+        raise RuntimeError(f"UNIFIED_WEIGHTS must sum to 1.0, got {unified_sum}")
+
+
+validate_config()
