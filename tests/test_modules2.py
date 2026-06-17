@@ -10,7 +10,12 @@ from io import BytesIO
 from types import SimpleNamespace
 
 from backend.models.simulation import simulate_budget, generate_budget_recommendations
-from backend.export.report_builder import build_dda_report, workbook_to_bytes
+from backend.export.report_builder import (
+    build_dda_pptx,
+    build_dda_report,
+    pptx_to_bytes,
+    workbook_to_bytes,
+)
 from backend.models.mmm_fit import fit_mmm, compute_data_hash
 
 
@@ -397,3 +402,71 @@ class TestComputeDataHash:
         h = compute_data_hash(rows)
         assert len(h) == 32
         assert all(c in "0123456789abcdef" for c in h)
+
+
+# ── PPTX export ──────────────────────────────────────────────────────
+
+def _sample_dda_result():
+    return {
+        "journey_stats": {
+            "total_journeys": 100,
+            "converted": 40,
+            "conversion_rate": 0.4,
+            "avg_path_length": 2.3,
+        },
+        "hybrid_attribution": {"meta": 0.45, "google": 0.35, "tiktok": 0.20},
+        "markov": {
+            "conversion_probability": 0.38,
+            "removal_effects": {"meta": 0.52, "google": 0.30, "tiktok": 0.18},
+            "attribution_weights": {"meta": 0.52, "google": 0.30, "tiktok": 0.18},
+            "warnings": [],
+        },
+        "shapley_dda": {"meta": 0.40, "google": 0.38, "tiktok": 0.22},
+        "assist_report": [
+            {"channel": "meta", "last_touch": 15, "first_touch": 20, "assists": 10,
+             "assist_ratio": 0.4, "total_involvement": 25, "channel_role": "Hibrit"},
+            {"channel": "google", "last_touch": 18, "first_touch": 8, "assists": 5,
+             "assist_ratio": 0.22, "total_involvement": 23, "channel_role": "Dönüştürücü"},
+        ],
+        "insights": [
+            {"type": "success", "category": "attribution", "text": "Meta en güçlü kanal."},
+            {"type": "warning", "category": "data", "text": "Tek temaslı yolculuk oranı yüksek."},
+        ],
+    }
+
+
+class TestBuildDDAPptx:
+    def test_returns_presentation(self):
+        result = _sample_dda_result()
+        prs = build_dda_pptx(result, "Test Campaign", "2026-06-17")
+        assert hasattr(prs, "slides")
+
+    def test_slide_count(self):
+        result = _sample_dda_result()
+        prs = build_dda_pptx(result, "Test Campaign", "2026-06-17")
+        assert len(prs.slides) == 5
+
+    def test_no_insights_fewer_slides(self):
+        result = _sample_dda_result()
+        result["insights"] = []
+        prs = build_dda_pptx(result, "Test Campaign", "2026-06-17")
+        assert len(prs.slides) == 4
+
+    def test_to_bytes(self):
+        result = _sample_dda_result()
+        prs = build_dda_pptx(result, "Test Campaign", "2026-06-17")
+        buf = pptx_to_bytes(prs)
+        assert isinstance(buf, BytesIO)
+        assert buf.getvalue()[:4] == b"PK\x03\x04"
+
+    def test_revenue_mode(self):
+        result = _sample_dda_result()
+        result["bq_summary"] = {"total_revenue": 500000}
+        prs = build_dda_pptx(result, "Revenue Co", "2026-06-17", objective="revenue")
+        assert len(prs.slides) == 5
+
+    def test_empty_attribution(self):
+        result = _sample_dda_result()
+        result["hybrid_attribution"] = {}
+        prs = build_dda_pptx(result, "Empty", "2026-06-17")
+        assert len(prs.slides) >= 4

@@ -503,6 +503,7 @@ def _serialize_dda_result(result: dict) -> dict:
             "removal_effects": {k: float(v) for k, v in result["markov"]["removal_effects"].items()},
             "attribution_weights": {k: float(v) for k, v in result["markov"]["attribution_weights"].items()},
             "prior_alpha": result["markov"]["prior_alpha"],
+            "warnings": result["markov"].get("warnings", []),
         },
         "shapley_dda": {k: float(v) for k, v in result["shapley_dda"].items()},
         "blended_dda_online": {k: float(v) for k, v in result["blended_dda_online"].items()},

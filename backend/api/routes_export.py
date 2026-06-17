@@ -9,7 +9,12 @@ from starlette.responses import StreamingResponse
 from backend.api.deps import check_campaign_access, get_current_user
 from backend.db.database import get_db
 from backend.db.models import Campaign, DDAResult
-from backend.export.report_builder import build_dda_report, workbook_to_bytes
+from backend.export.report_builder import (
+    build_dda_pptx,
+    build_dda_report,
+    pptx_to_bytes,
+    workbook_to_bytes,
+)
 from backend.models.dda.insights import compare_snapshots
 
 router = APIRouter()
@@ -55,6 +60,50 @@ def export_dda_report(
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export/dda-pptx")
+def export_dda_pptx(
+    campaign_id: int = Query(...),
+    result_id: int | None = Query(None),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Export DDA attribution results as a PowerPoint presentation."""
+    check_campaign_access(db, campaign_id, _user)
+    if result_id is not None:
+        dda = (
+            db.query(DDAResult)
+            .filter(DDAResult.id == result_id, DDAResult.campaign_id == campaign_id)
+            .first()
+        )
+    else:
+        dda = (
+            db.query(DDAResult)
+            .filter(DDAResult.campaign_id == campaign_id)
+            .order_by(DDAResult.run_date.desc())
+            .first()
+        )
+    if not dda:
+        raise HTTPException(status_code=404, detail="Bu kampanya için DDA sonucu bulunamadı.")
+
+    snapshot = json.loads(dda.result_json)
+
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign_name = campaign.name if campaign else f"Kampanya {campaign_id}"
+    objective = (campaign.objective if campaign else "lead") or "lead"
+
+    prs = build_dda_pptx(snapshot, campaign_name, dda.run_date or "", objective)
+    buf = pptx_to_bytes(prs)
+
+    mode_tag = "lead" if objective == "lead" else "gelir"
+    date_tag = dda.run_date[:10] if dda.run_date else "unknown"
+    filename = f"attribution_{mode_tag}_sunum_{campaign_id}_{date_tag}.pptx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

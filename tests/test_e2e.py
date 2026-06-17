@@ -467,6 +467,34 @@ class TestDDAExport:
         r = client.get("/api/export/dda-report?campaign_id=1")
         assert r.status_code == 401
 
+    def test_pptx_export_returns_pptx(self, sample_journeys_csv, make_campaign, auth_headers):
+        """PPTX export endpoint returns a valid PowerPoint file."""
+        campaign_id = make_campaign("PptxCampaign")
+        client.post(
+            f"/api/dda/run-from-csv?campaign_id={campaign_id}",
+            files={"file": ("j.csv", io.BytesIO(sample_journeys_csv), "text/csv")},
+            headers=auth_headers,
+        )
+        r = client.get(
+            f"/api/export/dda-pptx?campaign_id={campaign_id}",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert "presentationml" in r.headers["content-type"]
+        assert len(r.content) > 1000
+
+    def test_pptx_export_404_no_dda_run(self, make_campaign, auth_headers):
+        campaign_id = make_campaign("PptxNoDDA")
+        r = client.get(
+            f"/api/export/dda-pptx?campaign_id={campaign_id}",
+            headers=auth_headers,
+        )
+        assert r.status_code == 404
+
+    def test_pptx_export_requires_auth(self):
+        r = client.get("/api/export/dda-pptx?campaign_id=1")
+        assert r.status_code == 401
+
 
 class TestInsightTrends:
     def test_no_runs_returns_unavailable(self, make_campaign, auth_headers):

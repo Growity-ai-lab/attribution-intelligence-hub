@@ -37,6 +37,21 @@ export function useDDA() {
     window.URL.revokeObjectURL(blobUrl)
   }, [])
 
+  const exportDDAPptx = useCallback(async (campaignId, resultId = null) => {
+    const params = { campaign_id: campaignId }
+    if (resultId) params.result_id = resultId
+    const res = await axios.get(`${API_BASE}/export/dda-pptx`, {
+      params,
+      responseType: 'blob',
+    })
+    const blobUrl = window.URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = `attribution_sunum_${campaignId}_${new Date().toISOString().slice(0, 10)}.pptx`
+    a.click()
+    window.URL.revokeObjectURL(blobUrl)
+  }, [])
+
   const getTrendInsights = useCallback(async (campaignId) => {
     const res = await axios.get(`${API_BASE}/insights/trend`, {
       params: { campaign_id: campaignId },
@@ -44,5 +59,5 @@ export function useDDA() {
     return res.data
   }, [])
 
-  return { runDDA, runDDAFromCSV, exportDDAReport, getTrendInsights }
+  return { runDDA, runDDAFromCSV, exportDDAReport, exportDDAPptx, getTrendInsights }
 }

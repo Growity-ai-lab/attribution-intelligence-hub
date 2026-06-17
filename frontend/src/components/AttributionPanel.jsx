@@ -99,6 +99,27 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
     }
   }, [campaign?.id])
 
+  const handleExportPptx = useCallback(async () => {
+    if (!campaign?.id) return
+    setExportLoading(true)
+    try {
+      const res = await axios.get(`${API}/export/dda-pptx`, {
+        params: { campaign_id: campaign.id },
+        responseType: 'blob',
+      })
+      const url = window.URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `attribution_sunum_${campaign.id}_${new Date().toISOString().slice(0, 10)}.pptx`
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('[Export] sunum indirme hatası:', err)
+    } finally {
+      setExportLoading(false)
+    }
+  }, [campaign?.id])
+
   const handleConnect = useCallback(async () => {
     if (!bqProject || !bqDataset || !bqFile) return
     setConnecting(true)
@@ -909,13 +930,20 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
 
           {/* Raporu İndir */}
           {ddaResult && campaign?.id && (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={handleExportReport}
                 disabled={exportLoading}
                 className="px-4 py-2 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-500 disabled:bg-slate-700 transition-colors"
               >
-                {exportLoading ? 'Hazırlanıyor...' : 'Raporu İndir (.xlsx)'}
+                {exportLoading ? 'Hazırlanıyor...' : 'Excel İndir (.xlsx)'}
+              </button>
+              <button
+                onClick={handleExportPptx}
+                disabled={exportLoading}
+                className="px-4 py-2 rounded-lg text-xs font-medium bg-orange-600 text-white hover:bg-orange-500 disabled:bg-slate-700 transition-colors"
+              >
+                {exportLoading ? 'Hazırlanıyor...' : 'Sunum İndir (.pptx)'}
               </button>
             </div>
           )}
