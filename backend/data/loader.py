@@ -14,15 +14,23 @@ CRM_REQUIRED_COLS = {"lead_id", "timestamp", "channel", "touchpoint_type"}
 SALES_STOCK_REQUIRED_COLS = {"week"}
 
 
-def _read_dataframe(file_path: str | Path | BytesIO, max_rows: int = MAX_CSV_ROWS) -> pd.DataFrame:
-    """Read CSV or Excel file into a DataFrame with row limits."""
+def _read_dataframe(file_path: str | Path | BytesIO, max_rows: int = MAX_CSV_ROWS) -> tuple[pd.DataFrame, bool]:
+    """Read CSV or Excel file into a DataFrame with row limits.
+
+    Returns (dataframe, truncated) where truncated is True if the file had more rows than max_rows.
+    """
     try:
         if isinstance(file_path, BytesIO):
-            return pd.read_csv(file_path, nrows=max_rows)
+            df = pd.read_csv(file_path, nrows=max_rows)
+            if len(df) >= max_rows:
+                return df, True
+            return df, False
         path = Path(file_path)
         if path.suffix in (".xlsx", ".xls"):
-            return pd.read_excel(path, nrows=max_rows)
-        return pd.read_csv(path, nrows=max_rows)
+            df = pd.read_excel(path, nrows=max_rows)
+        else:
+            df = pd.read_csv(path, nrows=max_rows)
+        return df, len(df) >= max_rows
     except Exception as e:
         raise ValueError(f"Unable to parse file: {type(e).__name__}")
 
@@ -37,9 +45,12 @@ def _format_errors(errors: list[str]) -> str:
     return msg
 
 
-def load_weekly_csv(file_path: str | Path | BytesIO) -> list[WeeklyChannelInput]:
-    """Load and validate weekly channel data from CSV or Excel."""
-    df = _read_dataframe(file_path)
+def load_weekly_csv(file_path: str | Path | BytesIO) -> tuple[list[WeeklyChannelInput], bool]:
+    """Load and validate weekly channel data from CSV or Excel.
+
+    Returns (records, truncated).
+    """
+    df, truncated = _read_dataframe(file_path)
 
     missing = WEEKLY_REQUIRED_COLS - set(df.columns)
     if missing:
@@ -58,12 +69,15 @@ def load_weekly_csv(file_path: str | Path | BytesIO) -> list[WeeklyChannelInput]
     if errors:
         raise ValueError(_format_errors(errors))
 
-    return records
+    return records, truncated
 
 
-def load_crm_touchpoints(file_path: str | Path | BytesIO) -> list[CRMTouchpoint]:
-    """Load and validate CRM touchpoint data."""
-    df = _read_dataframe(file_path)
+def load_crm_touchpoints(file_path: str | Path | BytesIO) -> tuple[list[CRMTouchpoint], bool]:
+    """Load and validate CRM touchpoint data.
+
+    Returns (records, truncated).
+    """
+    df, truncated = _read_dataframe(file_path)
 
     missing = CRM_REQUIRED_COLS - set(df.columns)
     if missing:
@@ -82,12 +96,15 @@ def load_crm_touchpoints(file_path: str | Path | BytesIO) -> list[CRMTouchpoint]
     if errors:
         raise ValueError(_format_errors(errors))
 
-    return records
+    return records, truncated
 
 
-def load_sales_stock_csv(file_path: str | Path | BytesIO) -> list[SalesStockInput]:
-    """Load and validate sales/stock data from CSV or Excel."""
-    df = _read_dataframe(file_path)
+def load_sales_stock_csv(file_path: str | Path | BytesIO) -> tuple[list[SalesStockInput], bool]:
+    """Load and validate sales/stock data from CSV or Excel.
+
+    Returns (records, truncated).
+    """
+    df, truncated = _read_dataframe(file_path)
 
     missing = SALES_STOCK_REQUIRED_COLS - set(df.columns)
     if missing:
@@ -118,4 +135,4 @@ def load_sales_stock_csv(file_path: str | Path | BytesIO) -> list[SalesStockInpu
     if errors:
         raise ValueError(_format_errors(errors))
 
-    return records
+    return records, truncated

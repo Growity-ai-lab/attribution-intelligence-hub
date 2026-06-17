@@ -8,7 +8,7 @@ from pathlib import PurePosixPath
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from backend.api.deps import check_campaign_access, get_current_user
 from backend.auth import authenticate_user, create_access_token
@@ -32,6 +32,7 @@ from backend.config import (
     DDA_BLEND_WEIGHTS,
     MARKOV_PRIOR_ALPHA,
     MAX_ARRAY_SIZE,
+    MAX_CSV_ROWS,
     MAX_JOURNEY_COUNT,
     MAX_LIFT,
     MAX_UPLOAD_SIZE_BYTES,
@@ -149,7 +150,7 @@ def list_clients(
     db: Session = Depends(get_db),
 ) -> list[dict]:
     """List all clients, optionally filtered by year."""
-    q = db.query(Client)
+    q = db.query(Client).options(joinedload(Client.campaigns))
     if year is not None:
         q = q.filter(Client.year == year)
     clients = q.order_by(Client.name).all()
@@ -665,7 +666,7 @@ async def upload_weekly_data(
     content = await _read_file_content(file)
 
     try:
-        records = load_weekly_csv(BytesIO(content))
+        records, truncated = load_weekly_csv(BytesIO(content))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -697,7 +698,7 @@ async def upload_weekly_data(
         db.commit()
         persisted = True
 
-    return {
+    resp = {
         "filename": file.filename,
         "rows": len(records),
         "weeks": list({r.week for r in records}),
@@ -706,6 +707,9 @@ async def upload_weekly_data(
         "campaign_id": target_campaign_id,
         "redirected_to_sandbox": persisted and target_campaign_id != campaign_id,
     }
+    if truncated:
+        resp["warning"] = f"Dosya {MAX_CSV_ROWS} satır sınırında kesildi. Fazla satırlar yüklenmedi."
+    return resp
 
 
 # --------------- MMM Endpoints ---------------
@@ -994,7 +998,7 @@ async def run_dda_from_csv(
     content = await _read_file_content(file)
 
     try:
-        touchpoints = load_crm_touchpoints(BytesIO(content))
+        touchpoints, truncated = load_crm_touchpoints(BytesIO(content))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -1057,6 +1061,8 @@ async def run_dda_from_csv(
     serialized["persisted"] = persisted
     serialized["campaign_id"] = target_campaign_id
     serialized["redirected_to_sandbox"] = persisted and target_campaign_id != campaign_id
+    if truncated:
+        serialized["warning"] = f"CSV dosyası {MAX_CSV_ROWS} satır sınırında kesildi. Fazla satırlar dahil edilmedi."
 
     # Persist DDA result as a media-planning benchmark (gated on campaign_id)
     _persist_dda_result(
@@ -1299,6 +1305,7 @@ def run_dda_from_bigquery(
     serialized["bq_summary"] = summary
     serialized["persisted"] = persisted
     serialized["campaign_id"] = target_campaign_id
+    serialized["redirected_to_sandbox"] = persisted and target_campaign_id != campaign_id
     serialized["data_source"] = "bigquery"
     serialized["date_range"] = {"start": start_date, "end": end_date}
 
@@ -1527,7 +1534,10 @@ async def upload_sales_stock(
     _validate_file(file)
     content = await _read_file_content(file)
 
-    records = load_sales_stock_csv(BytesIO(content))
+    try:
+        records, truncated = load_sales_stock_csv(BytesIO(content))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     target_campaign_id = campaign_id
     if campaign_id is not None:
@@ -1557,7 +1567,7 @@ async def upload_sales_stock(
     products = sorted({r.product for r in records if r.product})
     regions = sorted({r.region for r in records if r.region})
 
-    return {
+    resp = {
         "filename": file.filename,
         "rows": len(records),
         "weeks": weeks,
@@ -1566,6 +1576,9 @@ async def upload_sales_stock(
         "campaign_id": target_campaign_id,
         "redirected_to_sandbox": campaign_id is not None and target_campaign_id != campaign_id,
     }
+    if truncated:
+        resp["warning"] = f"Dosya {MAX_CSV_ROWS} satır sınırında kesildi. Fazla satırlar yüklenmedi."
+    return resp
 
 
 @router.get("/sales-stock/summary")
