@@ -68,7 +68,7 @@ export default function UnifiedChart({ data }) {
     return (
       <div className="dark-card p-6">
         <h3 className="card-title mb-4">DDA Attribution</h3>
-        <p className="text-slate-500 text-xs">
+        <p className="text-slate-400 text-xs">
           {'Attribution grafiği — veri yüklendiğinde Chart.js ile render edilecek.'}
         </p>
         <div className="h-64 flex items-center justify-center border border-dashed border-dark-border rounded-lg mt-4">

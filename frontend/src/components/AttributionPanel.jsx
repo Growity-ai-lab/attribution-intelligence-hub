@@ -336,15 +336,17 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
   return (
     <div className="space-y-5">
       {/* Data Source Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2" role="tablist" aria-label="Veri kaynağı seçimi">
         {[
           { id: 'bigquery', label: 'BigQuery (GA4)' },
           { id: 'csv', label: 'CSV Upload' },
         ].map(t => (
           <button
             key={t.id}
+            role="tab"
+            aria-selected={sourceTab === t.id}
             onClick={() => setSourceTab(t.id)}
-            className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+            className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
               sourceTab === t.id
                 ? 'bg-accent/15 border border-accent/40 text-accent'
                 : 'bg-dark-card border border-dark-border text-slate-400 hover:text-slate-200'
@@ -366,7 +368,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
           <div className="card-hdr">
             <span className="card-title">BigQuery Bağlantısı</span>
             {connected && (
-              <span className="text-[10px] font-mono text-slate-500">
+              <span className="text-[10px] font-mono text-slate-400">
                 {connected.first_date} — {connected.last_date}
               </span>
             )}
@@ -376,7 +378,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-1">Project ID</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">Project ID</label>
                     <input
                       type="text"
                       value={bqProject}
@@ -386,7 +388,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-1">Dataset</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">Dataset</label>
                     <input
                       type="text"
                       value={bqDataset}
@@ -397,7 +399,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-500 block mb-1">Service Account JSON</label>
+                  <label className="text-[10px] text-slate-400 block mb-1">Service Account JSON</label>
                   <input
                     type="file"
                     accept=".json"
@@ -420,36 +422,36 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                    <p className="text-[10px] text-slate-500 uppercase">Event Tabloları</p>
+                    <p className="text-[10px] text-slate-400 uppercase">Event Tabloları</p>
                     <p className="text-sm font-mono text-slate-100 mt-0.5">{connected.event_tables}</p>
                   </div>
                   <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                    <p className="text-[10px] text-slate-500 uppercase">İlk Tarih</p>
+                    <p className="text-[10px] text-slate-400 uppercase">İlk Tarih</p>
                     <p className="text-sm font-mono text-slate-100 mt-0.5">{connected.first_date}</p>
                   </div>
                   <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                    <p className="text-[10px] text-slate-500 uppercase">Son Tarih</p>
+                    <p className="text-[10px] text-slate-400 uppercase">Son Tarih</p>
                     <p className="text-sm font-mono text-slate-100 mt-0.5">{connected.last_date}</p>
                   </div>
                   <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                    <p className="text-[10px] text-slate-500 uppercase">Dataset</p>
+                    <p className="text-[10px] text-slate-400 uppercase">Dataset</p>
                     <p className="text-sm font-mono text-accent mt-0.5">{bqDataset}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-1">Başlangıç</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">Başlangıç</label>
                     <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
                       className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-accent" />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-1">Bitiş</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">Bitiş</label>
                     <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
                       className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-accent" />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-1">Conversion Events</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">Conversion Events</label>
                     <input type="text" value={conversionEvents} onChange={e => setConversionEvents(e.target.value)}
                       placeholder="purchase"
                       className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent" />
@@ -473,7 +475,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                   </button>
                   <button
                     onClick={() => { setConnected(null); setPreview(null); setDdaResult(null) }}
-                    className="px-3 py-2 rounded-lg text-xs text-slate-500 hover:text-slate-300 transition-colors ml-auto"
+                    className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-300 transition-colors ml-auto"
                   >
                     Bağlantıyı Kes
                   </button>
@@ -491,7 +493,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
             <span className="card-title">CSV Touchpoint Upload</span>
           </div>
           <div className="p-4 space-y-3">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-400">
               BigQuery bağlantısı yoksa, CRM/analytics touchpoint CSV dosyasını yükleyebilirsiniz.
             </p>
             <input
@@ -516,36 +518,36 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
         <div className="dark-card">
           <div className="card-hdr">
             <span className="card-title">Veri Önizleme</span>
-            <span className="text-[10px] font-mono text-slate-500">
+            <span className="text-[10px] font-mono text-slate-400">
               {preview.start_date} — {preview.end_date}
             </span>
           </div>
           <div className="p-4">
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Toplam Event</p>
+                <p className="text-[10px] text-slate-400 uppercase">Toplam Event</p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(preview.total_events)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Oturum</p>
+                <p className="text-[10px] text-slate-400 uppercase">Oturum</p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(preview.sessions || preview.unique_users)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Benzersiz Kullanıcı</p>
+                <p className="text-[10px] text-slate-400 uppercase">Benzersiz Kullanıcı</p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(preview.unique_users)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Dönüşüm (kullanıcı)</p>
+                <p className="text-[10px] text-slate-400 uppercase">Dönüşüm (kullanıcı)</p>
                 <p className="text-sm font-mono text-accent">{fmtN(preview.conversions)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">Toplam Gelir</p>
+                <p className="text-[10px] text-slate-400 uppercase">Toplam Gelir</p>
                 <p className="text-sm font-mono text-emerald-400">{fmtMoney(preview.total_revenue)} TL</p>
               </div>
             </div>
             {preview.channels && (
               <div className="space-y-1">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Kanal Dağılımı</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Kanal Dağılımı</p>
                 {Object.entries(preview.channels).slice(0, 15).map(([ch, count], i) => (
                   <div key={ch} className="flex items-center gap-2 text-xs">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getChannelColor(ch, i) }} />
@@ -559,7 +561,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                         }}
                       />
                     </div>
-                    <span className="text-slate-500 font-mono w-16 text-right">{fmtN(count)}</span>
+                    <span className="text-slate-400 font-mono w-16 text-right">{fmtN(count)}</span>
                   </div>
                 ))}
               </div>
@@ -582,24 +584,24 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
           {ddaResult.bq_summary && (
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Event</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam Event</p>
                 <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.total_events)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Oturum</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide">Oturum</p>
                 <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.sessions || ddaResult.bq_summary.unique_users)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Benzersiz Kullanıcı</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide">Benzersiz Kullanıcı</p>
                 <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.unique_users)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">{isLead ? 'Lead (kullanıcı)' : 'Dönüşüm (kullanıcı)'}</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide">{isLead ? 'Lead (kullanıcı)' : 'Dönüşüm (kullanıcı)'}</p>
                 <p className="text-lg font-mono text-accent mt-0.5">{fmtN(ddaResult.bq_summary.conversions)}</p>
               </div>
               {!isLead && (
                 <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Gelir</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam Gelir</p>
                   <p className="text-lg font-mono text-emerald-400 mt-0.5">{fmtMoney(ddaResult.bq_summary.total_revenue)} TL</p>
                 </div>
               )}
@@ -613,7 +615,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
               className="w-full card-hdr cursor-pointer hover:bg-dark-bg/30 transition-colors"
             >
               <span className="card-title">Bu skorlar nasıl hesaplanır?</span>
-              <span className="text-[10px] text-slate-500">{showMethodology ? '▲ Gizle' : '▼ Göster'}</span>
+              <span className="text-[10px] text-slate-400">{showMethodology ? '▲ Gizle' : '▼ Göster'}</span>
             </button>
             {showMethodology && (
               <div className="px-4 pb-4 space-y-3 text-xs text-slate-300 leading-relaxed">
@@ -646,7 +648,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
           <div className="dark-card">
             <div className="card-hdr">
               <span className="card-title">Kanal Katkı Payları</span>
-              <span className="text-[10px] font-mono text-slate-500">
+              <span className="text-[10px] font-mono text-slate-400">
                 Zincir etkisi %65 + Bağımsız katkı %35
                 {ddaResult.data_source === 'bigquery' && ' | BigQuery'}
               </span>
@@ -700,7 +702,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
               <div className="dark-card">
                 <div className="card-hdr">
                   <span className="card-title">Kanal Bazlı {L.attributedChart}</span>
-                  <span className="text-[10px] font-mono text-slate-500">
+                  <span className="text-[10px] font-mono text-slate-400">
                     {isLead ? `Toplam lead: ${fmtN(totalLeads)}` : `Toplam gelir: ${fmtMoney(totalRev)} TL`}
                   </span>
                 </div>
@@ -771,7 +773,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
               <div className="dark-card">
                 <div className="card-hdr">
                   <span className="card-title">Asist Analizi</span>
-                  <span className="text-[10px] font-mono text-slate-500">
+                  <span className="text-[10px] font-mono text-slate-400">
                     İlk temas / Asist / Son temas kırılımı
                   </span>
                 </div>
@@ -876,7 +878,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
             <div className="dark-card">
               <div className="card-hdr">
                 <span className="card-title">Çıkarımlar</span>
-                <span className="text-[10px] font-mono text-slate-500">
+                <span className="text-[10px] font-mono text-slate-400">
                   Otomatik analiz
                 </span>
               </div>
@@ -906,7 +908,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                   Trend Analizi
                   <InfoTip text="Son iki DDA çalışması arasındaki farkları gösterir. Kanal katkı payı, dönüşüm oranı ve yolculuk hacmi değişimlerini takip eder." />
                 </span>
-                <span className="text-[10px] font-mono text-slate-500">
+                <span className="text-[10px] font-mono text-slate-400">
                   {trendData.previous_run_date?.slice(0, 10)} → {trendData.current_run_date?.slice(0, 10)}
                 </span>
               </div>
@@ -958,7 +960,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                     ? "DDA katkı paylarını kullanarak kanal bazlı atfedilen lead ve CPL hesaplar. Harcama verisi manuel girilir veya CSV ile yüklenir. Senaryo modunda bütçe değişikliklerinin lead'e etkisini simüle edebilirsiniz."
                     : "DDA katkı paylarını kullanarak kanal bazlı ROAS ve CPA hesaplar. Harcama verisi manuel girilir veya CSV ile yüklenir. Senaryo modunda bütçe değişikliklerinin gelire etkisini simüle edebilirsiniz."} />
                 </span>
-                <span className="text-[10px] font-mono text-slate-500">
+                <span className="text-[10px] font-mono text-slate-400">
                   Hill saturasyon modeli
                 </span>
               </div>
@@ -967,7 +969,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-[10px] text-slate-500 uppercase border-b border-slate-700/50">
+                      <tr className="text-[10px] text-slate-400 uppercase border-b border-slate-700/50">
                         <th className="text-left py-2 px-2">Kanal</th>
                         <th className="text-right py-2 px-2">
                           Katkı Payı
@@ -1159,27 +1161,27 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                 {simResult && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-slate-500 uppercase">Toplam Harcama</p>
+                      <p className="text-[10px] text-slate-400 uppercase">Toplam Harcama</p>
                       <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_spend)} ₺</p>
                     </div>
                     {isLead ? (
                       <>
                         <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase">Toplam Lead</p>
+                          <p className="text-[10px] text-slate-400 uppercase">Toplam Lead</p>
                           <p className="text-sm font-mono text-emerald-400">{fmtN(simResult.current.total_leads)}</p>
                         </div>
                         <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase">Ort. CPL</p>
+                          <p className="text-[10px] text-slate-400 uppercase">Ort. CPL</p>
                           <p className="text-sm font-mono text-amber-400">{simResult.current.avg_cpl != null ? `${fmtMoney(simResult.current.avg_cpl)} ₺` : '—'}</p>
                         </div>
                         {leadValue > 0 && (
                           <>
                             <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                              <p className="text-[10px] text-slate-500 uppercase">Tahmini Değer</p>
+                              <p className="text-[10px] text-slate-400 uppercase">Tahmini Değer</p>
                               <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_attributed_value)} ₺</p>
                             </div>
                             <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                              <p className="text-[10px] text-slate-500 uppercase">
+                              <p className="text-[10px] text-slate-400 uppercase">
                                 Değer-ROAS
                                 <InfoTip text="Tahmini toplam değer / harcama. Lead başına girilen değere dayanır." />
                               </p>
@@ -1191,19 +1193,19 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                     ) : (
                       <>
                         <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase">Toplam Gelir</p>
+                          <p className="text-[10px] text-slate-400 uppercase">Toplam Gelir</p>
                           <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_revenue)} ₺</p>
                         </div>
                         <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase">Karma ROAS</p>
+                          <p className="text-[10px] text-slate-400 uppercase">Karma ROAS</p>
                           <p className="text-sm font-mono text-slate-100">{simResult.current.blended_roas != null ? `${simResult.current.blended_roas.toFixed(1)}x` : '—'}</p>
                         </div>
                         <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase">Ort. CPA</p>
+                          <p className="text-[10px] text-slate-400 uppercase">Ort. CPA</p>
                           <p className="text-sm font-mono text-slate-100">{simResult.current.avg_cpa != null ? `${fmtMoney(simResult.current.avg_cpa)} ₺` : '—'}</p>
                         </div>
                         <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase">
+                          <p className="text-[10px] text-slate-400 uppercase">
                             AOV
                             <InfoTip text="Average Order Value — ortalama sipariş değeri. Toplam gelir / toplam dönüşüm." />
                           </p>
@@ -1212,7 +1214,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                       </>
                     )}
                     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-slate-500 uppercase">{isLead ? 'Lead' : 'Dönüşüm'}</p>
+                      <p className="text-[10px] text-slate-400 uppercase">{isLead ? 'Lead' : 'Dönüşüm'}</p>
                       <p className="text-sm font-mono text-slate-100">{fmtN(simResult.current.total_conversions)}</p>
                     </div>
                   </div>
@@ -1294,12 +1296,12 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                   Hedef CPL Planlayıcı
                   <InfoTip text="Hedef CPL ve lead sayısı girdiğinizde, DDA katkı paylarına göre kanal bazlı bütçe dağılımını hesaplar. Hill saturasyon modeli ile fizibilite değerlendirir." />
                 </span>
-                <span className="text-[10px] font-mono text-slate-500">Lead modu</span>
+                <span className="text-[10px] font-mono text-slate-400">Lead modu</span>
               </div>
               <div className="p-4 space-y-4">
                 <div className="flex flex-wrap items-end gap-3">
                   <div>
-                    <label className="block text-[10px] text-slate-500 uppercase mb-1">Hedef CPL (₺)</label>
+                    <label className="block text-[10px] text-slate-400 uppercase mb-1">Hedef CPL (₺)</label>
                     <input
                       type="number"
                       min="1"
@@ -1310,7 +1312,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-slate-500 uppercase mb-1">Hedef Lead Sayısı</label>
+                    <label className="block text-[10px] text-slate-400 uppercase mb-1">Hedef Lead Sayısı</label>
                     <input
                       type="number"
                       min="1"
@@ -1335,31 +1337,31 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div className={`rounded-xl p-3 text-center border ${cplPlanResult.feasibility?.achievable ? 'bg-emerald-900/15 border-emerald-800/30' : 'bg-red-900/15 border-red-800/30'}`}>
-                        <p className="text-[10px] text-slate-500 uppercase">Fizibilite</p>
+                        <p className="text-[10px] text-slate-400 uppercase">Fizibilite</p>
                         <p className={`text-sm font-bold ${cplPlanResult.feasibility?.achievable ? 'text-emerald-400' : 'text-red-400'}`}>
                           {cplPlanResult.feasibility?.achievable ? 'Ulaşılabilir' : 'Riskli'}
                         </p>
-                        <p className="text-[9px] text-slate-500 mt-0.5">{cplPlanResult.feasibility?.label || ''}</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5">{cplPlanResult.feasibility?.label || ''}</p>
                       </div>
                       <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-slate-500 uppercase">Toplam Bütçe</p>
+                        <p className="text-[10px] text-slate-400 uppercase">Toplam Bütçe</p>
                         <p className="text-sm font-mono text-slate-100">{fmtMoney(cplPlanResult.total_budget)} ₺</p>
                       </div>
                       <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-slate-500 uppercase">Proj. Lead</p>
+                        <p className="text-[10px] text-slate-400 uppercase">Proj. Lead</p>
                         <p className="text-sm font-mono text-accent">{fmtN(cplPlanResult.projected_total_leads || 0)}</p>
                       </div>
                       <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-slate-500 uppercase">Güven</p>
+                        <p className="text-[10px] text-slate-400 uppercase">Güven</p>
                         <p className="text-sm font-mono text-slate-100">{fmtPct(cplPlanResult.confidence?.score || 0)}</p>
-                        <p className="text-[9px] text-slate-500 mt-0.5">{cplPlanResult.confidence?.basis === 'assumption' ? 'Varsayım bazlı' : 'Veri bazlı'}</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5">{cplPlanResult.confidence?.basis === 'assumption' ? 'Varsayım bazlı' : 'Veri bazlı'}</p>
                       </div>
                     </div>
                     {cplPlanResult.channels && Object.keys(cplPlanResult.channels).length > 0 && (
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                           <thead>
-                            <tr className="text-[10px] text-slate-500 uppercase border-b border-slate-700/50">
+                            <tr className="text-[10px] text-slate-400 uppercase border-b border-slate-700/50">
                               <th className="text-left py-2 px-2">Kanal</th>
                               <th className="text-right py-2 px-2">DDA Katkı</th>
                               <th className="text-right py-2 px-2">Önerilen Bütçe</th>
@@ -1398,14 +1400,14 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
             <div className="dark-card">
               <div className="card-hdr">
                 <span className="card-title">En Sık Dönüşüm Yolları</span>
-                <span className="text-[10px] font-mono text-slate-500">
+                <span className="text-[10px] font-mono text-slate-400">
                   {ddaResult.journey_stats?.total_journeys || '?'} yolculuk
                 </span>
               </div>
               <div className="p-4 space-y-2">
                 {ddaResult.top_paths.slice(0, 10).map((p, i) => (
                   <div key={i} className="flex items-center gap-3 text-xs">
-                    <span className="text-slate-500 font-mono w-6 text-right">#{i + 1}</span>
+                    <span className="text-slate-400 font-mono w-6 text-right">#{i + 1}</span>
                     <div className="flex items-center gap-1 flex-1 flex-wrap">
                       {p.path.map((ch, j) => (
                         <span key={j} className="flex items-center gap-1">
@@ -1430,28 +1432,28 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
           {ddaResult.journey_stats && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">
+                <p className="text-[10px] text-slate-400 uppercase">
                   Toplam Yolculuk
                   <InfoTip text="Benzersiz kullanıcı yolculuğu sayısı. Her kullanıcının tüm temas noktaları bir yolculuk oluşturur." />
                 </p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(ddaResult.journey_stats.total_journeys)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">
+                <p className="text-[10px] text-slate-400 uppercase">
                   Dönüşüm Yapan
                   <InfoTip text="Dönüşüm (purchase/bağış) gerçekleştiren yolculuk sayısı." />
                 </p>
                 <p className="text-sm font-mono text-accent">{fmtN(ddaResult.journey_stats.converted)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">
+                <p className="text-[10px] text-slate-400 uppercase">
                   Dönüşüm Oranı
                   <InfoTip text="Conversion Rate = Dönüşüm Yapan / Toplam Yolculuk." />
                 </p>
                 <p className="text-sm font-mono text-slate-100">{fmtPct(ddaResult.journey_stats.conversion_rate)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 uppercase">
+                <p className="text-[10px] text-slate-400 uppercase">
                   Ort. Temas Noktası
                   <InfoTip text="Avg. Touchpoints. Dönüşüm öncesi ortalama kanal etkileşim sayısı. 1.0 ise kullanıcılar tek adımda dönüşüyor demektir." />
                 </p>
@@ -1464,7 +1466,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
 
       {/* Loading */}
       {ddaLoading && (
-        <div className="text-center py-12 text-slate-500 text-sm">Attribution analizi çalışıyor...</div>
+        <div className="text-center py-12 text-slate-400 text-sm">Attribution analizi çalışıyor...</div>
       )}
     </div>
   )

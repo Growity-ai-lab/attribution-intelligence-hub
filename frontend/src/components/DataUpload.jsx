@@ -136,7 +136,7 @@ export default function DataUpload({ campaign, isDemo, onDataUploaded }) {
           ))}
         </div>
 
-        <p className="text-slate-500 text-xs mb-4">
+        <p className="text-slate-400 text-xs mb-4">
           {mode === 'weekly'
             ? 'CSV veya Excel formatında haftalık kanal verilerini yükleyin. Her hafta için 6 dijital kanal satırı beklenir.'
             : mode === 'crm'
@@ -274,7 +274,7 @@ export default function DataUpload({ campaign, isDemo, onDataUploaded }) {
           <h3 className="card-title mb-1">
             {mode === 'weekly' ? 'Haftalık Veri Formatı' : mode === 'crm' ? 'CRM Touchpoint Formatı' : 'Satış / Stok Veri Formatı'}
           </h3>
-          <p className="text-xs text-slate-500 mb-4">
+          <p className="text-xs text-slate-400 mb-4">
             {mode === 'weekly'
               ? 'Her hafta için 10 kanal satırı içeren CSV dosyası. MMM modeli bu veriyi kullanır.'
               : mode === 'crm'
@@ -287,18 +287,18 @@ export default function DataUpload({ campaign, isDemo, onDataUploaded }) {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-dark-border">
-                  <th className="text-left py-2 pr-3 text-slate-500 font-medium">Kolon</th>
-                  <th className="text-left py-2 pr-3 text-slate-500 font-medium">Tip</th>
-                  <th className="text-center py-2 pr-3 text-slate-500 font-medium">Zorunlu</th>
-                  <th className="text-left py-2 pr-3 text-slate-500 font-medium">Açıklama</th>
-                  <th className="text-left py-2 text-slate-500 font-medium">Örnek</th>
+                  <th className="text-left py-2 pr-3 text-slate-400 font-medium">Kolon</th>
+                  <th className="text-left py-2 pr-3 text-slate-400 font-medium">Tip</th>
+                  <th className="text-center py-2 pr-3 text-slate-400 font-medium">Zorunlu</th>
+                  <th className="text-left py-2 pr-3 text-slate-400 font-medium">Açıklama</th>
+                  <th className="text-left py-2 text-slate-400 font-medium">Örnek</th>
                 </tr>
               </thead>
               <tbody>
                 {columns.map((col) => (
                   <tr key={col.name} className="border-b border-dark-border/50">
                     <td className="py-2 pr-3 font-mono text-accent">{col.name}</td>
-                    <td className="py-2 pr-3 text-slate-500">{col.type}</td>
+                    <td className="py-2 pr-3 text-slate-400">{col.type}</td>
                     <td className="py-2 pr-3 text-center">
                       {col.required
                         ? <span className="text-emerald-400">*</span>

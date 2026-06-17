@@ -753,7 +753,7 @@ export default function DigitalPlanningPanel({ campaign }) {
         <div className="card-hdr">
           <span className="card-title">Haftalık Harcama (TL)</span>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500 font-mono">
+            <span className="text-xs text-slate-400 font-mono">
               Toplam: {fmtMoney(totalSpend)} TL
             </span>
             <select
@@ -817,16 +817,16 @@ export default function DigitalPlanningPanel({ campaign }) {
         {/* Saved Plans List */}
         {showSavedList && (
           <div className="px-4 py-3 bg-dark-bg/50 border-b border-dark-border">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Kayitli Planlar (Dijital)</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2">Kayitli Planlar (Dijital)</p>
             {savedPlans.length === 0 ? (
-              <p className="text-xs text-slate-500">Henuz kayitli dijital plan yok.</p>
+              <p className="text-xs text-slate-400">Henuz kayitli dijital plan yok.</p>
             ) : (
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {savedPlans.map(p => (
                   <div key={p.id} className="flex items-center justify-between px-3 py-2 bg-dark-card rounded-lg border border-dark-border group">
                     <button onClick={() => handleLoadPlan(p.id)} className="flex-1 text-left">
                       <span className="text-xs text-slate-200 font-medium">{p.name}</span>
-                      <span className="ml-2 text-[10px] text-slate-500 font-mono">{CHANNEL_LABELS[p.channel] || p.channel}</span>
+                      <span className="ml-2 text-[10px] text-slate-400 font-mono">{CHANNEL_LABELS[p.channel] || p.channel}</span>
                       <span className="ml-2 text-[10px] text-slate-600">{p.created_at?.slice(0, 10)}</span>
                     </button>
                     <div className="flex items-center gap-1 ml-2">
@@ -859,7 +859,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                 <p className="text-xs text-yellow-400">
                   Sağlama verisi yok — bu kampanya için henüz DDA çalıştırılmadı. Attribution sekmesinden DDA çalıştırın.
                 </p>
-                <button onClick={() => setReconciliation(null)} className="text-slate-500 text-xs ml-2">x</button>
+                <button onClick={() => setReconciliation(null)} className="text-slate-400 text-xs ml-2">x</button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -868,20 +868,20 @@ export default function DigitalPlanningPanel({ campaign }) {
                     <p className="text-xs font-medium text-slate-200">
                       Plan vs Gerçekleşme — {CHANNEL_LABELS[reconciliation.channel] || reconciliation.channel}
                     </p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
+                    <p className="text-[10px] text-slate-400 mt-0.5">
                       DDA verisi: {reconciliation.run_date ? new Date(reconciliation.run_date).toLocaleDateString('tr-TR') : ''}
                       {reconciliation.matched_dda_channel && reconciliation.matched_dda_channel !== reconciliation.channel && (
                         <span className="ml-1 text-slate-600">({reconciliation.matched_dda_channel})</span>
                       )}
                     </p>
                   </div>
-                  <button onClick={() => setReconciliation(null)} className="text-slate-500 hover:text-slate-300 text-xs">x</button>
+                  <button onClick={() => setReconciliation(null)} className="text-slate-400 hover:text-slate-300 text-xs">x</button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* Planned */}
                   <div className="bg-dark-bg/50 rounded-lg p-3 border border-dark-border">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Planlanan</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2">Planlanan</p>
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-xs">
                         <span className="text-slate-400">Harcama</span>
@@ -973,20 +973,20 @@ export default function DigitalPlanningPanel({ campaign }) {
                 <div>
                   <p className="text-sm font-medium text-slate-100">
                     Plan İçe Aktarma
-                    {importData.brand && <span className="text-slate-500 ml-2">| {importData.brand}</span>}
+                    {importData.brand && <span className="text-slate-400 ml-2">| {importData.brand}</span>}
                     {importData.campaignName && <span className="text-accent ml-1">{importData.campaignName}</span>}
                   </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
+                  <p className="text-[10px] text-slate-400 mt-0.5">
                     {importData.lineItems.length} satır okundu | Toplam eşleşen: {fmtMoney(totalMapped)} TL
                   </p>
                 </div>
                 <button onClick={() => { setShowImportModal(false); setImportData(null) }}
-                  className="text-slate-500 hover:text-slate-300 text-lg">x</button>
+                  className="text-slate-400 hover:text-slate-300 text-lg">x</button>
               </div>
 
               {/* Distribution mode */}
               <div className="flex items-center gap-3">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wide">Dağıtım:</span>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wide">Dağıtım:</span>
                 {[
                   { id: 'front-loaded', label: 'Ön Ağırlıklı' },
                   { id: 'even', label: 'Eşit' },
@@ -1003,26 +1003,26 @@ export default function DigitalPlanningPanel({ campaign }) {
                     {d.label}
                   </button>
                 ))}
-                <span className="text-[10px] text-slate-500">| {numWeeks} haftaya dagilir</span>
+                <span className="text-[10px] text-slate-400">| {numWeeks} haftaya dagilir</span>
               </div>
 
               {/* Mapped channels */}
               {mappedChannels.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Eşleşen Kanallar</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Eşleşen Kanallar</p>
                   {mappedChannels.map(ch => (
                     <div key={ch} className="flex items-center justify-between px-3 py-2.5 bg-dark-card rounded-lg border border-dark-border group">
                       <div className="flex items-center gap-3">
                         <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHANNEL_COLORS[ch] }} />
                         <div>
                           <span className="text-xs font-medium text-slate-200">{CHANNEL_LABELS[ch]}</span>
-                          <span className="ml-2 text-[10px] text-slate-500">{agg[ch].labels.join(', ')}</span>
+                          <span className="ml-2 text-[10px] text-slate-400">{agg[ch].labels.join(', ')}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-mono text-slate-300">{fmtMoney(agg[ch].totalSpend)} TL</span>
                         {agg[ch].totalImp > 0 && (
-                          <span className="text-[10px] font-mono text-slate-500">{fmtN(agg[ch].totalImp)} imp</span>
+                          <span className="text-[10px] font-mono text-slate-400">{fmtN(agg[ch].totalImp)} imp</span>
                         )}
                         <button
                           onClick={() => handleImportApply(ch)}
@@ -1039,12 +1039,12 @@ export default function DigitalPlanningPanel({ campaign }) {
               {/* Unmapped items */}
               {unmappedItems.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Eşlenmeyen Satırlar</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Eşlenmeyen Satırlar</p>
                   {unmappedItems.map(item => (
                     <div key={item.rowIndex} className="flex items-center justify-between px-3 py-2 bg-dark-card/50 rounded-lg border border-yellow-500/20">
                       <div>
                         <span className="text-xs text-slate-300">{item.mecra}</span>
-                        {item.site && <span className="text-[10px] text-slate-500 ml-1">/ {item.site}</span>}
+                        {item.site && <span className="text-[10px] text-slate-400 ml-1">/ {item.site}</span>}
                         <span className="ml-2 text-xs font-mono text-slate-400">{fmtMoney(item.spend)} TL</span>
                       </div>
                       <select
@@ -1065,7 +1065,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               {/* Apply all button */}
               {mappedChannels.length > 0 && (
                 <div className="flex items-center justify-between pt-2 border-t border-dark-border">
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-slate-400">
                     Bir kanala tiklayin veya ilk eslesen kanali otomatik uygulayın.
                   </p>
                   <button
@@ -1085,7 +1085,7 @@ export default function DigitalPlanningPanel({ campaign }) {
           <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12 gap-2">
             {weeklySpends.map((s, i) => (
               <div key={i} className="flex flex-col gap-0.5">
-                <label className="text-[10px] text-slate-500 text-center font-mono">W{i + 1}</label>
+                <label className="text-[10px] text-slate-400 text-center font-mono">W{i + 1}</label>
                 <input
                   type="number"
                   value={s || ''}
@@ -1099,7 +1099,7 @@ export default function DigitalPlanningPanel({ campaign }) {
 
           {/* Parameters */}
           {result && (
-            <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-slate-500 font-mono">
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-slate-400 font-mono">
               <span>{'λ'} = {result.decay}</span>
               <span>{'α'} = {typeof result.alpha === 'number' ? fmtMoney(result.alpha) : result.alpha}</span>
               <span>{'γ'} = {result.gamma}</span>
@@ -1112,7 +1112,7 @@ export default function DigitalPlanningPanel({ campaign }) {
           <div className="mt-3">
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1"
+              className="text-[11px] text-slate-400 hover:text-slate-300 transition-colors flex items-center gap-1"
             >
               Gelişmiş Ayarlar {showAdvanced ? '▴' : '▾'}
             </button>
@@ -1120,7 +1120,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               <div className="mt-2 p-3 bg-dark-bg/50 rounded-lg border border-dark-border">
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-1">CPM (TL)</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">CPM (TL)</label>
                     <input
                       type="number"
                       value={cpmOverride}
@@ -1130,7 +1130,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-1">CTR (%)</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">CTR (%)</label>
                     <input
                       type="number"
                       value={ctrOverride}
@@ -1141,7 +1141,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-slate-500 block mb-1">Lead Rate (%)</label>
+                    <label className="text-[10px] text-slate-400 block mb-1">Lead Rate (%)</label>
                     <input
                       type="number"
                       value={leadRateOverride}
@@ -1158,7 +1158,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                   </p>
                   <button
                     onClick={() => { setCpmOverride(''); setCtrOverride(''); setLeadRateOverride('') }}
-                    className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+                    className="text-[10px] text-slate-400 hover:text-slate-300 transition-colors"
                   >
                     Sifirla
                   </button>
@@ -1175,31 +1175,31 @@ export default function DigitalPlanningPanel({ campaign }) {
           {/* KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Harcama</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam Harcama</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtMoney(result.summary?.total_spend || totalSpend)} TL</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Ort. Haftalık</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">Ort. Haftalık</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtMoney(result.summary?.avg_weekly_spend || totalSpend / numWeeks)} TL</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Impressions</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">Impressions</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(result.summary?.total_impressions || 0)}</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Clicks</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">Clicks</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(result.summary?.total_clicks || 0)}</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Model Lead</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">Model Lead</p>
               <p className="text-lg font-mono text-accent mt-0.5">{result.summary?.total_leads?.toFixed(0) || '-'}</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Funnel Lead</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">Funnel Lead</p>
               <p className="text-lg font-mono text-violet-400 mt-0.5">{result.summary?.total_funnel_leads?.toFixed(0) || '-'}</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">CPL (Model)</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">CPL (Model)</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">
                 {result.summary?.avg_cpl > 0 ? `${fmtMoney(result.summary.avg_cpl)} TL` : '-'}
               </p>
@@ -1217,7 +1217,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                 Model vs Funnel Sapma: %{Math.abs(deviationPct).toFixed(0)}
               </span>
               {!deviationHigh && (
-                <span className="text-[10px] text-slate-500">Modeller uyumlu</span>
+                <span className="text-[10px] text-slate-400">Modeller uyumlu</span>
               )}
             </div>
           )}
@@ -1228,7 +1228,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <span className="card-title">GA4 Gerçek Veri — Sağlama</span>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-[11px] text-slate-400 mt-0.5">
                     {channelLabel} · {benchmarks.data_source === 'bigquery' ? 'BigQuery GA4 export' : 'CRM/CSV'} ·
                     {benchmarks.run_date ? ` ${new Date(benchmarks.run_date).toLocaleDateString('tr-TR')}` : ''}
                   </p>
@@ -1239,23 +1239,23 @@ export default function DigitalPlanningPanel({ campaign }) {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">DDA Katkı Payı</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">DDA Katkı Payı</p>
                   <p className="text-sm font-mono text-emerald-400 mt-0.5">%{(channelBenchmark.dda_weight * 100).toFixed(1)}</p>
                 </div>
                 <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Asist Oranı</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Asist Oranı</p>
                   <p className="text-sm font-mono text-slate-100 mt-0.5">%{(channelBenchmark.assist_ratio * 100).toFixed(0)}</p>
                 </div>
                 <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Son Temas</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Son Temas</p>
                   <p className="text-sm font-mono text-slate-100 mt-0.5">{fmtN(channelBenchmark.last_touch || 0)}</p>
                 </div>
                 <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-wide">Touchpoint</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Touchpoint</p>
                   <p className="text-sm font-mono text-slate-100 mt-0.5">{fmtN(channelBenchmark.touchpoints || 0)}</p>
                 </div>
               </div>
-              <p className="mt-3 text-[11px] text-slate-500 leading-relaxed">
+              <p className="mt-3 text-[11px] text-slate-400 leading-relaxed">
                 Yukarıdaki plan tahminleri sektör varsayımı parametreleriyle (CPM/CTR/Lead Rate) hesaplanır.
                 Bu satır ise gerçek GA4 kullanıcı yolculuklarından gelen DDA sinyalidir — kanalın dönüşüme
                 gerçek katkısını gösterir. Plan ile gerçeğin tutarlılığını buradan denetleyebilirsiniz.
@@ -1268,7 +1268,7 @@ export default function DigitalPlanningPanel({ campaign }) {
 
           {campaign?.id && benchmarks && !benchmarks.available && (
             <div className="dark-card p-3 border border-dark-border">
-              <p className="text-[11px] text-slate-500 leading-relaxed">
+              <p className="text-[11px] text-slate-400 leading-relaxed">
                 <span className="text-yellow-400">⚠ Sağlama verisi yok.</span> Bu kampanya için henüz DDA çalıştırılmadı.
                 Attribution sekmesinden GA4/CSV verisiyle DDA çalıştırınca, plan varsayımları gerçek veriyle
                 karşılaştırılabilir hale gelir. Şu an plan tamamen varsayım bazlıdır.
@@ -1293,14 +1293,14 @@ export default function DigitalPlanningPanel({ campaign }) {
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       activeChartTab === t.id
                         ? 'bg-accent/15 text-accent'
-                        : 'text-slate-500 hover:text-slate-300'
+                        : 'text-slate-400 hover:text-slate-300'
                     }`}
                   >
                     {t.label}
                   </button>
                 ))}
               </div>
-              <span className="text-xs font-mono text-slate-500">
+              <span className="text-xs font-mono text-slate-400">
                 {channelLabel} | {'λ'}={result.decay}
               </span>
             </div>
@@ -1326,7 +1326,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
                       ⚠ Varsayım Bazlı Model
                     </span>
-                    <span className="text-[10px] text-slate-500">λ decay parametresi sektör ortalamasıdır, gerçek veriye fit edilmemiştir</span>
+                    <span className="text-[10px] text-slate-400">λ decay parametresi sektör ortalamasıdır, gerçek veriye fit edilmemiştir</span>
                   </div>
                   <div className="h-72">
                     {adstockChartData && <Line data={adstockChartData} options={adstockOpts} />}
@@ -1350,7 +1350,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
                       ⚠ Varsayım Bazlı Model
                     </span>
-                    <span className="text-[10px] text-slate-500">α/γ Hill parametreleri sektör ortalamasıdır; 8+ haftalık veriyle kalibre edilebilir</span>
+                    <span className="text-[10px] text-slate-400">α/γ Hill parametreleri sektör ortalamasıdır; 8+ haftalık veriyle kalibre edilebilir</span>
                   </div>
                   <div className="h-72">
                     {saturationChartData && <Line data={saturationChartData} options={satOpts} />}
@@ -1358,15 +1358,15 @@ export default function DigitalPlanningPanel({ campaign }) {
                   {result.optimal && (
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">Optimal Spend</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Optimal Spend</p>
                         <p className="text-sm font-mono text-green-400 mt-0.5">{fmtMoney(result.optimal.optimal_weekly_spend)} TL</p>
                       </div>
                       <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">Doygunluk Esigi</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Doygunluk Esigi</p>
                         <p className="text-sm font-mono text-yellow-400 mt-0.5">{fmtMoney(result.optimal.saturation_threshold_spend)} TL</p>
                       </div>
                       <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                        <p className="text-[10px] text-slate-500 uppercase tracking-wide">Mevcut Ort.</p>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">Mevcut Ort.</p>
                         <p className="text-sm font-mono text-slate-100 mt-0.5">{fmtMoney(result.optimal.current_avg_spend)} TL</p>
                       </div>
                     </div>
@@ -1390,15 +1390,15 @@ export default function DigitalPlanningPanel({ campaign }) {
                     return (
                       <div className="mt-3 grid grid-cols-3 gap-2">
                         <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wide">Son Hafta Reach</p>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wide">Son Hafta Reach</p>
                           <p className="text-sm font-mono text-blue-400 mt-0.5">%{last.reach_pct?.toFixed(1)}</p>
                         </div>
                         <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wide">Eff. Frequency</p>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wide">Eff. Frequency</p>
                           <p className="text-sm font-mono text-orange-400 mt-0.5">{last.frequency?.toFixed(1)}</p>
                         </div>
                         <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wide">Hedef Kitle</p>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wide">Hedef Kitle</p>
                           <p className="text-sm font-mono text-slate-100 mt-0.5">{fmtN(result.digital_metrics?.target_audience || 0)}</p>
                         </div>
                       </div>
@@ -1520,12 +1520,12 @@ export default function DigitalPlanningPanel({ campaign }) {
 
       {/* Loading indicator */}
       {loading && !result && (
-        <div className="text-center py-12 text-slate-500 text-sm">Simülasyon çalışıyor...</div>
+        <div className="text-center py-12 text-slate-400 text-sm">Simülasyon çalışıyor...</div>
       )}
 
       {/* Empty state */}
       {!loading && !result && (
-        <div className="text-center py-12 text-slate-500 text-sm">
+        <div className="text-center py-12 text-slate-400 text-sm">
           Haftalık harcama değerlerini girerek simülasyonu başlatın.
         </div>
       )}

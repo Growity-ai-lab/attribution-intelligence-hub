@@ -198,7 +198,7 @@ export default function LoginPage({ onLogin, onDemoLogin }) {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 autoFocus
-                className="w-full px-4 py-3 bg-[#0d1017] border border-slate-600/60 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 transition-all"
+                className="w-full px-4 py-3 bg-[#0d1017] border border-slate-600/60 rounded-xl text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 transition-all"
                 placeholder="E-posta adresiniz"
               />
             </div>
@@ -211,7 +211,7 @@ export default function LoginPage({ onLogin, onDemoLogin }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-[#0d1017] border border-slate-600/60 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 transition-all"
+                className="w-full px-4 py-3 bg-[#0d1017] border border-slate-600/60 rounded-xl text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40 transition-all"
                 placeholder="Parolanız"
               />
             </div>

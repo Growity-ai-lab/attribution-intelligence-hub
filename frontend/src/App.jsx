@@ -20,7 +20,8 @@ class ErrorBoundary extends Component {
             <p className="text-xs text-slate-400 mb-4">{this.state.error?.message}</p>
             <button
               onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload() }}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded-lg"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+              aria-label="Sayfayı yeniden yükle"
             >
               Sayfayı Yenile
             </button>
@@ -70,7 +71,7 @@ export default function App() {
           client: po,
           campaign: { ...camp, channels },
         })
-      } catch { /* ignore — user will see workspace selector */ }
+      } catch (err) { console.error('[App] demo workspace auto-select:', err) }
     })()
     return () => { cancelled = true }
   }, [isDemo, workspace])
@@ -196,7 +197,7 @@ export default function App() {
               <h1 className="text-base font-semibold text-slate-100 tracking-tight">
                 {workspace.campaign.name}
               </h1>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 {workspace.client.name} &mdash; {workspace.client.year}
               </p>
             </div>
@@ -225,20 +226,33 @@ export default function App() {
             </span>
             <button
               onClick={logout}
-              className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700/50 text-slate-400 hover:text-red-400 transition-colors"
+              aria-label="Oturumu kapat"
+              className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-700/50 text-slate-400 hover:text-red-400 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50"
             >
-              {isDemo ? 'Çıkış' : 'Çıkış'}
+              Çıkış
             </button>
           </div>
         </div>
 
-        <nav className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-0 overflow-x-auto">
+        <nav className="max-w-7xl mx-auto px-4" aria-label="Ana navigasyon">
+          <div className="flex gap-0 overflow-x-auto" role="tablist" aria-label="Sayfa sekmeleri">
             {TABS.map(tab => (
               <button
                 key={tab.id}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                aria-controls={`tabpanel-${tab.id}`}
+                id={`tab-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
+                onKeyDown={(e) => {
+                  const idx = TABS.findIndex(t => t.id === tab.id)
+                  if (e.key === 'ArrowRight') { e.preventDefault(); setActiveTab(TABS[(idx + 1) % TABS.length].id) }
+                  if (e.key === 'ArrowLeft') { e.preventDefault(); setActiveTab(TABS[(idx - 1 + TABS.length) % TABS.length].id) }
+                  if (e.key === 'Home') { e.preventDefault(); setActiveTab(TABS[0].id) }
+                  if (e.key === 'End') { e.preventDefault(); setActiveTab(TABS[TABS.length - 1].id) }
+                }}
+                tabIndex={activeTab === tab.id ? 0 : -1}
+                className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-1 focus-visible:ring-offset-dark-bg ${
                   activeTab === tab.id
                     ? 'border-accent text-accent'
                     : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -252,9 +266,9 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {activeTab === 'unified' && <Dashboard ddaResult={ddaResult} campaign={workspace.campaign} isDemo={isDemo} />}
-        {activeTab === 'attribution' && <AttributionPanel campaign={workspace.campaign} ddaResult={ddaResult} setDdaResult={setDdaResult} />}
-        {activeTab === 'media' && <DigitalPlanningPanel campaign={workspace.campaign} />}
+        {activeTab === 'unified' && <div role="tabpanel" id="tabpanel-unified" aria-labelledby="tab-unified"><Dashboard ddaResult={ddaResult} campaign={workspace.campaign} isDemo={isDemo} /></div>}
+        {activeTab === 'attribution' && <div role="tabpanel" id="tabpanel-attribution" aria-labelledby="tab-attribution"><AttributionPanel campaign={workspace.campaign} ddaResult={ddaResult} setDdaResult={setDdaResult} /></div>}
+        {activeTab === 'media' && <div role="tabpanel" id="tabpanel-media" aria-labelledby="tab-media"><DigitalPlanningPanel campaign={workspace.campaign} /></div>}
       </main>
     </div>
   )

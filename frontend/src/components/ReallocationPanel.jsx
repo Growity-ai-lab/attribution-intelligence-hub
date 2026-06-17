@@ -16,7 +16,7 @@ export default function ReallocationPanel({ data, totalBudget }) {
       <div className="card-hdr">
         <div>
           <span className="card-title">Bütçe Reallocation Önerisi</span>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-400 mt-0.5">
             Toplam bütçe: {totalBudget ? formatCurrency(totalBudget) : '\u2014'} {'\u2014'} Unified skora göre dağılım
           </p>
         </div>
@@ -25,11 +25,11 @@ export default function ReallocationPanel({ data, totalBudget }) {
         <table className="w-full text-sm min-w-[550px]">
           <thead>
             <tr className="border-b border-dark-border">
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Kanal</th>
-              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Mevcut</th>
-              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Önerilen</th>
-              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Fark</th>
-              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Pay</th>
+              <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-400">Kanal</th>
+              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-400">Mevcut</th>
+              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-400">Önerilen</th>
+              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-400">Fark</th>
+              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-400">Pay</th>
             </tr>
           </thead>
           <tbody>
@@ -45,7 +45,7 @@ export default function ReallocationPanel({ data, totalBudget }) {
                 <td className="px-4 py-2.5 text-right text-xs font-mono text-slate-400">{formatCurrency(row.current)}</td>
                 <td className="px-4 py-2.5 text-right text-xs font-mono font-medium text-slate-200">{formatCurrency(row.suggested)}</td>
                 <td className={`px-4 py-2.5 text-right text-xs font-mono font-medium ${
-                  row.delta > 0 ? 'text-emerald-400' : row.delta < 0 ? 'text-red-400' : 'text-slate-500'
+                  row.delta > 0 ? 'text-emerald-400' : row.delta < 0 ? 'text-red-400' : 'text-slate-400'
                 }`}>
                   {row.delta > 0 ? '\u2191 +' : row.delta < 0 ? '\u2193 ' : ''}{formatCurrency(row.delta)}
                 </td>

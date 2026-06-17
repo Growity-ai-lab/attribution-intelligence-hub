@@ -15,15 +15,15 @@ export default function UnifiedScoringTable({ data }) {
       <div className="card-hdr">
         <div>
           <span className="card-title">DDA Kanal Attribution</span>
-          <p className="text-xs text-slate-500 mt-0.5">Markov Chain (%65) + Shapley Value (%35) ensemble</p>
+          <p className="text-xs text-slate-400 mt-0.5">Markov Chain (%65) + Shapley Value (%35) ensemble</p>
         </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[360px]">
           <thead>
             <tr className="border-b border-dark-border">
-              <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">Kanal</th>
-              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">DDA Katkı Payı</th>
+              <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-400">Kanal</th>
+              <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-400">DDA Katkı Payı</th>
             </tr>
           </thead>
           <tbody>

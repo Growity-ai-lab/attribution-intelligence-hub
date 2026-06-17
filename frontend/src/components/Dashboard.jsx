@@ -48,23 +48,23 @@ export default function Dashboard({ ddaResult, campaign, isDemo }) {
       {bq && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Event</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam Event</p>
             <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(bq.total_events)}</p>
           </div>
           <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wide">Oturum</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide">Oturum</p>
             <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(bq.sessions || bq.unique_users)}</p>
           </div>
           <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wide">Benzersiz Kullanıcı</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide">Benzersiz Kullanıcı</p>
             <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(bq.unique_users)}</p>
           </div>
           <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wide">Dönüşüm</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide">Dönüşüm</p>
             <p className="text-lg font-mono text-accent mt-0.5">{fmtN(bq.conversions)}</p>
           </div>
           <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-slate-500 uppercase tracking-wide">Toplam Gelir</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam Gelir</p>
             <p className="text-lg font-mono text-emerald-400 mt-0.5">{fmtMoney(bq.total_revenue)} TL</p>
           </div>
         </div>
@@ -74,21 +74,21 @@ export default function Dashboard({ ddaResult, campaign, isDemo }) {
       {journeyStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-dark-card border border-dark-border rounded-xl p-3">
-            <p className="text-[10px] text-slate-500 uppercase">Toplam Yolculuk</p>
+            <p className="text-[10px] text-slate-400 uppercase">Toplam Yolculuk</p>
             <p className="text-lg font-semibold font-mono text-slate-100">{fmtN(journeyStats.total_journeys)}</p>
           </div>
           <div className="bg-dark-card border border-dark-border rounded-xl p-3">
-            <p className="text-[10px] text-slate-500 uppercase">Dönüşüm Yapan</p>
+            <p className="text-[10px] text-slate-400 uppercase">Dönüşüm Yapan</p>
             <p className="text-lg font-semibold font-mono text-emerald-400">{fmtN(journeyStats.converted)}</p>
           </div>
           <div className="bg-dark-card border border-dark-border rounded-xl p-3">
-            <p className="text-[10px] text-slate-500 uppercase">Dönüşüm Oranı</p>
+            <p className="text-[10px] text-slate-400 uppercase">Dönüşüm Oranı</p>
             <p className="text-lg font-semibold font-mono text-blue-400">
               %{((journeyStats.conversion_rate || 0) * 100).toFixed(1)}
             </p>
           </div>
           <div className="bg-dark-card border border-dark-border rounded-xl p-3">
-            <p className="text-[10px] text-slate-500 uppercase">Ort. Temas Noktası</p>
+            <p className="text-[10px] text-slate-400 uppercase">Ort. Temas Noktası</p>
             <p className="text-lg font-semibold font-mono text-slate-100">
               {(journeyStats.avg_path_length || 0).toFixed(1)}
             </p>
@@ -101,7 +101,7 @@ export default function Dashboard({ ddaResult, campaign, isDemo }) {
         <div className="dark-card p-8 text-center">
           <div className="text-3xl mb-3 opacity-50">&#x1f4ca;</div>
           <h3 className="text-sm font-semibold text-slate-200 mb-2">Attribution analizi henüz çalıştırılmadı</h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+          <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
             BigQuery (GA4) veya CSV ile attribution analizi çalıştırmak için <strong className="text-slate-300">Attribution</strong> sekmesine gidin.
             Sonuçlar otomatik olarak bu sayfada görünecek.
           </p>

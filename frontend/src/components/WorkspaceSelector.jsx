@@ -89,8 +89,8 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
         <div className="flex items-center gap-4 mb-8">
           <img src="/logo.svg" alt="Time's Hub" className="w-10 h-10 rounded-xl" />
           <div className="flex-1">
-            <h1 className="text-xl font-semibold text-slate-100">Time's Hub <span className="text-slate-500 font-normal">|</span> <span className="text-slate-400 font-normal text-base">Attribution Intelligence</span></h1>
-            <p className="text-xs text-slate-500">Müşteri ve kampanya seçimi</p>
+            <h1 className="text-xl font-semibold text-slate-100">Time's Hub <span className="text-slate-400 font-normal">|</span> <span className="text-slate-400 font-normal text-base">Attribution Intelligence</span></h1>
+            <p className="text-xs text-slate-400">Müşteri ve kampanya seçimi</p>
           </div>
           <div className="flex gap-1">
             {YEARS.map(y => (
@@ -144,7 +144,7 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
                     </button>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Varsayılan Hedef</span>
+                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Varsayılan Hedef</span>
                     <div className="flex gap-2 mt-1">
                       {['lead', 'revenue'].map(o => (
                         <button
@@ -165,11 +165,11 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
               )}
 
               {loading && !clients.length && (
-                <p className="text-slate-500 text-xs py-4 text-center">Yükleniyor...</p>
+                <p className="text-slate-400 text-xs py-4 text-center">Yükleniyor...</p>
               )}
 
               {!loading && !clients.length && !showNewClient && (
-                <p className="text-slate-500 text-xs py-8 text-center">
+                <p className="text-slate-400 text-xs py-8 text-center">
                   Henüz müşteri eklenmedi. "Yeni Müşteri" butonuna tıklayın.
                 </p>
               )}
@@ -187,7 +187,7 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="font-medium text-sm">{c.name}</span>
-                      <span className="ml-2 text-xs text-slate-500 font-mono">
+                      <span className="ml-2 text-xs text-slate-400 font-mono">
                         {c.campaign_count} kampanya
                       </span>
                     </div>
@@ -222,7 +222,7 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
 
             <div className="p-4 space-y-2">
               {!selectedClient && (
-                <p className="text-slate-500 text-xs py-8 text-center">
+                <p className="text-slate-400 text-xs py-8 text-center">
                   Sol taraftan bir müşteri seçin.
                 </p>
               )}
@@ -246,7 +246,7 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
                     className="w-full bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
                   />
                   <div>
-                    <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Kampanya Hedefi</span>
+                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Kampanya Hedefi</span>
                     <div className="flex gap-2 mt-1">
                       {['lead', 'revenue'].map(o => (
                         <button
@@ -282,7 +282,7 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
               )}
 
               {selectedClient && !campaigns.length && !showNewCampaign && (
-                <p className="text-slate-500 text-xs py-8 text-center">
+                <p className="text-slate-400 text-xs py-8 text-center">
                   Henüz kampanya eklenmedi.
                 </p>
               )}
@@ -353,7 +353,7 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
                   <span className="font-medium text-sm text-slate-100 group-hover:text-accent transition-colors">
                     Medya Planlama
                   </span>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-0.5">
                     Meta, Google, TikTok, LinkedIn, DV360, YouTube — Spend, Funnel, Reach, Optimal CPL
                   </p>
                 </div>
