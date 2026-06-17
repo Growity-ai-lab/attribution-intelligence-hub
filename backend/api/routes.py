@@ -385,7 +385,6 @@ def _compute_default_mmm_shares() -> dict[str, float]:
     default_spend = {
         "meta": 2_600_000, "google": 300_000, "tiktok": 800_000,
         "linkedin": 500_000, "dv360": 400_000, "youtube": 600_000,
-        "tv_match": 0, "tv_news": 0, "radio": 0, "dooh": 150_000,
     }
     shares: dict[str, float] = {}
     for ch in CHANNELS:
@@ -680,8 +679,6 @@ async def upload_weekly_data(
                 impressions=rec.impressions,
                 clicks=rec.clicks,
                 leads=rec.leads,
-                grp=rec.grp,
-                spot_count=rec.spot_count,
                 segment=getattr(rec, "segment", "") or "",
             ))
         db.commit()

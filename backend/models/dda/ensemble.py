@@ -1,8 +1,7 @@
-"""Ensemble DDA: Markov + Shapley blending and cross-validation.
+"""Ensemble DDA: Markov + Shapley blending.
 
-Combines Markov removal-effect attribution with data-driven Shapley,
-and provides cross-validation against MMM decomposition to detect
-and report deviations.
+Combines Markov removal-effect attribution with data-driven Shapley
+for digital channel attribution.
 """
 
 from backend.config import WEIGHT_SUM_TOLERANCE
@@ -17,9 +16,6 @@ from backend.models.dda.data_prep import (
 from backend.models.dda.insights import generate_insights
 from backend.models.dda.markov import run_markov_attribution
 from backend.models.dda.shapley_dda import run_shapley_dda
-
-# Channels that cannot appear in journey data (no individual tracking)
-OFFLINE_CHANNELS = {"tv_match", "tv_news", "radio", "dooh"}
 
 # Default blend: Markov gets more weight (more robust with sparse data)
 DEFAULT_MARKOV_WEIGHT = 0.65
@@ -40,17 +36,15 @@ def _normalize_weights(weights: dict[str, float]) -> dict[str, float]:
 def classify_channels(
     channels: list[str],
 ) -> tuple[list[str], list[str]]:
-    """Separate online (DDA-eligible) and offline channels.
+    """Return all channels as online (digital-only hub).
 
     Args:
         channels: All channel names.
 
     Returns:
-        Tuple of (online_channels, offline_channels).
+        Tuple of (online_channels, offline_channels). Offline is always empty.
     """
-    online = [ch for ch in channels if ch not in OFFLINE_CHANNELS]
-    offline = [ch for ch in channels if ch in OFFLINE_CHANNELS]
-    return online, offline
+    return list(channels), []
 
 
 def blend_attributions(
@@ -170,24 +164,22 @@ def run_full_dda_pipeline(
     online_budget_share: float | None = None,
     offline_budget_share: float | None = None,
 ) -> dict:
-    """Run the complete Calibrated Hybrid DDA pipeline.
+    """Run the complete DDA pipeline (digital channels only).
 
     Pipeline:
-    1. Extract online channels from journeys
+    1. Extract channels from journeys
     2. Run Markov Chain attribution (Bayesian smoothed)
     3. Run Data-Driven Shapley attribution
-    4. Blend Markov + Shapley for online DDA weights
-    5. Cross-validate DDA vs MMM for online channels
-    6. Merge online (DDA) + offline (MMM) into final hybrid weights
+    4. Blend Markov + Shapley for DDA weights
 
     Args:
         journeys: All journey data.
-        mmm_channel_shares: Channel -> MMM attribution share (all channels).
+        mmm_channel_shares: Unused, kept for API compatibility.
         prior_alpha: Bayesian smoothing for Markov.
         markov_blend: Weight for Markov in DDA blend.
         shapley_blend: Weight for Shapley in DDA blend.
-        online_budget_share: Online channels' share of total attribution.
-        offline_budget_share: Offline channels' share of total attribution.
+        online_budget_share: Unused, kept for API compatibility.
+        offline_budget_share: Unused, kept for API compatibility.
 
     Returns:
         Full pipeline results dict.
@@ -197,7 +189,7 @@ def run_full_dda_pipeline(
 
     stats = journey_stats(journeys)
     all_journey_channels = get_unique_channels(journeys)
-    online_channels, offline_channels_found = classify_channels(all_journey_channels)
+    online_channels, _ = classify_channels(all_journey_channels)
 
     # Step 1-2: Markov Chain
     sequences = journeys_to_state_sequences(journeys)
@@ -205,39 +197,21 @@ def run_full_dda_pipeline(
 
     # Step 3: Data-Driven Shapley
     shapley_weights = run_shapley_dda(journeys, online_channels)
-
     shapley_weights = _normalize_weights(shapley_weights)
 
     # Step 4: Blend
-    dda_online = blend_attributions(
+    hybrid_weights = blend_attributions(
         markov_result["attribution_weights"],
         shapley_weights,
         markov_blend,
         shapley_blend,
     )
 
-    # Step 5: Cross-validation (only when MMM shares are provided; without a
-    # real MMM the comparison is meaningless and produces spurious deviations)
+    # Cross-validation (only when MMM shares are provided)
     cross_val = (
-        cross_validate_dda_mmm(dda_online, mmm_channel_shares)
+        cross_validate_dda_mmm(hybrid_weights, mmm_channel_shares)
         if mmm_channel_shares
         else {}
-    )
-
-    # Step 6: Merge with offline (MMM)
-    # Extract MMM weights for offline channels only
-    offline_from_mmm: dict[str, float] = {}
-    for ch in OFFLINE_CHANNELS:
-        if ch in mmm_channel_shares:
-            offline_from_mmm[ch] = mmm_channel_shares[ch]
-
-    offline_from_mmm = _normalize_weights(offline_from_mmm)
-
-    hybrid_weights = build_hybrid_attribution(
-        dda_online,
-        offline_from_mmm,
-        online_budget_share,
-        offline_budget_share,
     )
 
     # Ensure weights sum to exactly 1.0 (correct float drift from chained normalizations)
@@ -268,7 +242,7 @@ def run_full_dda_pipeline(
         "journey_stats": stats,
         "top_paths": top_paths,
         "online_channels": online_channels,
-        "offline_channels": list(OFFLINE_CHANNELS),
+        "offline_channels": [],
         "markov": {
             "conversion_probability": markov_result["conversion_probability"],
             "removal_effects": markov_result["removal_effects"],
@@ -277,9 +251,9 @@ def run_full_dda_pipeline(
             "warnings": markov_result.get("warnings", []),
         },
         "shapley_dda": shapley_weights,
-        "blended_dda_online": dda_online,
+        "blended_dda_online": hybrid_weights,
         "cross_validation": cross_val,
-        "mmm_offline_weights": offline_from_mmm,
+        "mmm_offline_weights": {},
         "hybrid_attribution": hybrid_weights,
         "assist_report": assist_report,
         "insights": insights,

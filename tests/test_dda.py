@@ -364,11 +364,11 @@ class TestShapleyDDA:
 # --------------- Ensemble Tests ---------------
 
 class TestClassifyChannels:
-    def test_separation(self):
-        all_ch = ["meta", "google", "tiktok", "tv_match", "radio", "dooh"]
+    def test_all_digital(self):
+        all_ch = ["meta", "google", "tiktok", "linkedin", "dv360", "youtube"]
         online, offline = classify_channels(all_ch)
-        assert set(online) == {"meta", "google", "tiktok"}
-        assert set(offline) == {"tv_match", "radio", "dooh"}
+        assert set(online) == {"meta", "google", "tiktok", "linkedin", "dv360", "youtube"}
+        assert offline == []
 
 
 class TestBlendAttributions:
@@ -403,30 +403,23 @@ class TestCrossValidation:
 
 
 class TestHybridAttribution:
-    def test_combines_online_offline(self):
+    def test_online_only(self):
         online = {"meta": 0.5, "google": 0.3, "tiktok": 0.2}
-        offline = {"tv_match": 0.6, "radio": 0.4}
-        hybrid = build_hybrid_attribution(online, offline)
-        assert len(hybrid) == 5
+        hybrid = build_hybrid_attribution(online, {})
+        assert len(hybrid) == 3
         assert sum(hybrid.values()) == pytest.approx(1.0)
 
     def test_custom_shares(self):
-        online = {"meta": 1.0}
-        offline = {"tv_match": 1.0}
-        hybrid = build_hybrid_attribution(online, offline, 0.8, 0.2)
-        assert hybrid["meta"] > hybrid["tv_match"]
+        online = {"meta": 0.6, "google": 0.4}
+        hybrid = build_hybrid_attribution(online, {}, 1.0, 0.0)
+        assert hybrid["meta"] > hybrid["google"]
 
 
 class TestFullPipeline:
     def test_end_to_end(self):
         journeys = _make_journeys()
-        mmm_shares = {
-            "meta": 0.30, "google": 0.15, "tiktok": 0.08,
-            "linkedin": 0.05, "dv360": 0.07, "youtube": 0.10,
-            "tv_match": 0.12, "tv_news": 0.06, "radio": 0.04, "dooh": 0.03,
-        }
         result = run_full_dda_pipeline(
-            journeys, mmm_shares, prior_alpha=0.5,
+            journeys, prior_alpha=0.5,
         )
 
         assert "journey_stats" in result
@@ -436,7 +429,6 @@ class TestFullPipeline:
         assert "cross_validation" in result
         assert "hybrid_attribution" in result
 
-        # Hybrid should have both online and offline channels
         hybrid = result["hybrid_attribution"]
         assert len(hybrid) > 0
         assert sum(hybrid.values()) == pytest.approx(1.0)
@@ -446,19 +438,18 @@ class TestFullPipeline:
         assert 0 < markov["conversion_probability"] < 1
         assert sum(markov["attribution_weights"].values()) == pytest.approx(1.0)
 
-    def test_pipeline_without_mmm(self):
-        """Pipeline should work even without MMM shares (online only)."""
+        # No offline channels
+        assert result["offline_channels"] == []
+
+    def test_pipeline_digital_only(self):
+        """Pipeline should produce only digital channels."""
         journeys = _make_journeys()
         result = run_full_dda_pipeline(journeys)
 
         assert "hybrid_attribution" in result
         hybrid = result["hybrid_attribution"]
-        # Without MMM offline data, only online channels should be present
-        assert all(
-            ch not in {"tv_match", "tv_news", "radio", "dooh"}
-            or hybrid.get(ch, 0) == 0
-            for ch in hybrid
-        )
+        assert len(hybrid) > 0
+        assert sum(hybrid.values()) == pytest.approx(1.0)
 
     def test_pipeline_journey_stats_correct(self):
         journeys = _make_journeys()

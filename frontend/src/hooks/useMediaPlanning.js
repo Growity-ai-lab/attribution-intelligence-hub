@@ -4,41 +4,30 @@ import axios from 'axios'
 const API_BASE = '/api'
 
 export function useMediaPlanning() {
-  const simulateMediaPlan = useCallback(async (channel, weeklyGrps, mode = 'offline') => {
+  const simulateMediaPlan = useCallback(async (channel, weeklySpends, overrides = {}) => {
     const res = await axios.post(`${API_BASE}/media-planning/simulate`, {
       channel,
-      weekly_grps: weeklyGrps,
-      mode,
-    })
-    return res.data
-  }, [])
-
-  const simulateDigitalPlan = useCallback(async (channel, weeklySpends, overrides = {}) => {
-    const res = await axios.post(`${API_BASE}/media-planning/simulate`, {
-      channel,
-      weekly_grps: weeklySpends,
-      mode: 'digital',
+      weekly_spends: weeklySpends,
       ...overrides,
     })
     return res.data
   }, [])
 
-  const getMediaPlanPresets = useCallback(async (channel, mode = 'offline') => {
-    const res = await axios.get(`${API_BASE}/media-planning/presets/${channel}`, { params: { mode } })
+  const getMediaPlanPresets = useCallback(async (channel) => {
+    const res = await axios.get(`${API_BASE}/media-planning/presets/${channel}`)
     return res.data
   }, [])
 
-  const saveMediaPlan = useCallback(async (name, channel, weeklyGrps, responseSnapshot, campaignId = null, mode = 'offline') => {
+  const saveMediaPlan = useCallback(async (name, channel, weeklySpends, responseSnapshot, campaignId = null) => {
     const res = await axios.post(`${API_BASE}/media-planning/save`, {
-      name, channel, weekly_grps: weeklyGrps, response_snapshot: responseSnapshot, campaign_id: campaignId, mode,
+      name, channel, weekly_spends: weeklySpends, response_snapshot: responseSnapshot, campaign_id: campaignId,
     })
     return res.data
   }, [])
 
-  const listSavedMediaPlans = useCallback(async (campaignId = null, mode = null) => {
+  const listSavedMediaPlans = useCallback(async (campaignId = null) => {
     const params = {}
     if (campaignId !== null) params.campaign_id = campaignId
-    if (mode !== null) params.mode = mode
     const res = await axios.get(`${API_BASE}/media-planning/saved`, { params })
     return res.data
   }, [])
@@ -80,7 +69,7 @@ export function useMediaPlanning() {
   }, [])
 
   return {
-    simulateMediaPlan, simulateDigitalPlan, getMediaPlanPresets,
+    simulateMediaPlan, getMediaPlanPresets,
     saveMediaPlan, listSavedMediaPlans, getSavedMediaPlan, deleteSavedMediaPlan,
     getChannelBenchmarks, reconcilePlan, getReallocation,
   }

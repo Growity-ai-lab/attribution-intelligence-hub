@@ -95,7 +95,7 @@ def reconcile_plan(
 
     snapshot = json.loads(sim.response_snapshot)
     summary = snapshot.get("summary", {})
-    planned_spend = float(summary.get("total_spend") or summary.get("total_grp") or 0.0)
+    planned_spend = float(summary.get("total_spend") or 0.0)
     planned_leads = float(summary.get("total_leads") or 0.0)
     planned_funnel_leads = float(summary.get("total_funnel_leads") or 0.0)
     planned_cpl = float(summary.get("avg_cpl") or 0.0)

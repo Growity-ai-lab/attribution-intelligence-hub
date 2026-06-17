@@ -12,8 +12,6 @@ class WeeklyChannelInput(BaseModel):
     impressions: int = Field(ge=0)
     clicks: int = Field(ge=0)
     leads: int = Field(ge=0)
-    grp: float = Field(ge=0, default=0)
-    spot_count: int = Field(ge=0, default=0)
     segment: str = Field(default="", description="Segment code, e.g. S1, S2, S3, S4")
 
 
@@ -189,51 +187,35 @@ class PeriodComparison(BaseModel):
 
 
 class MediaPlanningRequest(BaseModel):
-    """Request for media planning simulation.
+    """Request for digital media planning simulation."""
 
-    For offline mode: weekly_grps carries GRP values per week.
-    For digital mode: weekly_grps carries weekly spend (TL); the field name is
-    kept for backward compatibility but the value is interpreted by the mode.
-    """
-
-    channel: str = Field(..., description="Channel name (offline or online)")
-    weekly_grps: list[float] = Field(..., description="GRP (offline) or spend TL (digital) per week", min_length=1, max_length=52)
-    mode: str = Field("offline", description="'offline' (GRP-based) or 'digital' (spend-based)")
-    # Optional digital-only overrides (None → use DIGITAL_CHANNEL_METRICS defaults)
-    cpm_override: float | None = Field(None, description="Cost per 1000 impressions (TL) — digital only")
-    ctr_override: float | None = Field(None, description="Click-through rate — digital only")
-    lead_rate_override: float | None = Field(None, description="Lead per click rate — digital only")
-    target_audience_override: int | None = Field(None, description="Reachable unique users — digital only")
-    freq_cap_override: int | None = Field(None, description="Effective frequency cap — digital only")
+    channel: str = Field(..., description="Digital channel name")
+    weekly_spends: list[float] = Field(..., description="Weekly spend (TL) per week", min_length=1, max_length=52)
+    cpm_override: float | None = Field(None, description="Cost per 1000 impressions (TL)")
+    ctr_override: float | None = Field(None, description="Click-through rate")
+    lead_rate_override: float | None = Field(None, description="Lead per click rate")
+    target_audience_override: int | None = Field(None, description="Reachable unique users")
+    freq_cap_override: int | None = Field(None, description="Effective frequency cap")
 
 
 class WeeklySimDetail(BaseModel):
     """Per-week simulation result."""
 
     week: int
-    grp: float
-    adstocked_grp: float
+    spend: float
+    adstocked_spend: float
     saturated: float
     estimated_leads: float
     marginal_leads: float
 
 
-class OptimalGRPResult(BaseModel):
-    """Optimal GRP recommendation."""
+class OptimalSpendResult(BaseModel):
+    """Optimal weekly spend recommendation."""
 
-    optimal_weekly_grp: float
-    saturation_threshold_grp: float
-    current_avg_grp: float
+    optimal_weekly_spend: float
+    saturation_threshold_spend: float
+    current_avg_spend: float
     recommendation: str
-
-
-class ReachDataPoint(BaseModel):
-    """Single GRP-to-reach data point."""
-
-    cumulative_grp: float
-    r1: float
-    r2: float
-    r3: float
 
 
 class FunnelDataPoint(BaseModel):
@@ -257,16 +239,13 @@ class MediaPlanningResponse(BaseModel):
     """Full media planning simulation response."""
 
     channel: str
-    mode: str = "offline"
     decay: float
     alpha: float
     gamma: float
     max_lift: float
     weekly_details: list[WeeklySimDetail]
     summary: dict
-    optimal: OptimalGRPResult
+    optimal: OptimalSpendResult
     saturation_curve: dict
-    reach_curve: list[ReachDataPoint]
-    # Digital-only fields (None for offline mode)
-    funnel_curve: list[FunnelDataPoint] | None = None
-    digital_metrics: dict | None = None
+    funnel_curve: list[FunnelDataPoint]
+    digital_metrics: dict

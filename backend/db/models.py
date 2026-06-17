@@ -56,8 +56,6 @@ class WeeklyData(Base):
     impressions = Column(Integer, default=0)
     clicks = Column(Integer, default=0)
     leads = Column(Integer, default=0)
-    grp = Column(Float, default=0.0)
-    spot_count = Column(Integer, default=0)
     segment = Column(String, default="", index=True)
 
     __table_args__ = (
@@ -72,9 +70,9 @@ class MediaPlanSimulation(Base):
     campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True)
     name = Column(String, nullable=False)
     channel = Column(String, nullable=False)
-    weekly_grps = Column(String, nullable=False)  # JSON array (GRP for offline, spend for digital)
+    weekly_grps = Column(String, nullable=False)  # JSON array of weekly spend (TL)
     response_snapshot = Column(String, nullable=False)  # JSON blob
-    mode = Column(String, default="offline", index=True)  # 'offline' | 'digital'
+    mode = Column(String, default="digital", index=True)  # 'digital'
     created_at = Column(String, nullable=False)
     created_by = Column(String, default="")
 

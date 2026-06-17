@@ -7,18 +7,18 @@ from backend.db.models import Campaign, Client
 
 SEED_DATA: dict[str, list[dict]] = {
     "Petrol Ofisi": [
-        {"name": "Premium Market", "budget": 12_000_000, "channels": "meta,google,youtube,dv360,dooh", "objective": "revenue"},
-        {"name": "AutoMatic Filo", "budget": 55_000_000, "channels": "meta,google,tiktok,linkedin,dv360,youtube,tv_match,tv_news,radio,dooh", "objective": "lead"},
+        {"name": "Premium Market", "budget": 12_000_000, "channels": "meta,google,youtube,dv360", "objective": "revenue"},
+        {"name": "AutoMatic Filo", "budget": 55_000_000, "channels": "meta,google,tiktok,linkedin,dv360,youtube", "objective": "lead"},
     ],
     "EnerjiSA": [
-        {"name": "30.Yıl İletişimi", "budget": 8_500_000, "channels": "meta,google,youtube,tv_match,tv_news,radio,dooh"},
+        {"name": "30.Yıl İletişimi", "budget": 8_500_000, "channels": "meta,google,youtube"},
     ],
     "Uludağ İçecek": [
-        {"name": "Limonata", "budget": 15_000_000, "channels": "meta,google,tiktok,youtube,tv_match,tv_news,radio,dooh"},
-        {"name": "Premium Su", "budget": 7_000_000, "channels": "meta,google,youtube,dv360,dooh"},
-        {"name": "Soda", "budget": 6_500_000, "channels": "meta,google,tiktok,youtube,tv_match,radio"},
-        {"name": "Frutti", "budget": 10_000_000, "channels": "meta,google,tiktok,youtube,tv_match,tv_news,radio"},
-        {"name": "Portakallı", "budget": 4_500_000, "channels": "meta,google,tiktok,youtube,radio"},
+        {"name": "Limonata", "budget": 15_000_000, "channels": "meta,google,tiktok,youtube"},
+        {"name": "Premium Su", "budget": 7_000_000, "channels": "meta,google,youtube,dv360"},
+        {"name": "Soda", "budget": 6_500_000, "channels": "meta,google,tiktok,youtube"},
+        {"name": "Frutti", "budget": 10_000_000, "channels": "meta,google,tiktok,youtube"},
+        {"name": "Portakallı", "budget": 4_500_000, "channels": "meta,google,tiktok,youtube"},
     ],
     "UNICEF": [
         {"name": "6 Şubat Deprem", "budget": 3_000_000, "channels": "meta,google,youtube,dv360,linkedin"},
@@ -28,12 +28,12 @@ SEED_DATA: dict[str, list[dict]] = {
     "Hayhay": [
         {"name": "POS Cihazı", "budget": 5_000_000, "channels": "meta,google,linkedin,dv360,youtube"},
         {"name": "Dijital Cüzdan", "budget": 4_000_000, "channels": "meta,google,tiktok,youtube,dv360"},
-        {"name": "Tüketici Finansmanı", "budget": 6_000_000, "channels": "meta,google,linkedin,youtube,dv360,dooh"},
+        {"name": "Tüketici Finansmanı", "budget": 6_000_000, "channels": "meta,google,linkedin,youtube,dv360"},
     ],
     "TLC/Gree Klima": [
         {"name": "Sevgililer Günü", "budget": 3_500_000, "channels": "meta,google,tiktok,youtube"},
-        {"name": "Yaz'a Merhaba", "budget": 8_000_000, "channels": "meta,google,tiktok,youtube,tv_match,tv_news,radio,dooh"},
-        {"name": "Kış Kampanyası", "budget": 5_500_000, "channels": "meta,google,youtube,dv360,tv_news,radio"},
+        {"name": "Yaz'a Merhaba", "budget": 8_000_000, "channels": "meta,google,tiktok,youtube,dv360"},
+        {"name": "Kış Kampanyası", "budget": 5_500_000, "channels": "meta,google,youtube,dv360"},
     ],
     "BiTaksi": [
         {"name": "App Install Q1", "budget": 3_000_000, "channels": "meta,google,tiktok,dv360,youtube"},

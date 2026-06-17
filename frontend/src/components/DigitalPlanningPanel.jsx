@@ -167,7 +167,7 @@ function distributeSpend(totalSpend, numWeeks, mode = 'front-loaded') {
 
 export default function DigitalPlanningPanel({ campaign }) {
   const {
-    simulateDigitalPlan, getMediaPlanPresets,
+    simulateMediaPlan, getMediaPlanPresets,
     saveMediaPlan, listSavedMediaPlans, getSavedMediaPlan, deleteSavedMediaPlan,
     getChannelBenchmarks, reconcilePlan,
   } = useAttribution()
@@ -239,9 +239,9 @@ export default function DigitalPlanningPanel({ campaign }) {
     let cancelled = false
     ;(async () => {
       try {
-        const presets = await getMediaPlanPresets(selectedChannel, 'digital')
+        const presets = await getMediaPlanPresets(selectedChannel)
         if (cancelled) return
-        const spends = presets.preset_grps || []
+        const spends = presets.preset_spends || []
         const filled = Array(numWeeks).fill(0).map((_, i) => spends[i] || 0)
         setWeeklySpends(filled)
         if (presets.digital_metrics) setChannelDefaults(presets.digital_metrics)
@@ -277,11 +277,11 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (!spends.some(s => s > 0)) { setResult(null); return }
     setLoading(true)
     try {
-      const res = await simulateDigitalPlan(selectedChannel, spends, buildOverrides())
+      const res = await simulateMediaPlan(selectedChannel, spends, buildOverrides())
       setResult(res)
     } catch (err) { console.error('[DigitalPlanning]', err) }
     setLoading(false)
-  }, [simulateDigitalPlan, selectedChannel, buildOverrides])
+  }, [simulateMediaPlan, selectedChannel, buildOverrides])
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -305,8 +305,8 @@ export default function DigitalPlanningPanel({ campaign }) {
 
   const loadPresets = async () => {
     try {
-      const presets = await getMediaPlanPresets(selectedChannel, 'digital')
-      const spends = presets.preset_grps || []
+      const presets = await getMediaPlanPresets(selectedChannel)
+      const spends = presets.preset_spends || []
       setWeeklySpends(Array(numWeeks).fill(0).map((_, i) => spends[i] || 0))
     } catch (err) { console.error('[DigitalPlanning]', err) }
   }
@@ -323,7 +323,7 @@ export default function DigitalPlanningPanel({ campaign }) {
   const handleSave = async () => {
     if (!saveName.trim() || !result) return
     try {
-      await saveMediaPlan(saveName.trim(), selectedChannel, weeklySpends, result, campaign?.id || null, 'digital')
+      await saveMediaPlan(saveName.trim(), selectedChannel, weeklySpends, result, campaign?.id || null)
       setShowSaveModal(false)
       setSaveName('')
       refreshSavedPlans()
@@ -332,7 +332,7 @@ export default function DigitalPlanningPanel({ campaign }) {
 
   const refreshSavedPlans = async () => {
     try {
-      const plans = await listSavedMediaPlans(campaign?.id || null, 'digital')
+      const plans = await listSavedMediaPlans(campaign?.id || null)
       setSavedPlans(plans)
     } catch (err) { console.error('[DigitalPlanning]', err) }
   }
@@ -341,7 +341,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     try {
       const plan = await getSavedMediaPlan(id)
       setSelectedChannel(plan.channel)
-      const spends = plan.weekly_grps || []
+      const spends = plan.weekly_spends || []
       setNumWeeks(spends.length)
       setWeeklySpends(spends)
       setShowSavedList(false)
@@ -429,9 +429,9 @@ export default function DigitalPlanningPanel({ campaign }) {
     const headers = ['Hafta', 'Spend (TL)', 'Adstocked Spend', 'Saturation', 'Model Lead', 'Funnel Lead', 'Impressions', 'Clicks', 'Reach %', 'CPL (TL)']
     const rows = result.weekly_details.map((d, i) => {
       const f = result.funnel_curve?.[i]
-      const cplW = d.estimated_leads > 0 ? (d.grp / d.estimated_leads).toFixed(0) : '-'
+      const cplW = d.estimated_leads > 0 ? (d.spend / d.estimated_leads).toFixed(0) : '-'
       return [
-        `W${d.week}`, d.grp, d.adstocked_grp.toFixed(0), d.saturated.toFixed(4),
+        `W${d.week}`, d.spend, d.adstocked_spend.toFixed(0), d.saturated.toFixed(4),
         d.estimated_leads.toFixed(1), f?.estimated_leads_funnel?.toFixed(1) || '-',
         f?.impressions?.toFixed(0) || '-', f?.clicks?.toFixed(0) || '-',
         f?.reach_pct?.toFixed(1) || '-', cplW,
@@ -468,7 +468,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       datasets: [
         {
           label: 'Ham Spend',
-          data: details.map(d => d.grp),
+          data: details.map(d => d.spend),
           borderColor: 'rgba(148,163,184,0.5)',
           backgroundColor: 'rgba(148,163,184,0.08)',
           borderDash: [4, 4],
@@ -476,7 +476,7 @@ export default function DigitalPlanningPanel({ campaign }) {
         },
         {
           label: 'Adstocked Spend',
-          data: details.map(d => d.adstocked_grp),
+          data: details.map(d => d.adstocked_spend),
           borderColor: channelColor,
           backgroundColor: channelColor + '20',
           fill: true, tension: 0.3, pointRadius: 4,
@@ -484,7 +484,7 @@ export default function DigitalPlanningPanel({ campaign }) {
         {
           type: 'bar',
           label: 'Carry-over',
-          data: details.map(d => Math.max(0, d.adstocked_grp - d.grp)),
+          data: details.map(d => Math.max(0, d.adstocked_spend - d.spend)),
           backgroundColor: channelColor + '30',
           borderColor: channelColor + '50',
           borderWidth: 1, borderRadius: 2,
@@ -495,9 +495,9 @@ export default function DigitalPlanningPanel({ campaign }) {
 
   const saturationChartData = useMemo(() => {
     if (!result?.saturation_curve) return null
-    const { grp_values, saturated_values } = result.saturation_curve
+    const { spend_values, saturated_values } = result.saturation_curve
     return {
-      labels: grp_values.map(v => fmtMoney(v)),
+      labels: spend_values.map(v => fmtMoney(v)),
       datasets: [{
         label: 'Saturation Response',
         data: saturated_values,
@@ -608,8 +608,8 @@ export default function DigitalPlanningPanel({ campaign }) {
 
   const adstockOpts = useMemo(() => {
     if (!result?.optimal) return lineOpts
-    const optSpend = result.optimal.optimal_weekly_grp
-    const satSpend = result.optimal.saturation_threshold_grp
+    const optSpend = result.optimal.optimal_weekly_spend
+    const satSpend = result.optimal.saturation_threshold_spend
     return {
       ...lineOpts,
       plugins: {
@@ -1359,15 +1359,15 @@ export default function DigitalPlanningPanel({ campaign }) {
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       <div className="bg-dark-bg rounded-lg p-2.5 text-center">
                         <p className="text-[10px] text-slate-500 uppercase tracking-wide">Optimal Spend</p>
-                        <p className="text-sm font-mono text-green-400 mt-0.5">{fmtMoney(result.optimal.optimal_weekly_grp)} TL</p>
+                        <p className="text-sm font-mono text-green-400 mt-0.5">{fmtMoney(result.optimal.optimal_weekly_spend)} TL</p>
                       </div>
                       <div className="bg-dark-bg rounded-lg p-2.5 text-center">
                         <p className="text-[10px] text-slate-500 uppercase tracking-wide">Doygunluk Esigi</p>
-                        <p className="text-sm font-mono text-yellow-400 mt-0.5">{fmtMoney(result.optimal.saturation_threshold_grp)} TL</p>
+                        <p className="text-sm font-mono text-yellow-400 mt-0.5">{fmtMoney(result.optimal.saturation_threshold_spend)} TL</p>
                       </div>
                       <div className="bg-dark-bg rounded-lg p-2.5 text-center">
                         <p className="text-[10px] text-slate-500 uppercase tracking-wide">Mevcut Ort.</p>
-                        <p className="text-sm font-mono text-slate-100 mt-0.5">{fmtMoney(result.optimal.current_avg_grp)} TL</p>
+                        <p className="text-sm font-mono text-slate-100 mt-0.5">{fmtMoney(result.optimal.current_avg_spend)} TL</p>
                       </div>
                     </div>
                   )}
@@ -1435,9 +1435,9 @@ export default function DigitalPlanningPanel({ campaign }) {
               <div className="card-hdr">
                 <span className="card-title">Optimal Harcama Onerisi</span>
                 {(() => {
-                  const avg = result.optimal.current_avg_grp
-                  const opt = result.optimal.optimal_weekly_grp
-                  const thr = result.optimal.saturation_threshold_grp
+                  const avg = result.optimal.current_avg_spend
+                  const opt = result.optimal.optimal_weekly_spend
+                  const thr = result.optimal.saturation_threshold_spend
                   const status = avg < opt * 0.8 ? 'low' : avg > thr ? 'high' : 'good'
                   const statusConfig = {
                     low: { color: 'text-blue-400', bg: 'bg-blue-500/15', label: 'Arttirilabilir' },
@@ -1488,7 +1488,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                   {result.weekly_details.map((d, i) => {
                     const f = result.funnel_curve?.[i]
                     const isPeak = d.week === result.summary?.peak_week
-                    const cplW = d.estimated_leads > 0 ? d.grp / d.estimated_leads : 0
+                    const cplW = d.estimated_leads > 0 ? d.spend / d.estimated_leads : 0
                     return (
                       <tr
                         key={d.week}
@@ -1498,8 +1498,8 @@ export default function DigitalPlanningPanel({ campaign }) {
                           W{d.week}
                           {isPeak && <span className="ml-1 text-[9px] text-accent font-semibold">PEAK</span>}
                         </td>
-                        <td className="py-2 px-2 text-right font-mono text-slate-200">{fmtMoney(d.grp)}</td>
-                        <td className="py-2 px-2 text-right font-mono text-slate-300">{fmtMoney(d.adstocked_grp)}</td>
+                        <td className="py-2 px-2 text-right font-mono text-slate-200">{fmtMoney(d.spend)}</td>
+                        <td className="py-2 px-2 text-right font-mono text-slate-300">{fmtMoney(d.adstocked_spend)}</td>
                         <td className="py-2 px-2 text-right font-mono text-slate-400">{fmtN(f?.impressions || 0)}</td>
                         <td className="py-2 px-2 text-right font-mono text-slate-400">{fmtN(f?.clicks || 0)}</td>
                         <td className="py-2 px-2 text-right font-mono text-slate-100">{d.estimated_leads.toFixed(1)}</td>

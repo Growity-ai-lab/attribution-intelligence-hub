@@ -71,7 +71,7 @@ class TestConfigEndpoint:
         data = r.json()
         assert "channels" in data
         assert "meta" in data["channels"]
-        assert len(data["channels"]) == 10
+        assert len(data["channels"]) == 6
 
     def test_config_contains_model_params(self):
         r = client.get("/api/config/channels")
@@ -130,14 +130,14 @@ class TestMMMEndpoints:
         assert len(data["saturated_values"]) == 3
         assert data["saturated_values"][0] == 0.0  # saturation(0) = 0
 
-    def test_decomposition_returns_all_channels(self):
-        r = client.get("/api/mmm/decomposition")
+    def test_decomposition_returns_all_channels(self, auth_headers):
+        r = client.get("/api/mmm/decomposition", headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
-        assert len(data) == 10
+        assert len(data) == 6
         channels = {d["channel"] for d in data}
         assert "meta" in channels
-        assert "tv_match" in channels
+        assert "google" in channels
 
 
 # --------------- DDA from CSV Flow ---------------
@@ -371,7 +371,7 @@ class TestChannelBenchmarks:
             json={
                 "name": "Meta Plan",
                 "channel": "meta",
-                "weekly_grps": [1_000_000, 1_000_000],
+                "weekly_spends": [1_000_000, 1_000_000],
                 "response_snapshot": {
                     "summary": {
                         "total_spend": 2_000_000,
@@ -410,7 +410,7 @@ class TestChannelBenchmarks:
             json={
                 "name": "Orphan Plan",
                 "channel": "google",
-                "weekly_grps": [500_000],
+                "weekly_spends": [500_000],
                 "response_snapshot": {"summary": {"total_spend": 500_000, "total_leads": 100}},
                 "campaign_id": campaign_id,
                 "mode": "digital",
@@ -618,7 +618,7 @@ class TestSampleDataFlow:
         # Verify unified report
         assert "unified_report" in data
         report = data["unified_report"]
-        assert len(report) >= 6  # At least online + offline channels
+        assert len(report) >= 3  # At least some channels
 
         # Verify cross_validation is a list
         assert isinstance(data["cross_validation"], list)
@@ -910,7 +910,7 @@ class TestMediaPlanningCRUD:
         plan = {
             "name": "Meta Q1",
             "channel": "meta",
-            "weekly_grps": [500_000, 600_000, 700_000],
+            "weekly_spends": [500_000, 600_000, 700_000],
             "response_snapshot": {"summary": {"total_spend": 1_800_000}},
             "campaign_id": camp_id,
             "mode": "digital",
@@ -929,7 +929,7 @@ class TestMediaPlanningCRUD:
         plan = {
             "name": "Google Q2",
             "channel": "google",
-            "weekly_grps": [300_000],
+            "weekly_spends": [300_000],
             "response_snapshot": {"summary": {"total_spend": 300_000}},
             "campaign_id": camp_id,
             "mode": "digital",
@@ -948,7 +948,7 @@ class TestMediaPlanningCRUD:
         plan = {
             "name": "Temp Plan",
             "channel": "meta",
-            "weekly_grps": [100_000],
+            "weekly_spends": [100_000],
             "response_snapshot": {},
             "campaign_id": camp_id,
             "mode": "digital",
@@ -967,10 +967,11 @@ class TestMediaPlanningCRUD:
         assert r.status_code == 401
 
     def test_presets_endpoint(self, auth_headers):
-        r = client.get("/api/media-planning/presets/tv_match", headers=auth_headers)
+        r = client.get("/api/media-planning/presets/meta", headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
         assert "channel" in data
+        assert data["channel"] == "meta"
 
 
 # --------------- Budget Simulation Endpoint ---------------

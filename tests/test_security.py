@@ -50,7 +50,6 @@ class TestAuthSecurity:
     def test_public_endpoints_no_auth_required(self):
         assert client.get("/api/health").status_code == 200
         assert client.get("/api/config/channels").status_code == 200
-        assert client.get("/api/mmm/decomposition").status_code == 200
 
 
 class TestFileUploadSecurity:
@@ -141,13 +140,13 @@ class TestChannelValidation:
         assert r.status_code == 404
         assert "Unknown channel" in r.json()["detail"]
 
-    def test_unknown_channel_decomposition(self):
-        r = client.get("/api/mmm/decomposition?spend=fake_channel:1000")
+    def test_unknown_channel_decomposition(self, auth_headers):
+        r = client.get("/api/mmm/decomposition?spend=fake_channel:1000", headers=auth_headers)
         assert r.status_code == 400
         assert "Unknown channel" in r.json()["detail"]
 
-    def test_invalid_decomposition_spend_value(self):
-        r = client.get("/api/mmm/decomposition?spend=meta:abc")
+    def test_invalid_decomposition_spend_value(self, auth_headers):
+        r = client.get("/api/mmm/decomposition?spend=meta:abc", headers=auth_headers)
         assert r.status_code == 400
         assert "Invalid spend value" in r.json()["detail"]
 

@@ -4,13 +4,11 @@ import { useAttribution } from '../hooks/useAttribution'
 /* ── Column definitions for format guide ── */
 const WEEKLY_COLUMNS = [
   { name: 'week', type: 'string', required: true, desc: 'ISO hafta formatı', example: '2026-W06' },
-  { name: 'channel', type: 'string', required: true, desc: 'Kanal adı (10 kanal)', example: 'meta' },
+  { name: 'channel', type: 'string', required: true, desc: 'Kanal adı (6 dijital kanal)', example: 'meta' },
   { name: 'spend', type: 'float', required: true, desc: 'Haftalık harcama (TL)', example: '2600000' },
   { name: 'impressions', type: 'int', required: true, desc: 'Gösterim sayısı', example: '4500000' },
   { name: 'clicks', type: 'int', required: true, desc: 'Tıklama sayısı', example: '85000' },
   { name: 'leads', type: 'int', required: true, desc: 'Lead (başvuru) sayısı', example: '1050' },
-  { name: 'grp', type: 'float', required: false, desc: 'TV GRP değeri', example: '450' },
-  { name: 'spot_count', type: 'int', required: false, desc: 'TV/Radyo spot sayısı', example: '12' },
   { name: 'segment', type: 'string', required: false, desc: 'Segment kodu (S1-S4)', example: 'S1' },
 ]
 
@@ -40,7 +38,7 @@ const SALES_STOCK_COLUMNS = [
   { name: 'segment', type: 'string', required: false, desc: 'Segment kodu (S1-S4)', example: 'S1' },
 ]
 
-const VALID_CHANNELS = ['meta', 'google', 'tiktok', 'linkedin', 'dv360', 'youtube', 'tv_match', 'tv_news', 'radio', 'dooh']
+const VALID_CHANNELS = ['meta', 'google', 'tiktok', 'linkedin', 'dv360', 'youtube']
 
 function DownloadIcon() {
   return (
@@ -140,7 +138,7 @@ export default function DataUpload({ campaign, isDemo, onDataUploaded }) {
 
         <p className="text-slate-500 text-xs mb-4">
           {mode === 'weekly'
-            ? 'CSV veya Excel formatında haftalık kanal verilerini yükleyin. Her hafta için 10 kanal satırı beklenir.'
+            ? 'CSV veya Excel formatında haftalık kanal verilerini yükleyin. Her hafta için 6 dijital kanal satırı beklenir.'
             : mode === 'crm'
             ? 'CRM touchpoint CSV yükleyin. DDA pipeline (Markov + Shapley) otomatik çalışacak.'
             : 'Haftalık satış, stok ve müşteri verilerini yükleyin. Ürün/bölge bazlı kırılım desteklenir.'}
@@ -320,12 +318,11 @@ export default function DataUpload({ campaign, isDemo, onDataUploaded }) {
             <div className="bg-dark-bg rounded-lg p-3 overflow-x-auto">
               {mode === 'weekly' ? (
                 <pre className="text-[11px] text-slate-400 font-mono leading-relaxed">{
-`week,channel,spend,impressions,clicks,leads,grp,spot_count,segment
-2026-W05,meta,2600000,4500000,85000,1050,0,0,S1
-2026-W05,google,300000,800000,24000,520,0,0,S1
-2026-W05,meta,800000,1500000,28000,320,0,0,S2
-2026-W05,tv_match,0,0,0,0,450,12,
-2026-W05,radio,0,0,0,0,0,36,`
+`week,channel,spend,impressions,clicks,leads,segment
+2026-W05,meta,2600000,4500000,85000,1050,S1
+2026-W05,google,300000,800000,24000,520,S1
+2026-W05,tiktok,800000,3200000,48000,280,S1
+2026-W05,linkedin,500000,600000,9000,85,S1`
                 }</pre>
               ) : mode === 'crm' ? (
                 <pre className="text-[11px] text-slate-400 font-mono leading-relaxed">{
@@ -350,7 +347,7 @@ L002,2026-01-17 11:30,meta,click,S1_retarget,S1,0,s004`
 
           {/* Valid Channels */}
           <div className="mb-4">
-            <p className="text-xs text-slate-400 font-medium mb-2">Geçerli Kanallar (10):</p>
+            <p className="text-xs text-slate-400 font-medium mb-2">Geçerli Kanallar (6):</p>
             <div className="flex flex-wrap gap-1.5">
               {VALID_CHANNELS.map(ch => (
                 <span key={ch} className="px-2 py-0.5 rounded bg-dark-bg border border-dark-border text-[11px] font-mono text-slate-300">
@@ -367,10 +364,9 @@ L002,2026-01-17 11:30,meta,click,S1_retarget,S1,0,s004`
             </p>
             {mode === 'weekly' ? (
               <ul className="text-[11px] text-slate-400 space-y-1 list-disc list-inside">
-                <li>Her hafta için <strong className="text-slate-300">10 kanal satırı</strong> beklenir (online + offline)</li>
-                <li>TV ve radyo kanallarında <code className="text-accent/80">grp</code> ve <code className="text-accent/80">spot_count</code> alanlarını doldurun, spend 0 olabilir</li>
+                <li>Her hafta için <strong className="text-slate-300">6 dijital kanal satırı</strong> beklenir</li>
                 <li>Hafta formatı ISO 8601: <code className="text-accent/80">YYYY-Www</code> (ör. 2026-W06)</li>
-                <li>Birden fazla hafta aynı dosyada olabilir (ör. W05 + W06 = 20 satır)</li>
+                <li>Birden fazla hafta aynı dosyada olabilir (ör. W05 + W06 = 12 satır)</li>
                 <li>Maksimum dosya boyutu: 10 MB, maksimum satır: 50.000</li>
                 <li><code className="text-accent/80">segment</code> opsiyonel: S1, S2, S3, S4. Doldurulursa segment bazlı doygunluk analizi yapılır</li>
               </ul>
