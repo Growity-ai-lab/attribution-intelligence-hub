@@ -492,10 +492,72 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
           <div className="card-hdr">
             <span className="card-title">CSV Touchpoint Upload</span>
           </div>
-          <div className="p-4 space-y-3">
+          <div className="p-4 space-y-4">
             <p className="text-xs text-slate-400">
-              BigQuery bağlantısı yoksa, CRM/analytics touchpoint CSV dosyasını yükleyebilirsiniz.
+              BigQuery bağlantısı olmadan da attribution analizi yapabilirsiniz. İki format desteklenir:
             </p>
+
+            {/* Format info */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-dark-bg rounded-lg p-3 border border-dark-border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-emerald-400">GA4 Export (Önerilen)</span>
+                  <a href="/api/data/template/ga4" download className="text-[10px] text-accent hover:text-accent-light transition-colors">
+                    Şablon İndir ↓
+                  </a>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  GA4 BigQuery konsolundan export edilen veri. Kanal eşleştirme otomatik yapılır.
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                  user_pseudo_id, event_name, source, medium, ...
+                </p>
+              </div>
+              <div className="bg-dark-bg rounded-lg p-3 border border-dark-border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-blue-400">CRM Touchpoint</span>
+                  <a href="/api/data/template/crm" download className="text-[10px] text-accent hover:text-accent-light transition-colors">
+                    Şablon İndir ↓
+                  </a>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Manuel hazırlanmış touchpoint verisi. Kanal adları doğrudan kullanılır.
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                  lead_id, timestamp, channel, touchpoint_type, ...
+                </p>
+              </div>
+            </div>
+
+            {/* GA4 SQL Helper */}
+            <details className="group">
+              <summary className="text-[10px] text-slate-400 cursor-pointer hover:text-slate-300 transition-colors select-none">
+                GA4 BQ SQL Sorgusu (kopyala-yapıştır) ▸
+              </summary>
+              <div className="mt-2 bg-dark-bg rounded-lg p-3 border border-dark-border">
+                <pre className="text-[10px] text-slate-300 font-mono whitespace-pre-wrap leading-relaxed select-all">{`SELECT
+  user_pseudo_id,
+  TIMESTAMP_MICROS(event_timestamp) AS event_timestamp,
+  event_name,
+  COALESCE(
+    collected_traffic_source.manual_source,
+    traffic_source.source
+  ) AS source,
+  COALESCE(
+    collected_traffic_source.manual_medium,
+    traffic_source.medium
+  ) AS medium,
+  traffic_source.name AS campaign,
+  COALESCE(ecommerce.purchase_revenue, 0) AS revenue
+FROM \`PROJECT.DATASET.events_*\`
+WHERE _TABLE_SUFFIX BETWEEN 'YYYYMMDD' AND 'YYYYMMDD'
+ORDER BY user_pseudo_id, event_timestamp`}</pre>
+                <p className="text-[10px] text-slate-400 mt-2">
+                  <strong className="text-slate-300">PROJECT.DATASET</strong> ve <strong className="text-slate-300">YYYYMMDD</strong> değerlerini kendi GA4 projenize göre değiştirin. Sonucu CSV olarak indirip yükleyin.
+                </p>
+              </div>
+            </details>
+
             <input
               type="file"
               accept=".csv,.xlsx"

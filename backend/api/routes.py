@@ -981,14 +981,14 @@ async def run_dda_from_csv(
     file: UploadFile = File(...),
     prior_alpha: float = 0.5,
     campaign_id: int | None = Query(None),
+    conversion_events: str = Query("purchase,generate_lead"),
     _user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Run DDA pipeline from a CRM touchpoint CSV.
+    """Run DDA pipeline from a CRM touchpoint CSV or GA4 export CSV.
 
-    Parses the CSV, persists raw touchpoints (if campaign_id provided),
-    extracts journeys (filtering conversion events), runs Markov+Shapley
-    ensemble, and returns unified results.
+    Auto-detects GA4 format (user_pseudo_id, event_name, source, medium) and
+    converts it with channel mapping. Standard CRM format also accepted.
 
     Re-upload semantics: existing touchpoints for the campaign are replaced.
     """
@@ -996,8 +996,9 @@ async def run_dda_from_csv(
     _validate_prior_alpha(prior_alpha)
     content = await _read_file_content(file)
 
+    conv_list = [e.strip() for e in conversion_events.split(",") if e.strip()]
     try:
-        touchpoints, truncated = load_crm_touchpoints(BytesIO(content))
+        touchpoints, truncated = load_crm_touchpoints(BytesIO(content), conversion_events=conv_list)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -1393,6 +1394,15 @@ async def get_template_crm():
     if not template_path.exists():
         raise HTTPException(status_code=404, detail="Template file not found")
     return FileResponse(template_path, media_type="text/csv", filename="crm_touchpoints_template.csv")
+
+
+@router.get("/data/template/ga4")
+async def get_template_ga4():
+    """Serve the GA4 touchpoints template CSV file."""
+    template_path = TEMPLATE_DIR / "ga4_touchpoints_template.csv"
+    if not template_path.exists():
+        raise HTTPException(status_code=404, detail="Template file not found")
+    return FileResponse(template_path, media_type="text/csv", filename="ga4_touchpoints_template.csv")
 
 
 @router.get("/data/sample/bitaksi/journeys")

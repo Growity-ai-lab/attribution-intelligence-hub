@@ -415,6 +415,98 @@ class TestLoaderTruncation:
         assert truncated is False
 
 
+# ── GA4 CSV Auto-detect ────────────────────────────────────────────
+
+
+class TestGA4AutoDetect:
+    def test_ga4_format_detected(self):
+        from backend.data.loader import _is_ga4_format
+        df = pd.DataFrame({
+            "user_pseudo_id": ["u1"],
+            "event_name": ["page_view"],
+            "source": ["google"],
+            "medium": ["cpc"],
+        })
+        assert _is_ga4_format(df) is True
+
+    def test_crm_format_not_detected_as_ga4(self):
+        from backend.data.loader import _is_ga4_format
+        df = pd.DataFrame({
+            "lead_id": ["L1"],
+            "timestamp": ["2026-01-01"],
+            "channel": ["meta"],
+            "touchpoint_type": ["click"],
+        })
+        assert _is_ga4_format(df) is False
+
+    def test_ga4_csv_conversion(self):
+        from backend.data.loader import load_crm_touchpoints
+        from io import BytesIO
+        csv_data = (
+            "user_pseudo_id,event_timestamp,event_name,source,medium,campaign,revenue\n"
+            "u1,2026-01-15 10:00,page_view,google,cpc,brand,0\n"
+            "u1,2026-01-16 11:00,purchase,google,cpc,brand,1500\n"
+            "u2,2026-01-15 09:00,page_view,facebook,paid_social,retarget,0\n"
+            "u2,2026-01-17 14:00,page_view,tiktok,cpc,video,0\n"
+        )
+        records, truncated = load_crm_touchpoints(BytesIO(csv_data.encode()))
+        assert truncated is False
+        assert len(records) == 4
+        # Channel mapping applied
+        channels = {r.channel for r in records}
+        assert "google" in channels
+        assert "meta" in channels
+        assert "tiktok" in channels
+
+    def test_ga4_conversion_detection(self):
+        from backend.data.loader import load_crm_touchpoints
+        from io import BytesIO
+        csv_data = (
+            "user_pseudo_id,event_timestamp,event_name,source,medium,campaign,revenue\n"
+            "u1,2026-01-15 10:00,page_view,google,cpc,,0\n"
+            "u1,2026-01-16 11:00,purchase,google,cpc,,1500\n"
+        )
+        records, _ = load_crm_touchpoints(BytesIO(csv_data.encode()))
+        # u1 has a purchase → all u1 touchpoints should be converted=True
+        assert all(r.converted for r in records)
+
+    def test_ga4_custom_conversion_events(self):
+        from backend.data.loader import load_crm_touchpoints
+        from io import BytesIO
+        csv_data = (
+            "user_pseudo_id,event_timestamp,event_name,source,medium,campaign,revenue\n"
+            "u1,2026-01-15 10:00,page_view,google,cpc,,0\n"
+            "u1,2026-01-16 11:00,generate_lead,google,cpc,,0\n"
+        )
+        records, _ = load_crm_touchpoints(
+            BytesIO(csv_data.encode()),
+            conversion_events=["generate_lead"],
+        )
+        assert all(r.converted for r in records)
+
+    def test_ga4_direct_channel_mapping(self):
+        from backend.data.loader import load_crm_touchpoints
+        from io import BytesIO
+        csv_data = (
+            "user_pseudo_id,event_timestamp,event_name,source,medium,campaign,revenue\n"
+            "u1,2026-01-15 10:00,page_view,(direct),(none),,0\n"
+        )
+        records, _ = load_crm_touchpoints(BytesIO(csv_data.encode()))
+        assert records[0].channel == "direct"
+
+    def test_crm_format_still_works(self):
+        from backend.data.loader import load_crm_touchpoints
+        from io import BytesIO
+        csv_data = (
+            "lead_id,timestamp,channel,touchpoint_type,converted\n"
+            "L1,2026-01-15,meta,click,1\n"
+            "L1,2026-01-16,google,click,0\n"
+        )
+        records, _ = load_crm_touchpoints(BytesIO(csv_data.encode()))
+        assert len(records) == 2
+        assert records[0].channel == "meta"
+
+
 # ── Config validation ──────────────────────────────────────────────
 
 

@@ -1,0 +1,6 @@
+user_pseudo_id,event_timestamp,event_name,source,medium,campaign,revenue
+1234567890.1234567890,2026-01-15 10:23:00 UTC,page_view,google,cpc,brand_search,0
+1234567890.1234567890,2026-01-15 10:25:00 UTC,purchase,google,cpc,brand_search,1500.00
+9876543210.9876543210,2026-01-16 14:05:00 UTC,page_view,facebook,paid_social,retarget_campaign,0
+9876543210.9876543210,2026-01-17 09:30:00 UTC,page_view,tiktok,cpc,video_campaign,0
+9876543210.9876543210,2026-01-18 11:00:00 UTC,generate_lead,(direct),(none),,0
