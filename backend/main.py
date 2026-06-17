@@ -1,12 +1,16 @@
 """FastAPI application entry point for Time's Hub | Attribution Intelligence."""
 
+import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
 from backend.api.routes import router
@@ -27,6 +31,17 @@ seed_clients_and_campaigns()
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DIST_DIR = PROJECT_ROOT / "frontend" / "dist"
 
+# Rate limiter (applies to auth endpoints)
+limiter = Limiter(key_func=get_remote_address)
+
+# CORS origins: allow env override for production
+_CORS_ORIGINS_DEFAULT = "http://localhost:5173,http://localhost:3000"
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("CORS_ORIGINS", _CORS_ORIGINS_DEFAULT).split(",")
+    if o.strip()
+]
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add standard security headers to all responses."""
@@ -37,22 +52,36 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if os.environ.get("ENABLE_HSTS"):
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
 
 app = FastAPI(
     title="Time's Hub | Attribution Intelligence",
-    description="Multi-channel attribution modelling API for PO AutoMatic Filo",
-    version="0.1.0",
+    description="DDA attribution intelligence API for PO AutoMatic Filo",
+    version="0.2.0",
 )
+
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Çok fazla istek — lütfen biraz bekleyin."},
+    )
+
 
 app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Accept", "Authorization"],
 )
 

@@ -5,12 +5,12 @@ from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from backend.api.deps import get_current_user
+from backend.api.deps import check_campaign_access, get_current_user
 from backend.auth import authenticate_user, create_access_token
 from backend.db.database import get_db
 from backend.db.models import (
@@ -72,9 +72,11 @@ from backend.integrations.bigquery import (
 
 router = APIRouter()
 
-# In-memory BQ client cache with 1-hour TTL (per-process; lost on restart)
+# In-memory BQ client cache with 1-hour TTL and bounded size.
+# Credentials are NOT stored in cache — only the BQ client object.
 import time as _time
 
+_BQ_CACHE_MAX = 10
 _bq_clients: dict[str, dict] = {}
 
 
@@ -87,6 +89,9 @@ def _bq_cache_get(key: str) -> dict | None:
 
 
 def _bq_cache_set(key: str, value: dict) -> None:
+    if len(_bq_clients) >= _BQ_CACHE_MAX and key not in _bq_clients:
+        oldest = min(_bq_clients, key=lambda k: _bq_clients[k].get("_ts", 0))
+        _bq_clients.pop(oldest, None)
     value["_ts"] = _time.monotonic()
     _bq_clients[key] = value
 
@@ -103,9 +108,15 @@ _CONVERSION_CHANNELS = {"form", "landing_page", "website", "app"}
 
 # --------------- Auth ---------------
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+_limiter = Limiter(key_func=get_remote_address)
+
 
 @router.post("/auth/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
+@_limiter.limit("5/minute")
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
     """Authenticate and return a JWT access token."""
     user = authenticate_user(form_data.username, form_data.password)
     if not user:
@@ -115,7 +126,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()) -> dict:
 
 
 @router.post("/auth/demo")
-async def demo_login() -> dict:
+@_limiter.limit("10/minute")
+async def demo_login(request: Request) -> dict:
     """Generate a demo access token — no credentials required."""
     token = create_access_token(data={"sub": "demo", "role": "demo"})
     return {"access_token": token, "token_type": "bearer"}
@@ -289,9 +301,7 @@ def update_campaign(
     db: Session = Depends(get_db),
 ) -> dict:
     """Update campaign fields — objective/lead_value/name/budget/status."""
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+    campaign = check_campaign_access(db, campaign_id, _user)
     if objective is not None:
         if objective not in ("lead", "revenue"):
             raise HTTPException(status_code=400, detail="objective must be 'lead' or 'revenue'")
@@ -301,8 +311,13 @@ def update_campaign(
     if name is not None and name.strip():
         campaign.name = name.strip()
     if budget is not None:
+        if budget < 0:
+            raise HTTPException(status_code=400, detail="Budget cannot be negative")
         campaign.budget = budget
     if status is not None:
+        _VALID_STATUSES = {"active", "paused", "completed"}
+        if status not in _VALID_STATUSES:
+            raise HTTPException(status_code=400, detail=f"status must be one of: {', '.join(sorted(_VALID_STATUSES))}")
         campaign.status = status
     db.commit()
     db.refresh(campaign)
@@ -326,9 +341,7 @@ def delete_campaign(
     db: Session = Depends(get_db),
 ) -> dict:
     """Delete a campaign."""
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+    campaign = check_campaign_access(db, campaign_id, _user)
     db.delete(campaign)
     db.commit()
     return {"deleted": True, "id": campaign_id}
@@ -659,7 +672,7 @@ async def upload_weekly_data(
     persisted = False
     target_campaign_id = campaign_id
     if campaign_id is not None:
-        # Demo role: redirect to a sandbox campaign so seed data isn't overwritten
+        check_campaign_access(db, campaign_id, _user)
         if _user.get("role") == "demo":
             target_campaign_id = _ensure_demo_sandbox_campaign(db, campaign_id)
 
@@ -774,6 +787,7 @@ def get_decomposition(
     # Resolve params: fitted (per campaign) or config defaults
     fitted = None
     if campaign_id is not None:
+        check_campaign_access(db, campaign_id, _user)
         from backend.models.mmm_fit import get_active_params
         fitted = get_active_params(db, campaign_id)
 
@@ -858,6 +872,7 @@ def fit_campaign_mmm(
     Persists result to CampaignModelParams; latest row is the active fit.
     Returns fit_quality (rmse, mape, r2) plus the fitted params per channel.
     """
+    check_campaign_access(db, campaign_id, _user)
     from backend.models.mmm_fit import fit_and_store
     try:
         result = fit_and_store(db, campaign_id)
@@ -880,6 +895,7 @@ def get_fit_status(
     db: Session = Depends(get_db),
 ) -> dict:
     """Check whether the campaign has an active fit and whether it's stale."""
+    check_campaign_access(db, campaign_id, _user)
     from backend.models.mmm_fit import compute_data_hash
     rec = (
         db.query(CampaignModelParams)
@@ -986,6 +1002,7 @@ async def run_dda_from_csv(
     persisted = False
     target_campaign_id = campaign_id
     if campaign_id is not None:
+        check_campaign_access(db, campaign_id, _user)
         if _user.get("role") == "demo":
             target_campaign_id = _ensure_demo_sandbox_campaign(db, campaign_id)
         db.query(TouchpointData).filter(
@@ -1132,7 +1149,7 @@ async def bq_connect(
         raise HTTPException(status_code=400, detail=info.get("error", "Connection failed"))
 
     cache_key = f"{project}:{dataset}"
-    _bq_cache_set(cache_key, {"client": client, "creds": creds_str})
+    _bq_cache_set(cache_key, {"client": client})
 
     return info
 
@@ -1230,6 +1247,7 @@ def run_dda_from_bigquery(
     persisted = False
     target_campaign_id = campaign_id
     if campaign_id is not None:
+        check_campaign_access(db, campaign_id, _user)
         if _user.get("role") == "demo":
             target_campaign_id = _ensure_demo_sandbox_campaign(db, campaign_id)
         db.query(TouchpointData).filter(
@@ -1512,8 +1530,10 @@ async def upload_sales_stock(
     records = load_sales_stock_csv(BytesIO(content))
 
     target_campaign_id = campaign_id
-    if campaign_id is not None and _user.get("role") == "demo":
-        target_campaign_id = _ensure_demo_sandbox_campaign(db, campaign_id)
+    if campaign_id is not None:
+        check_campaign_access(db, campaign_id, _user)
+        if _user.get("role") == "demo":
+            target_campaign_id = _ensure_demo_sandbox_campaign(db, campaign_id)
 
     # Persist to DB
     for rec in records:
@@ -1555,6 +1575,8 @@ def get_sales_stock_summary(
     db: Session = Depends(get_db),
 ) -> dict:
     """Get aggregated sales/stock summary."""
+    if campaign_id is not None:
+        check_campaign_access(db, campaign_id, _user)
     query = db.query(SalesStockData)
     if campaign_id:
         query = query.filter(SalesStockData.campaign_id == campaign_id)
@@ -1593,6 +1615,8 @@ def get_sales_stock_weekly(
     db: Session = Depends(get_db),
 ) -> list[dict]:
     """Get weekly sales/stock breakdown."""
+    if campaign_id is not None:
+        check_campaign_access(db, campaign_id, _user)
     query = db.query(SalesStockData)
     if campaign_id:
         query = query.filter(SalesStockData.campaign_id == campaign_id)
@@ -1640,6 +1664,8 @@ def segment_decomposition(
     per-segment, per-channel scoring including cost metrics and
     saturation warnings.
     """
+    if campaign_id is not None:
+        check_campaign_access(db, campaign_id, _user)
     from backend.db.models import WeeklyData
 
     # Fetch weekly data
@@ -1734,6 +1760,8 @@ def period_comparison(
     Produces cost-per-lead and cost-per-sale changes with recommendations.
     Period format: 'YYYY-Www:YYYY-Www' (start:end).
     """
+    if campaign_id is not None:
+        check_campaign_access(db, campaign_id, _user)
     from backend.db.models import WeeklyData
 
     def parse_period(p: str) -> tuple[str, str]:

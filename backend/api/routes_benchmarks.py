@@ -5,7 +5,7 @@ import json
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from backend.api.deps import get_current_user
+from backend.api.deps import check_campaign_access, get_current_user
 from backend.db.database import get_db
 from backend.db.models import DDAResult, MediaPlanSimulation, TouchpointData
 
@@ -29,6 +29,7 @@ def get_channel_benchmarks(
     db: Session = Depends(get_db),
 ) -> dict:
     """Empirical per-channel benchmarks from the latest stored DDA run."""
+    check_campaign_access(db, campaign_id, _user)
     last = (
         db.query(DDAResult)
         .filter(DDAResult.campaign_id == campaign_id)
@@ -92,6 +93,8 @@ def reconcile_plan(
     sim = db.query(MediaPlanSimulation).filter(MediaPlanSimulation.id == plan_id).first()
     if not sim:
         raise HTTPException(status_code=404, detail="Saved plan not found")
+    if sim.campaign_id:
+        check_campaign_access(db, sim.campaign_id, _user)
 
     snapshot = json.loads(sim.response_snapshot)
     summary = snapshot.get("summary", {})

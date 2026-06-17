@@ -20,3 +20,5 @@ google-cloud-bigquery>=3.25.0
 google-auth>=2.29.0
 db-dtypes>=1.2.0
 apscheduler==3.10.4
+slowapi==0.1.9
+python-pptx==1.0.2

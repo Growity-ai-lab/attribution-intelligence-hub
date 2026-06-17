@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from starlette.responses import StreamingResponse
 
-from backend.api.deps import get_current_user
+from backend.api.deps import check_campaign_access, get_current_user
 from backend.db.database import get_db
 from backend.db.models import Campaign, DDAResult
 from backend.export.report_builder import build_dda_report, workbook_to_bytes
@@ -23,6 +23,7 @@ def export_dda_report(
     db: Session = Depends(get_db),
 ):
     """Export DDA attribution results as a formatted Excel workbook."""
+    check_campaign_access(db, campaign_id, _user)
     if result_id is not None:
         dda = (
             db.query(DDAResult)
@@ -65,6 +66,7 @@ def get_insight_trends(
     db: Session = Depends(get_db),
 ) -> dict:
     """Compare the latest DDA run with the previous one for temporal insights."""
+    check_campaign_access(db, campaign_id, _user)
     results = (
         db.query(DDAResult)
         .filter(DDAResult.campaign_id == campaign_id)

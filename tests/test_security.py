@@ -241,3 +241,79 @@ class TestSampleEndpoint:
         r = client.get("/api/data/sample/journeys")
         # Either 200 (file exists) or 404 (file not found)
         assert r.status_code in (200, 404)
+
+
+class TestCampaignAccessControl:
+    """Verify that campaign-scoped endpoints check campaign existence."""
+
+    def test_update_nonexistent_campaign_returns_404(self, auth_headers):
+        r = client.patch(
+            "/api/campaigns/999999",
+            json={"name": "hacker"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 404
+
+    def test_delete_nonexistent_campaign_returns_404(self, auth_headers):
+        r = client.delete("/api/campaigns/999999", headers=auth_headers)
+        assert r.status_code == 404
+
+    def test_export_nonexistent_campaign_returns_404(self, auth_headers):
+        r = client.get("/api/export/dda-report?campaign_id=999999", headers=auth_headers)
+        assert r.status_code == 404
+
+    def test_trend_nonexistent_campaign_returns_404(self, auth_headers):
+        r = client.get("/api/insights/trend?campaign_id=999999", headers=auth_headers)
+        assert r.status_code == 404
+
+    def test_benchmarks_nonexistent_campaign_returns_404(self, auth_headers):
+        r = client.get("/api/benchmarks/channel-metrics?campaign_id=999999", headers=auth_headers)
+        assert r.status_code == 404
+
+
+class TestInputValidation:
+    """Verify input validation on campaign mutation endpoints."""
+
+    def test_update_campaign_invalid_status(self, auth_headers):
+        from backend.db.models import Campaign, Client
+        from backend.db.database import SessionLocal
+        db = SessionLocal()
+        cl = db.query(Client).first()
+        if cl and cl.campaigns:
+            cid = cl.campaigns[0].id
+            db.close()
+            r = client.patch(
+                f"/api/campaigns/{cid}",
+                json={"status": "hacked"},
+                headers=auth_headers,
+            )
+            assert r.status_code == 400
+            assert "status must be one of" in r.json()["detail"]
+        else:
+            db.close()
+
+    def test_update_campaign_negative_budget(self, auth_headers):
+        from backend.db.models import Client
+        from backend.db.database import SessionLocal
+        db = SessionLocal()
+        cl = db.query(Client).first()
+        if cl and cl.campaigns:
+            cid = cl.campaigns[0].id
+            db.close()
+            r = client.patch(
+                f"/api/campaigns/{cid}",
+                json={"budget": -1000},
+                headers=auth_headers,
+            )
+            assert r.status_code == 400
+            assert "negative" in r.json()["detail"].lower()
+        else:
+            db.close()
+
+
+class TestSecurityHeadersExtended:
+    """Additional security headers."""
+
+    def test_permissions_policy_header(self):
+        r = client.get("/api/health")
+        assert "Permissions-Policy" in r.headers

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from backend.api.deps import get_current_user
+from backend.api.deps import check_campaign_access, get_current_user
 from backend.db.database import get_db
 from backend.config import (
     ADSTOCK_PARAMS,
@@ -301,6 +301,8 @@ def save_media_plan(
     db: Session = Depends(get_db),
 ) -> dict:
     """Save a media plan simulation."""
+    if campaign_id is not None:
+        check_campaign_access(db, campaign_id, user)
     if not name or not name.strip():
         raise HTTPException(status_code=400, detail="Simulation name is required")
     if channel not in CHANNELS_SET:
@@ -329,6 +331,8 @@ def list_saved_media_plans(
     db: Session = Depends(get_db),
 ) -> list[dict]:
     """List saved media plan simulations."""
+    if campaign_id is not None:
+        check_campaign_access(db, campaign_id, _user)
     q = db.query(MediaPlanSimulation)
     if campaign_id is not None:
         q = q.filter(MediaPlanSimulation.campaign_id == campaign_id)
@@ -353,6 +357,8 @@ def get_saved_media_plan(
     sim = db.query(MediaPlanSimulation).filter(MediaPlanSimulation.id == sim_id).first()
     if not sim:
         raise HTTPException(status_code=404, detail="Simulation not found")
+    if sim.campaign_id:
+        check_campaign_access(db, sim.campaign_id, _user)
     return {
         "id": sim.id, "name": sim.name, "channel": sim.channel,
         "campaign_id": sim.campaign_id,
@@ -372,6 +378,8 @@ def delete_saved_media_plan(
     sim = db.query(MediaPlanSimulation).filter(MediaPlanSimulation.id == sim_id).first()
     if not sim:
         raise HTTPException(status_code=404, detail="Simulation not found")
+    if sim.campaign_id:
+        check_campaign_access(db, sim.campaign_id, _user)
     db.delete(sim)
     db.commit()
     return {"deleted": True, "id": sim_id}
