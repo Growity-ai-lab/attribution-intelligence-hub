@@ -18,7 +18,7 @@ export default function UnifiedScoringTable({ data }) {
           <p className="text-xs text-slate-400 mt-0.5">Markov Chain (%65) + Shapley Value (%35) ensemble</p>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="scroll-hint">
         <table className="w-full text-sm min-w-[360px]">
           <thead>
             <tr className="border-b border-dark-border">

@@ -720,7 +720,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
             <div className="card-hdr">
               <span className="card-title">Kanal Katkı Detayı</span>
             </div>
-            <div className="p-4 overflow-x-auto">
+            <div className="p-4 scroll-hint">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-dark-border text-slate-400">
@@ -787,7 +787,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                     </p>
                   </div>
                 )}
-                <div className="p-4 overflow-x-auto">
+                <div className="p-4 scroll-hint">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-dark-border text-slate-400">
@@ -966,7 +966,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
               </div>
               <div className="p-4 space-y-4">
                 {/* Spend input table */}
-                <div className="overflow-x-auto">
+                <div className="scroll-hint">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="text-[10px] text-slate-400 uppercase border-b border-slate-700/50">
@@ -1358,7 +1358,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                       </div>
                     </div>
                     {cplPlanResult.channels && Object.keys(cplPlanResult.channels).length > 0 && (
-                      <div className="overflow-x-auto">
+                      <div className="scroll-hint">
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-[10px] text-slate-400 uppercase border-b border-slate-700/50">

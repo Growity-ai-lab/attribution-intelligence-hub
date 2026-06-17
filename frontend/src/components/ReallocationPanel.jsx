@@ -21,7 +21,7 @@ export default function ReallocationPanel({ data, totalBudget }) {
           </p>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="scroll-hint">
         <table className="w-full text-sm min-w-[550px]">
           <thead>
             <tr className="border-b border-dark-border">

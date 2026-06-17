@@ -1469,7 +1469,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                 CSV İndir
               </button>
             </div>
-            <div className="p-4 overflow-x-auto">
+            <div className="p-4 scroll-hint">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-dark-border text-slate-400">

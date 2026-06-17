@@ -283,7 +283,7 @@ export default function DataUpload({ campaign, isDemo, onDataUploaded }) {
           </p>
 
           {/* Column Table */}
-          <div className="overflow-x-auto mb-4">
+          <div className="scroll-hint mb-4">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-dark-border">
@@ -315,7 +315,7 @@ export default function DataUpload({ campaign, isDemo, onDataUploaded }) {
           {/* Example CSV Preview */}
           <div className="mb-4">
             <p className="text-xs text-slate-400 font-medium mb-2">Örnek CSV:</p>
-            <div className="bg-dark-bg rounded-lg p-3 overflow-x-auto">
+            <div className="bg-dark-bg rounded-lg p-3 scroll-hint">
               {mode === 'weekly' ? (
                 <pre className="text-[11px] text-slate-400 font-mono leading-relaxed">{
 `week,channel,spend,impressions,clicks,leads,segment
