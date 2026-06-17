@@ -67,7 +67,7 @@ class MediaPlanSimulation(Base):
     __tablename__ = "media_plan_simulations"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True, index=True)
     name = Column(String, nullable=False)
     channel = Column(String, nullable=False)
     weekly_grps = Column(String, nullable=False)  # JSON array of weekly spend (TL)
@@ -75,6 +75,10 @@ class MediaPlanSimulation(Base):
     mode = Column(String, default="digital", index=True)  # 'digital'
     created_at = Column(String, nullable=False)
     created_by = Column(String, default="")
+
+    __table_args__ = (
+        Index("ix_media_plan_campaign_created", "campaign_id", "created_at"),
+    )
 
 
 class TouchpointData(Base):
@@ -88,6 +92,10 @@ class TouchpointData(Base):
     touchpoint_type = Column(String, nullable=False)
     campaign = Column(String, default="")
     segment = Column(String, default="")
+
+    __table_args__ = (
+        Index("ix_touchpoint_campaign_lead", "campaign_id", "lead_id"),
+    )
 
 
 class CampaignModelParams(Base):
@@ -151,6 +159,7 @@ class Alert(Base):
 
     __table_args__ = (
         Index("ix_alerts_campaign_ack", "campaign_id", "acknowledged"),
+        Index("ix_alerts_campaign_triggered", "campaign_id", "triggered_at"),
     )
 
 
@@ -171,3 +180,7 @@ class SalesStockData(Base):
     returns = Column(Integer, default=0)
     new_customers = Column(Integer, default=0)
     repeat_customers = Column(Integer, default=0)
+
+    __table_args__ = (
+        Index("ix_sales_stock_campaign_week", "campaign_id", "week"),
+    )
