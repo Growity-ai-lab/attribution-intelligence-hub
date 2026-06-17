@@ -54,6 +54,8 @@ export default function UnifiedChart({ data }) {
         ticks: { font: { size: 10 } },
       },
       y: {
+        max: 100,
+        beginAtZero: true,
         ticks: {
           callback: (v) => `%${v}`,
           font: { size: 10 },

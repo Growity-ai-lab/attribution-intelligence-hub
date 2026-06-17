@@ -366,3 +366,78 @@ class TestDefaultDateRange:
         end_date = date(int(end[:4]), int(end[4:6]), int(end[6:]))
         start_date = date(int(start[:4]), int(start[4:6]), int(start[6:]))
         assert (end_date - start_date).days == 30
+
+
+# ── Loader truncation ──────────────────────────────────────────────
+
+
+class TestLoaderTruncation:
+    def test_small_csv_not_truncated(self):
+        from io import BytesIO
+        from backend.data.loader import load_weekly_csv
+
+        csv = (
+            "week,channel,spend,impressions,clicks,leads\n"
+            "2026-W06,meta,100,200,30,5\n"
+        )
+        records, truncated = load_weekly_csv(BytesIO(csv.encode()))
+        assert len(records) == 1
+        assert truncated is False
+
+    def test_truncation_flag_on_exact_limit(self):
+        from io import BytesIO
+        from backend.data.loader import _read_dataframe
+
+        rows = "a,b\n" + "".join(f"{i},{i}\n" for i in range(10))
+        df, truncated = _read_dataframe(BytesIO(rows.encode()), max_rows=5)
+        assert len(df) == 5
+        assert truncated is True
+
+    def test_no_truncation_below_limit(self):
+        from io import BytesIO
+        from backend.data.loader import _read_dataframe
+
+        rows = "a,b\n" + "".join(f"{i},{i}\n" for i in range(3))
+        df, truncated = _read_dataframe(BytesIO(rows.encode()), max_rows=100)
+        assert len(df) == 3
+        assert truncated is False
+
+    def test_crm_touchpoints_returns_tuple(self):
+        from io import BytesIO
+        from backend.data.loader import load_crm_touchpoints
+
+        csv = (
+            "lead_id,timestamp,channel,touchpoint_type\n"
+            "L1,2026-01-15 10:00,meta,impression\n"
+        )
+        records, truncated = load_crm_touchpoints(BytesIO(csv.encode()))
+        assert len(records) == 1
+        assert truncated is False
+
+
+# ── Config validation ──────────────────────────────────────────────
+
+
+class TestConfigValidation:
+    def test_config_validates_on_import(self):
+        from backend.config import validate_config
+        validate_config()
+
+    def test_channels_set_consistency(self):
+        from backend.config import (
+            CHANNELS_SET, ADSTOCK_PARAMS, SATURATION_PARAMS,
+            MAX_LIFT, DIGITAL_CHANNEL_METRICS, DIGITAL_PRESETS,
+        )
+        assert set(ADSTOCK_PARAMS) == CHANNELS_SET
+        assert set(SATURATION_PARAMS) == CHANNELS_SET
+        assert set(MAX_LIFT) == CHANNELS_SET
+        assert set(DIGITAL_CHANNEL_METRICS) == CHANNELS_SET
+        assert set(DIGITAL_PRESETS) == CHANNELS_SET
+
+    def test_dda_blend_weights_sum_to_one(self):
+        from backend.config import DDA_BLEND_WEIGHTS
+        assert abs(sum(DDA_BLEND_WEIGHTS.values()) - 1.0) < 1e-6
+
+    def test_unified_weights_sum_to_one(self):
+        from backend.config import UNIFIED_WEIGHTS
+        assert abs(sum(UNIFIED_WEIGHTS.values()) - 1.0) < 1e-6
