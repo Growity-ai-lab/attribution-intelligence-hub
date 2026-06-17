@@ -546,7 +546,6 @@ def _insight_data_quality(
     journey_stats: dict,
     out: list[dict],
 ) -> None:
-    total_events = bq_summary.get("total_events", 0)
     conversions = bq_summary.get("conversions", 0)
     users = bq_summary.get("unique_users", 0)
     revenue = bq_summary.get("total_revenue", 0)

@@ -11,13 +11,13 @@ import logging
 
 import numpy as np
 
-_log = logging.getLogger(__name__)
-
 from backend.models.dda.data_prep import (
     STATE_CONVERSION,
     STATE_NULL,
     STATE_START,
 )
+
+_log = logging.getLogger(__name__)
 
 
 def build_transition_counts(
@@ -143,9 +143,9 @@ def compute_conversion_probability(
     R = transition_matrix[np.ix_(transient, absorbing_list)]
 
     # Fundamental matrix: N = (I - Q)^{-1}
-    I = np.eye(len(transient))
+    eye = np.eye(len(transient))
     try:
-        N = np.linalg.inv(I - Q)
+        N = np.linalg.inv(eye - Q)
     except np.linalg.LinAlgError:
         _log.warning("Markov matrix singular (I-Q not invertible) — likely single-touch data")
         return 0.0

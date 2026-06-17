@@ -11,8 +11,6 @@ from backend.config import (
     MAX_LIFT,
     SATURATION_PARAMS,
 )
-from backend.db.database import get_db
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 

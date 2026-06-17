@@ -1,6 +1,7 @@
 """API routes for Time's Hub | Attribution Intelligence."""
 
 import json
+import time as _time
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import PurePosixPath
@@ -8,6 +9,8 @@ from pathlib import PurePosixPath
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session, joinedload
 
 from backend.api.deps import check_campaign_access, get_current_user
@@ -75,8 +78,6 @@ router = APIRouter()
 
 # In-memory BQ client cache with 1-hour TTL and bounded size.
 # Credentials are NOT stored in cache — only the BQ client object.
-import time as _time
-
 _BQ_CACHE_MAX = 10
 _bq_clients: dict[str, dict] = {}
 
@@ -108,9 +109,6 @@ _CONVERSION_CHANNELS = {"form", "landing_page", "website", "app"}
 
 
 # --------------- Auth ---------------
-
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 _limiter = Limiter(key_func=get_remote_address)
 

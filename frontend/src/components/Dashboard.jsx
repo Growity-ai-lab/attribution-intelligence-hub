@@ -33,7 +33,9 @@ export default function Dashboard({ ddaResult, campaign, isDemo }) {
       channels.forEach(ch => { currentBudgets[ch] = Math.round(campaign.budget * share) })
       const result = await getReallocation(ddaResult.unified_report, currentBudgets)
       setReallocationData(result)
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error('[Dashboard] reallocation hatası:', err)
+    }
     setReallocationLoading(false)
   }
 

@@ -3,8 +3,6 @@
 All functions are pure (no side effects) for testability.
 """
 
-import numpy as np
-
 
 def compute_adstock(spend: list[float], decay: float) -> list[float]:
     """Apply geometric adstock transformation.

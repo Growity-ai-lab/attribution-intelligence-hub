@@ -71,9 +71,11 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
 
   useEffect(() => {
     if (!ddaResult || !campaign?.id) return
+    let mounted = true
     axios.get(`${API}/insights/trend`, { params: { campaign_id: campaign.id } })
-      .then(res => setTrendData(res.data))
-      .catch(() => setTrendData(null))
+      .then(res => { if (mounted) setTrendData(res.data) })
+      .catch(() => { if (mounted) setTrendData(null) })
+    return () => { mounted = false }
   }, [ddaResult, campaign?.id])
 
   const handleExportReport = useCallback(async () => {
@@ -90,7 +92,9 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       a.download = `attribution_rapor_${campaign.id}_${new Date().toISOString().slice(0, 10)}.xlsx`
       a.click()
       window.URL.revokeObjectURL(url)
-    } catch { /* silently fail */ } finally {
+    } catch (err) {
+      console.error('[Export] rapor indirme hatası:', err)
+    } finally {
       setExportLoading(false)
     }
   }, [campaign?.id])
