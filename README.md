@@ -1,24 +1,25 @@
 # Time's Hub | Attribution Intelligence
 
-Multi-channel attribution modelling platform by **Time x Growity**.
-Combines **MMM** (Marketing Mix Modeling), **MTA** (Multi-Touch Attribution), and **Incrementality Testing** into a unified scoring framework.
+Dijital kanal attribution platformu — **Time x Growity**.
+**DDA (Data-Driven Attribution)** motoru: Markov Chain (%65) + Shapley Value (%35) ensemble.
+BigQuery GA4 entegrasyonu ile gerçek kullanıcı yolculuğu verisi üzerinde çalışır.
 
-## Deploy (Render.com — ucretsiz)
+## Deploy (Render.com — ücretsiz)
 
-Hicbir kurulum gerektirmez. Render.com hesabi ile tek tikla deploy:
+Hiçbir kurulum gerektirmez. Render.com hesabı ile tek tıkla deploy:
 
-1. [render.com/register](https://render.com/register) adresinden ucretsiz hesap olusturun
-2. Dashboard > **New** > **Blueprint** > bu GitHub repo'yu baglayin
-3. Render otomatik olarak `render.yaml` dosyasini okuyup deploy eder
-4. Birka dakika icinde URL'niz hazir olur: `https://times-hub.onrender.com`
+1. [render.com/register](https://render.com/register) adresinden ücretsiz hesap oluşturun
+2. Dashboard > **New** > **Blueprint** > bu GitHub repo'yu bağlayın
+3. Render otomatik olarak `render.yaml` dosyasını okuyup deploy eder
+4. Birkaç dakika içinde URL'niz hazır olur: `https://times-hub.onrender.com`
 
-> Giris: `admin` / `attribution2026`
+> Giriş: `admin` / `attribution2026`
 
 ---
 
 ## Quick Start (Docker)
 
-**Tek komutla calistirin:**
+**Tek komutla çalıştırın:**
 
 ```bash
 git clone <repo-url> && cd attribution-intelligence-hub
@@ -26,36 +27,36 @@ git clone <repo-url> && cd attribution-intelligence-hub
 ```
 
 Bu komut:
-1. `.env` dosyasini otomatik olusturur
+1. `.env` dosyasını otomatik oluşturur
 2. Docker ile frontend + backend build eder
-3. Health check yapar ve URL'leri gosterir
+3. Health check yapar ve URL'leri gösterir
 
 Uygulama: **http://localhost:8000** | API Docs: **http://localhost:8000/docs**
 
-> Giris: `admin` / `attribution2026` (`.env` dosyasindan degistirilebilir)
+> Giriş: `admin` / `attribution2026` (`.env` dosyasından değiştirilebilir)
 
-### Yararli Docker komutlari
+### Yararlı Docker komutları
 
 ```bash
-docker compose logs -f       # loglari izle
+docker compose logs -f       # logları izle
 docker compose down           # durdur
-docker compose restart        # yeniden baslat
+docker compose restart        # yeniden başlat
 docker compose up --build -d  # yeniden build et
 ```
 
-### Otomatik guncelleme (opsiyonel)
+### Otomatik güncelleme (opsiyonel)
 
-Remote branch'e push yapildiginda otomatik pull + rebuild icin:
+Remote branch'e push yapıldığında otomatik pull + rebuild için:
 
 ```bash
-./scripts/auto-update.sh &              # arka planda izle (30sn aralik)
-./scripts/auto-update.sh --interval 60  # 60sn aralik
+./scripts/auto-update.sh &              # arka planda izle (30sn aralık)
+./scripts/auto-update.sh --interval 60  # 60sn aralık
 kill $(cat .auto-update.pid)            # durdur
 ```
 
 ---
 
-## Lokal Gelistirme (Docker'siz)
+## Lokal Geliştirme (Docker'sız)
 
 ### Backend
 ```bash
@@ -72,42 +73,81 @@ npm run dev
 
 ### Tests
 ```bash
-pytest tests/ -v
+python -m pytest tests/ -v
 ```
 
-## Architecture
+---
 
-| Layer | Technology |
-|-------|-----------|
+## Mimari
+
+| Katman | Teknoloji |
+|--------|-----------|
 | Backend | Python 3.11+ / FastAPI |
-| MMM Engine | Custom adstock + saturation + response model |
-| MTA Engine | Shapley value attribution |
+| DDA Engine | Custom Markov Chain + Shapley Value (Python) |
+| MMM Engine | Adstock/Saturation/Response (medya planlama simülasyonu için) |
 | Frontend | React 18 + Vite + Tailwind CSS |
+| Charts | Chart.js (react-chartjs-2) |
 | Database | SQLite (dev) / PostgreSQL (prod) |
-| Data Import | CSV/Excel via pandas |
+| Veri Import | CSV/Excel (pandas) + BigQuery GA4 export |
+| Auth | JWT (python-jose) + bcrypt |
+| Export | Excel (openpyxl) + PowerPoint (python-pptx) |
 
-## Unified Scoring Formula
+## Attribution Modeli
 
 ```
-Final Attribution = (MTA × 0.50) + (MMM × 0.35) + (Incrementality × 0.15)
+DDA Attribution = Markov Chain × 0.65 + Shapley Value × 0.35
+Unified Score  = DDA Score (tek kaynak)
 ```
 
-## Campaign Context
+MMM ve incrementality katmanları şu an devre dışıdır — gerçek veriye fit edilmiş model bulunmadığı için.
+8+ haftalık kalibrasyon verisi toplandığında tekrar aktifleştirilecektir.
 
-- **Brand**: Petrol Ofisi AutoMatic Filo
-- **Objective**: B2B fleet application lead generation
-- **Total Digital Budget**: 55M TL
-- **Segments**: S1 (33M), S2 (13.75M), S3 (5.5M), S4 (2.75M)
-- **Online Channels**: Meta, Google, TikTok, LinkedIn, DV360, YouTube
-- **Offline Channels**: TV, Radio, DOOH
+## Özellikler
 
-## Data Input
+- **DDA Attribution:** CSV veya BigQuery GA4'ten kullanıcı yolculukları çıkarır, Markov + Shapley ensemble ile kanal katkı paylarını hesaplar
+- **BigQuery GA4 Entegrasyonu:** Session-scoped source/medium ile gerçek multi-touch yolculuklar
+- **Medya Planlama Simülasyonu:** Haftalık harcama planı gir, adstock/saturation modeli ile tahmini lead çıktısı al
+- **Benchmark & Sağlama:** DDA sonuçlarından empirik kanal metrikleri, plan vs gerçekleşme karşılaştırması
+- **Otomatik Çıkarım Motoru:** DDA sonuçlarından veri kalitesi ve kanal performansı insight'ları
+- **Trend Analizi:** Ardışık DDA çalıştırmalarını karşılaştır, değişimleri tespit et
+- **Proaktif Alert Sistemi:** Dönüşüm düşüşü, hacim kaybı, kanal yoğunlaşması gibi anormallikleri otomatik tespit
+- **Excel/PowerPoint Export:** DDA sonuçlarını formatlanmış rapor olarak indir
+- **Bütçe Reallocation:** Attribution skorlarına göre bütçe dağılım önerisi
 
-Weekly CSV files with channel spend, impressions, clicks, leads, GRP, and spot counts.
-CRM touchpoint data for MTA Shapley calculations.
+## Kampanya Bağlamı
 
-See `data/templates/` for input file templates.
+- **Marka:** Petrol Ofisi AutoMatic Filo (araç filo yönetim hizmeti)
+- **Hedef:** B2B filo başvurusu (lead generation)
+- **Toplam Dijital Bütçe:** 55M TL
+- **Segmentler:** S1 Hızlı Ölçeklenen (33M), S2 Çalışanı Gözeten (13.75M), S3 Yaygın Filolu (5.5M), S4 Rakiple Çalışan (2.75M)
+- **Dijital Kanallar:** Meta, Google, TikTok, LinkedIn, DV360+Programatik, YouTube
 
-## License
+## Veri Girişi
+
+Haftalık CSV dosyaları: kanal harcama, impression, click, lead verileri.
+CRM touchpoint CSV: kullanıcı yolculuğu verileri (DDA Markov + Shapley hesaplaması için).
+BigQuery GA4 export: otomatik veri çekimi ve kanal haritalama.
+
+Şablonlar için: `data/templates/`
+
+## API Dokümantasyonu
+
+Backend çalışırken: **http://localhost:8000/docs** (Swagger UI)
+
+### Ana Endpoint'ler
+
+| Endpoint | Açıklama |
+|----------|----------|
+| `POST /api/dda/run-from-csv` | CSV'den DDA çalıştır |
+| `POST /api/dda/run-from-bigquery` | BQ GA4'ten DDA çalıştır |
+| `POST /api/media-planning/simulate` | Medya plan simülasyonu |
+| `GET /api/export/dda-report` | Excel rapor indir |
+| `GET /api/insights/trend` | Trend analizi |
+| `GET /api/alerts` | Proaktif alert'ler |
+| `POST /api/unified/reallocation` | Bütçe reallocation önerisi |
+
+Tüm endpoint listesi için `CLAUDE.md` dosyasına bakın.
+
+## Lisans
 
 Proprietary — Time x Growity
