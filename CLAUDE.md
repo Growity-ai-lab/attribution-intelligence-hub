@@ -1,201 +1,239 @@
 # CLAUDE.md — Time's Hub | Attribution Intelligence
 
-## Proje Özeti
-Multi-channel attribution modelling platformu.
-MMM (Marketing Mix Modeling) + MTA (Multi-Touch Attribution) + Incrementality Testing hibrit framework.
-Time × Growity tarafından geliştirilir.
+## Proje Ozeti
+Dijital kanal attribution platformu.
+DDA (Data-Driven Attribution) motoru: Markov Chain (%65) + Shapley Value (%35) ensemble.
+BigQuery GA4 entegrasyonu ile gercek kullanici yolculugu verisi uzerinde calısır.
+Time x Growity tarafindan gelistirilir.
 
-## Kampanya Bağlamı
-- Marka: Petrol Ofisi AutoMatic Filo (araç filo yönetim hizmeti)
-- Hedef: B2B filo başvurusu (lead generation)
-- Toplam dijital bütçe: 55M₺
+## Kampanya Baglami
+- Marka: Petrol Ofisi AutoMatic Filo (arac filo yonetim hizmeti)
+- Hedef: B2B filo basvurusu (lead generation)
+- Toplam dijital butce: 55M TL
 - 4 segment: S1 Hızlı Ölçeklenen (33M), S2 Çalışanı Gözeten (13.75M), S3 Yaygın Filolu (5.5M), S4 Rakiple Çalışan (2.75M)
-- Online kanallar: Meta, Google, TikTok, LinkedIn, DV360+Programatik, YouTube
-- Offline kanallar: TV (maç sponsorluğu + haber), Radyo, DOOH
+- Dijital kanallar: Meta, Google, TikTok, LinkedIn, DV360+Programatik, YouTube
+- Kampanya modlari: lead-focused veya revenue-focused (iki seviyeli miras: Client.objective -> Campaign.objective)
 
 ## Tech Stack
 - Backend: Python 3.11+ / FastAPI
-- MMM Engine: lightweight-mmm veya pymc-marketing (Google Meridian Python wrapper)
-- MTA Engine: Custom Shapley value hesaplama (Python)
+- DDA Engine: Custom Markov Chain + Shapley Value (Python)
+- MMM Engine: Adstock/Saturation/Response model (medya planlama simulasyonu icin, attribution icin KULLANILMAZ)
 - Frontend: React 18 + Vite + Tailwind CSS
-- Charts: Chart.js veya Recharts
-- Database: SQLite (dev) → PostgreSQL (prod)
-- Data Import: pandas ile CSV/Excel okuma
+- Charts: Chart.js (react-chartjs-2)
+- Database: SQLite (dev) -> PostgreSQL (prod)
+- Data Import: pandas ile CSV/Excel okuma + BigQuery GA4 export
+- Auth: JWT (python-jose) + bcrypt
+- Export: openpyxl ile Excel rapor, python-pptx ile PowerPoint
 
-## Dizin Yapısı
+## Dizin Yapisi
 ```
 attribution-intelligence-hub/
-├── CLAUDE.md                    # Bu dosya
-├── README.md                    # Proje dokümantasyonu
-├── package.json                 # Frontend bağımlılıkları
-├── requirements.txt             # Python bağımlılıkları
+├── CLAUDE.md
+├── README.md
+├── package.json                 # Frontend bagimliliklari
+├── requirements.txt             # Python bagimliliklari
 │
 ├── backend/
 │   ├── main.py                  # FastAPI app entry
-│   ├── config.py                # Ayarlar, sabitler
+│   ├── config.py                # Ayarlar, sabitler, kanal parametreleri
+│   ├── auth.py                  # JWT authentication
+│   ├── crypto.py                # Fernet encrypt/decrypt (BQ credentials)
 │   ├── models/
-│   │   ├── mmm.py               # Marketing Mix Model (adstock, saturation, decomposition)
-│   │   ├── mta.py               # Multi-Touch Attribution (Shapley value)
-│   │   ├── incrementality.py    # Geo-lift, holdout, PSA test analizi
-│   │   └── unified.py           # Unified scoring: MMM×0.50 + MTA×0.35 + INC×0.15
+│   │   ├── dda/                 # DDA attribution motoru
+│   │   │   ├── markov.py        # Markov Chain removal effect
+│   │   │   ├── shapley_dda.py   # Shapley Value hesaplama
+│   │   │   ├── ensemble.py      # Markov+Shapley blend + full pipeline
+│   │   │   ├── data_prep.py     # Journey extraction, assist report
+│   │   │   └── insights.py      # Otomatik cikarim motoru + trend karsilastirma
+│   │   ├── alerts.py            # Proaktif alert kural motoru
+│   │   ├── mmm.py               # Adstock, Saturation, Response (simulasyon icin)
+│   │   ├── mmm_fit.py           # Non-linear MMM fitting
+│   │   ├── mta.py               # Position-based Shapley (legacy, aktif degil)
+│   │   ├── simulation.py        # Butce simulasyonu
+│   │   ├── uncertainty.py       # CI hesaplama
+│   │   └── unified.py           # Budget reallocation (suggest_reallocation)
 │   ├── data/
 │   │   ├── loader.py            # CSV/Excel veri okuma ve validasyon
-│   │   ├── schemas.py           # Pydantic data modelleri
-│   │   └── sample_data/         # Örnek veri dosyaları
+│   │   └── schemas.py           # Pydantic data modelleri
+│   ├── integrations/
+│   │   └── bigquery.py          # GA4 BQ connector, channel mapping
+│   ├── export/
+│   │   └── report_builder.py    # Excel/PowerPoint rapor olusturucu
 │   ├── api/
-│   │   ├── routes.py            # API endpoint'leri
+│   │   ├── routes.py            # Core API (auth, data, DDA, BQ, unified, alerts, trends)
+│   │   ├── routes_benchmarks.py # Plan vs gerceklesme, kanal benchmark'lari
+│   │   ├── routes_export.py     # Excel/PPTX export endpoint'leri
+│   │   ├── routes_media.py      # Dijital medya planlama simulasyonu
 │   │   └── deps.py              # Dependency injection
 │   └── db/
-│       ├── database.py          # SQLite/PostgreSQL bağlantı
-│       └── models.py            # SQLAlchemy ORM modelleri
+│       ├── database.py          # SQLite/PostgreSQL baglanti
+│       ├── models.py            # SQLAlchemy ORM (Campaign, WeeklyData, TouchpointData, DDAResult, Alert, vb.)
+│       └── seed.py              # Ornek veri seed
 │
 ├── frontend/
 │   ├── index.html
 │   ├── vite.config.js
 │   ├── src/
-│   │   ├── App.jsx
+│   │   ├── App.jsx              # 3 tab: Unified Rapor, Medya Planlama, Veri Yukleme
 │   │   ├── main.jsx
 │   │   ├── components/
-│   │   │   ├── Dashboard.jsx        # Ana dashboard layout
-│   │   │   ├── KPICards.jsx          # Üst KPI satırı
-│   │   │   ├── UnifiedChart.jsx      # Unified attribution stacked bar
-│   │   │   ├── ChannelTable.jsx      # Kanal performans tablosu
-│   │   │   ├── MMMPanel.jsx          # MMM çıktıları (adstock, saturation, decomp)
-│   │   │   ├── MTAPanel.jsx          # MTA journey paths
-│   │   │   ├── IncrementalityPanel.jsx
-│   │   │   ├── DataUpload.jsx        # CSV/Excel yükleme
-│   │   │   └── WeekSelector.jsx      # Hafta seçici
+│   │   │   ├── Dashboard.jsx          # Ana dashboard (KPI + chart + tablo)
+│   │   │   ├── AttributionPanel.jsx   # DDA analiz paneli (BQ baglanti, CSV, sonuclar)
+│   │   │   ├── UnifiedChart.jsx       # DDA attribution bar chart
+│   │   │   ├── UnifiedScoringTable.jsx # DDA kanal skor tablosu
+│   │   │   ├── ReallocationPanel.jsx  # Butce reallocation onerisi
+│   │   │   ├── DigitalPlanningPanel.jsx # Medya planlama (Excel import, simulasyon, 5 chart)
+│   │   │   ├── DataUpload.jsx         # CSV/Excel yukleme
+│   │   │   ├── WorkspaceSelector.jsx  # Client/Campaign secici
+│   │   │   ├── LoginPage.jsx          # Giris ekrani
+│   │   │   └── InfoTip.jsx            # Tooltip bilesen
 │   │   ├── hooks/
-│   │   │   └── useAttribution.js     # API çağrıları
+│   │   │   ├── useAttribution.js      # Core API (DDA, export, trend, alerts)
+│   │   │   ├── useDDA.js              # DDA-specific API calls
+│   │   │   ├── useMediaPlanning.js    # Medya planlama API calls
+│   │   │   ├── useMMM.js             # MMM/decomposition API (simulasyon icin)
+│   │   │   ├── useFileOps.js          # Dosya yukleme/indirme
+│   │   │   ├── useChannelConfig.js    # Kanal konfigurasyonu
+│   │   │   ├── useWorkspace.js        # Client/Campaign yonetimi
+│   │   │   └── useAuth.js             # Authentication
 │   │   ├── utils/
-│   │   │   ├── formatters.js         # Sayı formatlama
-│   │   │   └── colors.js             # Renk paleti
+│   │   │   ├── formatters.js          # Sayi/para formatlama
+│   │   │   ├── colors.js             # Kanal renk paleti (6 dijital kanal)
+│   │   │   └── objectiveLabels.js     # Lead/Revenue modu etiketleri
 │   │   └── styles/
 │   │       └── globals.css
 │   └── public/
 │
 ├── data/
 │   ├── templates/
-│   │   ├── weekly_input_template.csv     # Haftalık veri giriş şablonu
-│   │   ├── crm_touchpoints_template.csv  # CRM touchpoint şablonu
-│   │   └── sales_stock_template.csv     # Satış/stok veri şablonu
+│   │   ├── weekly_input_template.csv
+│   │   ├── crm_touchpoints_template.csv
+│   │   └── sales_stock_template.csv
 │   └── sample/
 │       ├── week_01.csv
-│       └── week_02.csv
-│
-├── notebooks/                   # Analiz ve keşif
-│   ├── 01_adstock_exploration.ipynb
-│   ├── 02_saturation_fitting.ipynb
-│   └── 03_shapley_mta.ipynb
+│       ├── week_02.csv
+│       ├── bitaksi_week_01.csv
+│       ├── bitaksi_week_02.csv
+│       └── sample_journeys.csv
 │
 └── tests/
-    ├── test_mmm.py
-    ├── test_mta.py
-    └── test_unified.py
+    ├── conftest.py
+    ├── test_dda.py           # DDA pipeline, Markov, Shapley, ensemble
+    ├── test_e2e.py           # API endpoint integration tests
+    ├── test_mmm.py           # Adstock, Saturation, Response
+    ├── test_mta.py           # Position-based Shapley
+    ├── test_modules.py       # Loader, schemas, insights
+    ├── test_modules2.py      # Export, alerts, simulation
+    ├── test_security.py      # Auth, input validation, file upload
+    └── test_unified.py       # Reallocation
 ```
 
-## MMM Model Detayları
+## Attribution Modeli
 
-### Adstock (Carry-over)
-Her kanal için ayrı decay parametresi:
-- Meta: λ = 0.35 (3-5 gün etki)
-- Google Search: λ = 0.10 (anlık, hemen sönümlenir)
-- TikTok: λ = 0.30 (kısa süreli)
-- LinkedIn: λ = 0.25
-- DV360: λ = 0.20
-- YouTube: λ = 0.40 (video etkisi daha uzun)
-- TV: λ = 0.75 (2-3 hafta carry-over)
-- Radyo: λ = 0.45 (1 hafta)
-- DOOH: λ = 0.05 (anlık)
+### DDA (Data-Driven Attribution) — Tek Aktif Kaynak
+- **Markov Chain (%65):** Kanalin yolculuktaki vazgecilmezligini olcer (removal effect)
+- **Shapley Value (%35):** Kanalin adil marjinal katkisini hesaplar (koalisyon bazli)
+- Ensemble blend: `unified_score = markov * 0.65 + shapley * 0.35`
+- Bayesian smoothing: `MARKOV_PRIOR_ALPHA = 0.5` (gecis matrisi icin)
 
-Formula: `adstock[t] = spend[t] + λ × adstock[t-1]`
+### Unified Scoring
+`unified_score = dda_score` (MMM ve incrementality devre disi — gercek veriye fit edilmis model yok)
 
-### Saturation (Hill Function)
-Her kanal için ayrı alpha (half-saturation) ve gamma (eğri şekli):
-Formula: `saturation(x) = x^γ / (α^γ + x^γ)`
+MMM altyapisi (adstock, saturation, response) kodda kalir — medya planlama simulasyonu icin kullanilir.
+Attribution icin KULLANILMAZ. Ileride 8+ haftalik gercek veri + fit yapildiginda tekrar aktiflestirilir.
 
-### Response Model
-`response[t] = baseline + max_lift × saturation(adstock[t])`
+### Desteklenen Kanallar (dijital, 6 adet)
+`meta`, `google`, `tiktok`, `linkedin`, `dv360`, `youtube`
 
-## MTA Model Detayları
+Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 
-### Shapley Value Attribution
-- Her lead'in CRM'deki touchpoint sırası alınır
-- Shapley value hesaplanarak her touchpoint'e adil kredi dağıtılır
-- Position-based ağırlıklandırma: ilk temas %30, son temas %35, ara temaslar %35 paylaşır
+## Veri Kaynaklari
 
-### Data-Driven Calibration
-- İlk 4 hafta last-click + assisted raporlarla başla
-- 8+ hafta sonra data-driven position weights'e geç
+### 1. BigQuery GA4 Export (Birincil)
+- Session-scoped source/medium (COALESCE zinciri: collected_traffic_source > event_params > traffic_source)
+- Otomatik channel mapping: GA4 source/medium -> hub kanal taksonomisi
+- Dusuk frekansli kanallar otomatik birlestirilir (`consolidate_channels`, max 12)
+- Conversion events parametrik (default: purchase)
 
-## Unified Scoring
-`Final Atıf = (MTA × 0.50) + (MMM × 0.35) + (INC Düzeltme × 0.15)`
+### 2. CSV/Excel Upload
+- CRM touchpoint CSV: lead_id, timestamp, channel, touchpoint_type, campaign, segment, converted
+- Haftalik performans CSV: week, channel, spend, impressions, clicks, leads
 
-## Veri Giriş Formatı
-
-### Haftalık Input CSV
-```csv
-week,channel,spend,impressions,clicks,leads,grp,spot_count
-2026-W06,meta,2600000,4500000,85000,1050,0,0
-2026-W06,google,300000,800000,24000,520,0,0
-2026-W06,tv_match,0,0,0,0,450,12
-2026-W06,tv_news,0,0,0,0,180,24
-2026-W06,radio,0,0,0,0,0,36
-```
-
-### CRM Touchpoint CSV
-```csv
-lead_id,timestamp,channel,touchpoint_type,campaign,segment
-L001,2026-01-15 10:23,meta,impression,S1_lead_campaign,S1
-L001,2026-01-16 14:05,google,click,brand_search,S1
-L001,2026-01-16 14:08,landing_page,form_submit,lp_filo,S1
-```
-
-### Satış/Stok CSV
-```csv
-week,channel,product,region,sales_units,sales_revenue,stock_units,stock_value,returns,new_customers,repeat_customers
-2026-W06,meta,AutoMatic Filo Standart,Istanbul,45,675000,120,1800000,2,38,7
-2026-W06,google,AutoMatic Filo Premium,Ankara,8,240000,35,1050000,1,6,2
-2026-W06,,AutoMatic Filo Standart,Izmir,10,150000,80,1200000,1,8,2
-```
-
-## Segment Tanımları
-- S1 (Hızlı Ölçeklenen): 8 alt segment, %60 bütçe, 33M₺
-- S2 (Çalışanı Gözeten): 3 alt segment, %25 bütçe, 13.75M₺
-- S3 (Yaygın Filolu): 3 alt segment, %10 bütçe, 5.5M₺
-- S4 (Rakiple Çalışan): 2 alt segment, %5 bütçe, 2.75M₺
+### 3. Satis/Stok CSV
+- Haftalik satis/stok verileri: revenue, units, stock, returns, new/repeat customers
 
 ## API Endpoint'leri
-- `POST /api/data/upload` — haftalık CSV yükle
-- `GET /api/mmm/run` — MMM modeli çalıştır
-- `GET /api/mmm/adstock/{channel}` — kanal adstock değerleri
-- `GET /api/mmm/saturation/{channel}` — saturation curve
-- `GET /api/mmm/decomposition` — channel contribution breakdown
-- `GET /api/mta/paths` — top conversion paths
-- `GET /api/mta/shapley` — Shapley value attribution
-- `GET /api/unified/report/{week}` — haftalık unified rapor
-- `GET /api/unified/reallocation` — bütçe reallocation önerisi
-- `POST /api/sales-stock/upload` — satış/stok CSV yükle
-- `GET /api/sales-stock/summary` — satış/stok özet raporu
-- `GET /api/sales-stock/weekly` — haftalık satış/stok kırılımı
-- `GET /api/data/template/sales-stock` — satış/stok şablon indir
-- `GET /api/segments/decomposition` — segment×kanal katkı analizi + doygunluk uyarısı
-- `GET /api/segments/period-comparison` — dönemler arası performans karşılaştırması
 
-## Kodlama Kuralları
+### Auth
+- `POST /api/auth/login` — JWT token al
+- `POST /api/auth/demo` — Demo kullanici girisi
+
+### Veri Yukleme
+- `POST /api/data/upload` — Haftalik CSV yukle
+- `POST /api/sales-stock/upload` — Satis/stok CSV yukle
+- `GET /api/data/template/{type}` — Sablon indir
+
+### DDA Attribution
+- `POST /api/dda/run-from-csv` — CSV'den DDA calistir
+- `POST /api/dda/run-from-bigquery` — BQ GA4'ten DDA calistir
+
+### BigQuery Entegrasyonu
+- `POST /api/integrations/bigquery/connect` — BQ baglantisi test et
+- `POST /api/integrations/bigquery/preview` — Veri onizleme
+
+### MMM (Simulasyon icin)
+- `GET /api/mmm/adstock/{channel}` — Adstock hesaplama
+- `GET /api/mmm/saturation/{channel}` — Doygunluk egrisi
+- `GET /api/mmm/decomposition` — Kanal katki kirilimi
+
+### Unified / Reallocation
+- `POST /api/unified/reallocation` — Butce reallocation onerisi
+
+### Medya Planlama
+- `POST /api/media-planning/simulate` — Dijital medya plan simulasyonu
+- `POST /api/media-planning/save` — Plan kaydet
+- `GET /api/media-planning/list` — Kayitli planlari listele
+- `GET /api/media-planning/get/{id}` — Plan detayi
+- `DELETE /api/media-planning/{id}` — Plan sil
+- `GET /api/media-planning/presets` — Kanal preset harcamalari
+
+### Benchmark & Saglama
+- `GET /api/benchmarks/channel-metrics` — DDA'dan empirik kanal metrikleri
+- `POST /api/benchmarks/plan-reconciliation` — Plan vs gerceklesme karsilastirmasi
+
+### Export
+- `GET /api/export/dda-report` — Excel DDA raporu indir
+
+### Trend & Insight
+- `GET /api/insights/trend` — Snapshot karsilastirmali trend analizi
+
+### Alert
+- `GET /api/alerts` — Kampanya alert'leri
+- `POST /api/alerts/{id}/acknowledge` — Alert okundu isaretle
+- `GET /api/alerts/summary` — Okunmamis alert ozeti
+
+### Konfigürasyon
+- `GET /api/config/channels` — Kanal parametreleri ve agirliklar
+
+## Kodlama Kurallari
 - Python: type hints kullan, docstring yaz, pytest ile test et
 - React: functional components + hooks, Tailwind utility classes
 - Her model fonksiyonu saf (pure) olsun — side effect yok, test edilebilir
 - Veri validasyonu Pydantic ile
-- Error handling: kullanıcıya anlamlı hata mesajları
+- Error handling: kullaniciya anlamli hata mesajlari (Turkce)
 
 ## Komutlar
-- Backend çalıştır: `cd backend && uvicorn main:app --reload --port 8000`
-- Frontend çalıştır: `cd frontend && npm run dev`
-- Testleri çalıştır: `pytest tests/ -v`
+- Backend calistir: `cd backend && uvicorn main:app --reload --port 8000`
+- Frontend calistir: `cd frontend && npm run dev`
+- Testleri calistir: `python -m pytest tests/ -v`
 - Lint: `ruff check backend/`
+- Frontend build: `npx vite build --config frontend/vite.config.js`
 
-## Mevcut Referanslar
-- TV Analyzer (önceki proje): tek kanal MMM, adstock/saturation/response model
-- Bu projenin HTML mock-up'ı: attribution-intelligence-hub.html (5 tab'lı dashboard)
-- PO Filo Segmentasyon sunumu: po-filo-segmentasyon-v2.pptx
+## Onemli Teknik Notlar
+- `UNIFIED_WEIGHTS = {"dda": 1.0, "mmm": 0.0, "incrementality": 0.0}` — DDA tek kaynak
+- `DDA_BLEND_WEIGHTS = {"markov": 0.65, "shapley": 0.35}` — DDA icinde Markov agirlikli
+- MediaPlanSimulation DB sutunu `weekly_grps` adini tasir (SQLite rename kisitlamasi) ama API'de `weekly_spends` olarak kullanilir
+- BQ credentials in-memory cache: TTL = 3600s, key = `{project}:{dataset}`
+- Campaign modeli BQ config alanlari tasir: `bq_project`, `bq_dataset`, `bq_credentials_enc` (Fernet sifrelenmis)
+- DDA sonuclari `DDAResult` tablosuna persist edilir (benchmark, trend, export icin)
+- Alert sistemi 5 kural: conversion_drop, volume_drop, channel_concentration, channel_disappeared, sustained_decline
