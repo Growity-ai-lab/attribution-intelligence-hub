@@ -88,8 +88,7 @@ export default function UnifiedChart({ data }) {
           Her bar, ilgili kanalın dönüşüme toplam katkı payını gösterir.
           Skor, gerçek kullanıcı yolculuğu verisinden hesaplanan{' '}
           <span className="text-orange-400">DDA (Data-Driven Attribution)</span> sonucudur:
-          Markov Chain (%65) ve Shapley Value (%35) ensemble'ı. Yeterli zaman serisi verisi olmadığı için
-          MMM ve incrementality katmanları kullanılmaz.
+          Markov Chain (%65) ve Shapley Value (%35) ensemble'ı.
         </p>
       </div>
     </div>

@@ -50,8 +50,7 @@ export default function UnifiedScoringTable({ data }) {
           <span className="text-slate-300 font-medium">Skorlama mantığı:</span>{' '}
           Her kanalın katkı payı, gerçek kullanıcı yolculuğu verisine dayanan DDA (Data-Driven Attribution)
           sonucudur — Markov Chain (%65, kanalın zincirdeki vazgeçilmezliği) ve Shapley Value (%35, kanalın adil
-          marjinal katkısı) ensemble'ı. Yeterli zaman serisi verisi olmadığı için MMM ve incrementality katmanları
-          bu raporda kullanılmaz; saf gözleme dayalı DDA tek attribution kaynağıdır.
+          marjinal katkısı) ensemble'ı.
         </p>
       </div>
     </div>

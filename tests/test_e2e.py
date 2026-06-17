@@ -80,7 +80,7 @@ class TestConfigEndpoint:
         assert "saturation_params" in data
         assert "unified_weights" in data
         assert "dda_blend_weights" in data
-        assert data["unified_weights"]["dda"] == 0.50
+        assert data["unified_weights"]["dda"] == 1.0
 
 
 # --------------- Weekly Upload Flow ---------------

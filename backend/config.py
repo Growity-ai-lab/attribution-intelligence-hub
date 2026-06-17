@@ -45,11 +45,12 @@ MAX_LIFT: dict[str, float] = {
 # Baseline weekly leads (organic / brand)
 BASELINE_LEADS = 120.0
 
-# Unified scoring weights (DDA replaces rule-based MTA)
+# Unified scoring weights — DDA is the sole attribution source.
+# MMM and incrementality reserved for future calibration with 8+ weeks of data.
 UNIFIED_WEIGHTS = {
-    "dda": 0.50,
-    "mmm": 0.35,
-    "incrementality": 0.15,
+    "dda": 1.0,
+    "mmm": 0.0,
+    "incrementality": 0.0,
 }
 
 # DDA ensemble blend weights (Markov vs Shapley within DDA)

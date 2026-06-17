@@ -1,78 +1,15 @@
-"""Tests for Unified scoring functions (DDA-integrated)."""
+"""Tests for Unified scoring functions (DDA-only)."""
 
 import pytest
 
-from backend.models.unified import (
-    compute_unified_report,
-    compute_unified_score,
-    suggest_reallocation,
-)
-
-
-class TestUnifiedScore:
-    def test_default_weights(self):
-        """DDA=0.50, MMM=0.35, INC=0.15."""
-        result = compute_unified_score(
-            mmm_score=100.0, dda_score=100.0, incrementality_score=100.0
-        )
-        expected = 100.0 * 0.50 + 100.0 * 0.35 + 100.0 * 0.15
-        assert result == pytest.approx(expected)
-
-    def test_custom_weights(self):
-        result = compute_unified_score(
-            mmm_score=100.0,
-            dda_score=200.0,
-            incrementality_score=50.0,
-            weights={"mmm": 0.40, "dda": 0.40, "incrementality": 0.20},
-        )
-        expected = 200.0 * 0.40 + 100.0 * 0.40 + 50.0 * 0.20
-        assert result == pytest.approx(expected)
-
-    def test_zero_scores(self):
-        result = compute_unified_score(0.0, 0.0, 0.0)
-        assert result == 0.0
-
-    def test_dda_dominant(self):
-        """DDA has highest weight (0.50), should have most influence."""
-        high_dda = compute_unified_score(50.0, 100.0, 50.0)
-        high_mmm = compute_unified_score(100.0, 50.0, 50.0)
-        assert high_dda > high_mmm
-
-
-class TestUnifiedReport:
-    def test_basic_report(self):
-        mmm = {"meta": 1200.0, "google": 600.0}
-        dda = {"meta": 1000.0, "google": 500.0}
-        result = compute_unified_report(mmm, dda)
-
-        assert "meta" in result
-        assert "google" in result
-        assert "unified_score" in result["meta"]
-        assert result["meta"]["mmm_score"] == 1200.0
-        assert result["meta"]["dda_score"] == 1000.0
-
-    def test_missing_incrementality_defaults_to_one(self):
-        result = compute_unified_report(
-            mmm_scores={"meta": 100.0},
-            dda_scores={"meta": 100.0},
-        )
-        assert result["meta"]["incrementality_score"] == 1.0
-
-    def test_channels_union(self):
-        """Report should include channels from both MMM and DDA."""
-        result = compute_unified_report(
-            mmm_scores={"meta": 100.0},
-            dda_scores={"google": 200.0},
-        )
-        assert "meta" in result
-        assert "google" in result
+from backend.models.unified import suggest_reallocation
 
 
 class TestReallocation:
     def test_basic_reallocation(self):
         scores = {
-            "meta": {"unified_score": 0.6, "mmm_score": 0, "dda_score": 0, "incrementality_score": 0},
-            "google": {"unified_score": 0.4, "mmm_score": 0, "dda_score": 0, "incrementality_score": 0},
+            "meta": {"unified_score": 0.6, "dda_score": 0.6},
+            "google": {"unified_score": 0.4, "dda_score": 0.4},
         }
         budgets = {"meta": 50_000, "google": 50_000}
         result = suggest_reallocation(scores, budgets)
@@ -83,10 +20,21 @@ class TestReallocation:
 
     def test_custom_total_budget(self):
         scores = {
-            "a": {"unified_score": 1.0, "mmm_score": 0, "dda_score": 0, "incrementality_score": 0},
+            "a": {"unified_score": 1.0, "dda_score": 1.0},
         }
         result = suggest_reallocation(scores, {"a": 50_000}, total_budget=200_000)
         assert result["a"]["suggested"] == pytest.approx(200_000)
+
+    def test_dda_score_fallback(self):
+        """When unified_score is missing, falls back to dda_score."""
+        scores = {
+            "meta": {"dda_score": 0.7},
+            "google": {"dda_score": 0.3},
+        }
+        budgets = {"meta": 50_000, "google": 50_000}
+        result = suggest_reallocation(scores, budgets)
+        assert result["meta"]["share"] == pytest.approx(0.7)
+        assert result["google"]["share"] == pytest.approx(0.3)
 
 
 # --------------- Reallocation API Tests ---------------
@@ -103,8 +51,8 @@ class TestReallocationAPI:
     """Tests for POST /api/unified/reallocation endpoint."""
 
     _report = {
-        "meta": {"unified_score": 0.6, "mmm_score": 0.3, "dda_score": 0.5, "incrementality_score": 1.0},
-        "google": {"unified_score": 0.4, "mmm_score": 0.2, "dda_score": 0.3, "incrementality_score": 1.0},
+        "meta": {"unified_score": 0.6, "dda_score": 0.6},
+        "google": {"unified_score": 0.4, "dda_score": 0.4},
     }
     _budgets = {"meta": 100_000, "google": 50_000}
 
