@@ -795,15 +795,16 @@ export default function DigitalPlanningPanel({ campaign }) {
 
         {/* Save Modal */}
         {showSaveModal && (
-          <div className="px-4 py-3 bg-dark-bg/50 border-b border-dark-border flex items-center gap-2">
+          <div className="px-4 py-3 bg-dark-bg/50 border-b border-dark-border flex items-center gap-2" role="dialog" aria-label="Simülasyon kaydet">
             <input
               type="text"
               value={saveName}
               onChange={e => setSaveName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSave()}
+              onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setShowSaveModal(false) }}
               placeholder="Simülasyon adı..."
               className="flex-1 bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
               autoFocus
+              aria-label="Simülasyon adı"
             />
             <button onClick={handleSave} className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium">
               Kaydet
@@ -968,7 +969,7 @@ export default function DigitalPlanningPanel({ campaign }) {
           const totalMapped = mappedChannels.reduce((s, ch) => s + (agg[ch]?.totalSpend || 0), 0)
 
           return (
-            <div className="px-4 py-4 bg-dark-bg/80 border-b border-dark-border space-y-4">
+            <div className="px-4 py-4 bg-dark-bg/80 border-b border-dark-border space-y-4" role="dialog" aria-label="Plan içe aktarma">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-100">
@@ -981,7 +982,7 @@ export default function DigitalPlanningPanel({ campaign }) {
                   </p>
                 </div>
                 <button onClick={() => { setShowImportModal(false); setImportData(null) }}
-                  className="text-slate-400 hover:text-slate-300 text-lg">x</button>
+                  className="text-slate-400 hover:text-slate-300 text-lg" aria-label="Kapat">x</button>
               </div>
 
               {/* Distribution mode */}

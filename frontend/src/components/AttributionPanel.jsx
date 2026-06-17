@@ -612,6 +612,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
           <div className="dark-card">
             <button
               onClick={() => setShowMethodology(v => !v)}
+              aria-expanded={showMethodology}
               className="w-full card-hdr cursor-pointer hover:bg-dark-bg/30 transition-colors"
             >
               <span className="card-title">Bu skorlar nasıl hesaplanır?</span>
