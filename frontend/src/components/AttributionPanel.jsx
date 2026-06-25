@@ -172,6 +172,23 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       if (startDate) params.start_date = startDate.replace(/-/g, '')
       if (endDate) params.end_date = endDate.replace(/-/g, '')
       const res = await axios.post(`${API}/dda/run-from-bigquery`, null, { params })
+      const { result_id, status } = res.data
+      if (status === 'running' && result_id) {
+        const poll = async () => {
+          for (let i = 0; i < 120; i++) {
+            await new Promise(r => setTimeout(r, 3000))
+            try {
+              const s = await axios.get(`${API}/dda/status/${result_id}`)
+              if (s.data.status === 'complete') { setDdaResult(s.data); setDdaLoading(false); return }
+              if (s.data.status === 'error') { setDdaError(s.data.detail || 'DDA analizi başarısız oldu'); setDdaLoading(false); return }
+            } catch { /* retry */ }
+          }
+          setDdaError('DDA analizi zaman aşımına uğradı')
+          setDdaLoading(false)
+        }
+        poll()
+        return
+      }
       setDdaResult(res.data)
     } catch (err) {
       setDdaError(err.response?.data?.detail || err.message)

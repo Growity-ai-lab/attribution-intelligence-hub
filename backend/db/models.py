@@ -136,6 +136,8 @@ class DDAResult(Base):
     end_date = Column(String, default="")
     # JSON: hybrid_attribution, markov, shapley_dda, assist_report, journey_stats, channel_summary
     result_json = Column(String, nullable=False)
+    status = Column(String, default="complete")  # 'running' | 'complete' | 'error'
+    error_message = Column(String, default="")
     created_by = Column(String, default="")
 
     __table_args__ = (

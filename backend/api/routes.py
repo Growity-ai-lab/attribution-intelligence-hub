@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import threading
 import time as _time
 from datetime import datetime, timezone
 from io import BytesIO
@@ -18,7 +19,7 @@ from sqlalchemy.orm import Session, joinedload
 from backend.api.deps import check_campaign_access, get_current_user
 from backend.auth import authenticate_user, create_access_token
 from backend.crypto import decrypt, encrypt
-from backend.db.database import get_db
+from backend.db.database import SessionLocal, get_db
 from backend.db.models import (
     Campaign,
     CampaignModelParams,
@@ -1272,6 +1273,118 @@ def bq_preview(
     return summary
 
 
+def _run_dda_bq_background(
+    result_id: int,
+    bq_client,
+    project: str,
+    dataset: str,
+    start_date: str,
+    end_date: str,
+    conv_list: list[str],
+    prior_alpha: float,
+    campaign_id: int | None,
+    target_campaign_id: int | None,
+    username: str,
+) -> None:
+    """Execute the BQ→DDA pipeline in a background thread.
+
+    Writes the result (or error) back to the DDAResult row identified by
+    *result_id*, so the frontend can poll ``GET /dda/status/{result_id}``.
+    """
+    db = SessionLocal()
+    try:
+        df = query_ga4_sessions(bq_client, project, dataset, start_date, end_date, conv_list)
+
+        if df.empty:
+            row = db.get(DDAResult, result_id)
+            row.status = "error"
+            row.error_message = "No events found in the specified date range."
+            db.commit()
+            return
+
+        touchpoints = ga4_to_touchpoints(df, conv_list)
+        touchpoints = consolidate_channels(touchpoints, max_channels=12)
+        summary = summarize_touchpoints(touchpoints)
+
+        if summary["conversions"] == 0:
+            row = db.get(DDAResult, result_id)
+            row.status = "error"
+            row.error_message = f"No conversion events ({', '.join(conv_list)}) found. Check event names."
+            db.commit()
+            return
+
+        persisted = False
+        if target_campaign_id is not None:
+            db.query(TouchpointData).filter(
+                TouchpointData.campaign_id == target_campaign_id,
+            ).delete(synchronize_session=False)
+            for tp in touchpoints:
+                db.add(TouchpointData(
+                    campaign_id=target_campaign_id,
+                    lead_id=tp["lead_id"],
+                    timestamp=tp["timestamp"],
+                    channel=tp["channel"],
+                    touchpoint_type=tp["touchpoint_type"],
+                    campaign=tp["campaign"],
+                    segment=tp["segment"],
+                ))
+            db.commit()
+            persisted = True
+
+        lead_converted: dict[str, bool] = {}
+        for tp in touchpoints:
+            if tp.get("converted"):
+                lead_converted[tp["lead_id"]] = True
+
+        filtered = [tp for tp in touchpoints if tp["channel"] not in _CONVERSION_CHANNELS]
+        for tp in filtered:
+            tp["converted"] = lead_converted.get(tp["lead_id"], False)
+
+        journeys = extract_journeys(filtered)
+        if not journeys:
+            row = db.get(DDAResult, result_id)
+            row.status = "error"
+            row.error_message = "No valid journeys extracted from BQ data."
+            db.commit()
+            return
+
+        result = run_full_dda_pipeline(
+            journeys,
+            prior_alpha=prior_alpha,
+            markov_blend=DDA_BLEND_WEIGHTS["markov"],
+            shapley_blend=DDA_BLEND_WEIGHTS["shapley"],
+        )
+
+        serialized = _serialize_dda_result(result)
+        serialized["unified_report"] = _dda_only_unified_report(result["hybrid_attribution"])
+        serialized["bq_summary"] = summary
+        serialized["persisted"] = persisted
+        serialized["campaign_id"] = target_campaign_id
+        serialized["redirected_to_sandbox"] = persisted and target_campaign_id != campaign_id
+        serialized["data_source"] = "bigquery"
+        serialized["date_range"] = {"start": start_date, "end": end_date}
+
+        serialized_with_summary = {**serialized, "channel_summary": summary.get("channels", {})}
+
+        row = db.get(DDAResult, result_id)
+        row.result_json = json.dumps(serialized_with_summary)
+        row.status = "complete"
+        db.commit()
+
+    except Exception as e:
+        logger.exception("Background DDA run failed (result_id=%s)", result_id)
+        try:
+            row = db.get(DDAResult, result_id)
+            if row:
+                row.status = "error"
+                row.error_message = str(e)[:500]
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
 @router.post("/dda/run-from-bigquery")
 def run_dda_from_bigquery(
     project: str = Query(...),
@@ -1284,11 +1397,11 @@ def run_dda_from_bigquery(
     _user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Run full DDA pipeline from BigQuery GA4 export.
+    """Start DDA pipeline from BigQuery GA4 export (asynchronous).
 
-    1. Pull session-level touchpoints from BQ
-    2. Extract journeys (filter conversion-event channels)
-    3. Run Markov + Shapley ensemble (DDA-only attribution)
+    Returns immediately with a result_id. The heavy work (BQ query + Markov +
+    Shapley) runs in a background thread.  Poll ``GET /dda/status/{result_id}``
+    to retrieve the result once it completes.
     """
     _validate_prior_alpha(prior_alpha)
 
@@ -1303,96 +1416,68 @@ def run_dda_from_bigquery(
         start_date, end_date = default_date_range(6)
 
     conv_list = [e.strip() for e in conversion_events.split(",") if e.strip()]
-    client = cached["client"]
+    bq_client = cached["client"]
 
-    # Step 1: Pull from BQ
-    try:
-        df = query_ga4_sessions(client, project, dataset, start_date, end_date, conv_list)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"BigQuery query failed: {e}")
-
-    if df.empty:
-        raise HTTPException(status_code=422, detail="No events found in the specified date range.")
-
-    # Step 2: Convert to touchpoints, consolidate low-freq channels
-    touchpoints = ga4_to_touchpoints(df, conv_list)
-    touchpoints = consolidate_channels(touchpoints, max_channels=12)
-    summary = summarize_touchpoints(touchpoints)
-
-    if summary["conversions"] == 0:
-        raise HTTPException(
-            status_code=422,
-            detail=f"No conversion events ({', '.join(conv_list)}) found. Check event names.",
-        )
-
-    # Step 3: Persist touchpoints if campaign_id given
-    persisted = False
     target_campaign_id = campaign_id
     if campaign_id is not None:
         check_campaign_access(db, campaign_id, _user)
         if _user.get("role") == "demo":
             target_campaign_id = _ensure_demo_sandbox_campaign(db, campaign_id)
-        db.query(TouchpointData).filter(
-            TouchpointData.campaign_id == target_campaign_id,
-        ).delete(synchronize_session=False)
-        for tp in touchpoints:
-            db.add(TouchpointData(
-                campaign_id=target_campaign_id,
-                lead_id=tp["lead_id"],
-                timestamp=tp["timestamp"],
-                channel=tp["channel"],
-                touchpoint_type=tp["touchpoint_type"],
-                campaign=tp["campaign"],
-                segment=tp["segment"],
-            ))
-        db.commit()
-        persisted = True
 
-    # Step 4: Extract journeys (same filtering as CSV path)
-    lead_converted: dict[str, bool] = {}
-    for tp in touchpoints:
-        if tp.get("converted"):
-            lead_converted[tp["lead_id"]] = True
-
-    filtered = [
-        tp for tp in touchpoints
-        if tp["channel"] not in _CONVERSION_CHANNELS
-    ]
-    for tp in filtered:
-        tp["converted"] = lead_converted.get(tp["lead_id"], False)
-
-    journeys = extract_journeys(filtered)
-    if not journeys:
-        raise HTTPException(status_code=422, detail="No valid journeys extracted from BQ data.")
-
-    _validate_journey_count(journeys)
-
-    # Step 5: Run DDA (digital-only; GA4 journeys carry no offline channels)
-    result = run_full_dda_pipeline(
-        journeys,
-        prior_alpha=prior_alpha,
-        markov_blend=DDA_BLEND_WEIGHTS["markov"],
-        shapley_blend=DDA_BLEND_WEIGHTS["shapley"],
+    # Create a placeholder row so the frontend can poll for status.
+    dda_row = DDAResult(
+        campaign_id=target_campaign_id,
+        run_date=datetime.now(timezone.utc).isoformat(),
+        data_source="bigquery",
+        start_date=start_date,
+        end_date=end_date,
+        result_json="{}",
+        status="running",
+        created_by=_user.get("username", ""),
     )
+    db.add(dda_row)
+    db.commit()
+    db.refresh(dda_row)
+    result_id = dda_row.id
 
-    # Step 6: DDA-only attribution (MMM/incrementality removed)
-    serialized = _serialize_dda_result(result)
-    serialized["unified_report"] = _dda_only_unified_report(result["hybrid_attribution"])
-    serialized["bq_summary"] = summary
-    serialized["persisted"] = persisted
-    serialized["campaign_id"] = target_campaign_id
-    serialized["redirected_to_sandbox"] = persisted and target_campaign_id != campaign_id
-    serialized["data_source"] = "bigquery"
-    serialized["date_range"] = {"start": start_date, "end": end_date}
+    threading.Thread(
+        target=_run_dda_bq_background,
+        args=(
+            result_id, bq_client, project, dataset,
+            start_date, end_date, conv_list, prior_alpha,
+            campaign_id, target_campaign_id,
+            _user.get("username", ""),
+        ),
+        daemon=True,
+    ).start()
 
-    # Persist DDA result as a media-planning benchmark (gated on campaign_id)
-    serialized_with_summary = {**serialized, "channel_summary": summary.get("channels", {})}
-    _persist_dda_result(
-        db, target_campaign_id, serialized_with_summary,
-        created_by=_user.get("username", ""), data_source="bigquery",
-        start_date=start_date, end_date=end_date,
-    )
-    return serialized
+    return {"status": "running", "result_id": result_id}
+
+
+@router.get("/dda/status/{result_id}")
+def dda_status(
+    result_id: int,
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Poll for a background DDA run's status.
+
+    Returns the full DDA result once status is 'complete', an error message
+    on 'error', or just the status while still 'running'.
+    """
+    row = db.query(DDAResult).filter(DDAResult.id == result_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="DDA result not found")
+
+    if row.status == "running":
+        return {"status": "running", "result_id": result_id}
+
+    if row.status == "error":
+        return {"status": "error", "result_id": result_id, "detail": row.error_message}
+
+    # status == "complete"
+    result = json.loads(row.result_json)
+    return {"status": "complete", "result_id": result_id, **result}
 
 
 # --------------- Unified / Reallocation ---------------

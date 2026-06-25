@@ -354,6 +354,7 @@ def summarize_touchpoints(touchpoints: list[dict]) -> dict:
     users = set()
     sessions = set()
     converted_users = set()
+    conversion_events_with_revenue = 0
 
     for tp in touchpoints:
         ch = tp["channel"]
@@ -367,12 +368,8 @@ def summarize_touchpoints(touchpoints: list[dict]) -> dict:
                 converted_users.add(uid)
             rev = tp.get("revenue", 0) or 0
             total_revenue += rev
-            # Measured (not modeled) revenue per channel: each transaction's
-            # revenue is tied to the channel of its converting session. Directly
-            # comparable to GA4's per-channel revenue report, unlike the
-            # DDA-attributed split (total_revenue * attribution weight) shown
-            # elsewhere in the UI.
             if rev:
+                conversion_events_with_revenue += 1
                 channel_revenue[ch] = channel_revenue.get(ch, 0.0) + rev
 
     return {
@@ -380,6 +377,7 @@ def summarize_touchpoints(touchpoints: list[dict]) -> dict:
         "unique_users": len(users),
         "sessions": len(sessions),
         "conversions": conversions,
+        "conversion_events_with_revenue": conversion_events_with_revenue,
         "total_revenue": round(total_revenue, 2),
         "channel_revenue": {
             k: round(v, 2)

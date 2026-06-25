@@ -1201,7 +1201,6 @@ class TestBQAutoReconnect:
         assert r.json().get("credentials_persisted") is False
 
     def test_auto_reconnect_after_cache_clear(self, client, auth_headers, make_campaign):
-        import pandas as pd
         from unittest.mock import patch
 
         from backend.api import routes
@@ -1213,17 +1212,18 @@ class TestBQAutoReconnect:
         routes._bq_clients.clear()
 
         # The endpoint must rebuild the client from persisted creds, not 400.
-        # An empty query result yields 422 (proves we got past the cache check).
-        with patch("backend.api.routes.bq_get_client", return_value=object()), patch(
-            "backend.api.routes.query_ga4_sessions", return_value=pd.DataFrame()
-        ):
+        # The async endpoint returns 200 {"status": "running"} — proves we got
+        # past the cache check (a cache miss without reconnect → 400).
+        with patch("backend.api.routes.bq_get_client", return_value=object()):
             r = client.post(
                 "/api/dda/run-from-bigquery",
                 params={"project": "proj", "dataset": "ds", "campaign_id": cid},
                 headers=auth_headers,
             )
-        assert r.status_code == 422  # "No events found" — reconnect succeeded
-        assert "not connected" not in (r.json().get("detail", "")).lower()
+        assert r.status_code == 200
+        data = r.json()
+        assert data["status"] == "running"
+        assert "result_id" in data
 
     def test_no_reconnect_without_persisted_credentials(self, client, auth_headers, make_campaign):
         from backend.api import routes
@@ -1238,3 +1238,31 @@ class TestBQAutoReconnect:
         )
         assert r.status_code == 400
         assert "not connected" in r.json()["detail"].lower()
+
+    def test_dda_status_not_found(self, client, auth_headers):
+        r = client.get("/api/dda/status/999999", headers=auth_headers)
+        assert r.status_code == 404
+
+    def test_dda_async_run_creates_running_result(self, client, auth_headers, make_campaign):
+        from unittest.mock import patch
+        from backend.api import routes
+
+        cid = make_campaign("BQ Async")
+        self._connect(client, auth_headers, campaign_id=cid)
+        routes._bq_clients.clear()
+
+        with patch("backend.api.routes.bq_get_client", return_value=object()):
+            r = client.post(
+                "/api/dda/run-from-bigquery",
+                params={"project": "proj", "dataset": "ds", "campaign_id": cid},
+                headers=auth_headers,
+            )
+        assert r.status_code == 200
+        result_id = r.json()["result_id"]
+
+        # The background thread uses a mock BQ client that will fail, so the
+        # status should eventually be 'error' or still 'running' (race).
+        # Just verify the polling endpoint works.
+        sr = client.get(f"/api/dda/status/{result_id}", headers=auth_headers)
+        assert sr.status_code == 200
+        assert sr.json()["status"] in ("running", "error", "complete")
