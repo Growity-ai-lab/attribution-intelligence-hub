@@ -1142,3 +1142,99 @@ class TestHillInverseAndBlendedCPA:
         ]
         result = _blended_metric(channels)
         assert result is None
+
+
+# --------------- BigQuery Auto-Reconnect ---------------
+
+
+class TestBQAutoReconnect:
+    """Verify BQ connection survives a server restart via persisted Campaign creds.
+
+    The in-memory client cache is lost on restart; these tests confirm the
+    /connect endpoint persists encrypted credentials and the DDA/preview
+    endpoints transparently rebuild the client on a cache miss.
+    """
+
+    _FAKE_CREDS = (
+        '{"type": "service_account", "project_id": "p", '
+        '"client_email": "sa@p.iam.gserviceaccount.com", "token_uri": "x"}'
+    )
+
+    def _connect(self, client, auth_headers, campaign_id=None):
+        from unittest.mock import patch
+
+        params = {"project": "proj", "dataset": "ds"}
+        if campaign_id is not None:
+            params["campaign_id"] = campaign_id
+        with patch("backend.api.routes.bq_get_client", return_value=object()), patch(
+            "backend.api.routes.bq_test_connection",
+            return_value={"ok": True, "event_tables": 3, "first_date": "20260101", "last_date": "20260601"},
+        ):
+            return client.post(
+                "/api/integrations/bigquery/connect",
+                params=params,
+                files={"credentials": ("sa.json", io.BytesIO(self._FAKE_CREDS.encode()), "application/json")},
+                headers=auth_headers,
+            )
+
+    def test_connect_persists_credentials(self, client, auth_headers, make_campaign):
+        from backend.db.database import SessionLocal
+        from backend.db.models import Campaign
+
+        cid = make_campaign("BQ Persist")
+        r = self._connect(client, auth_headers, campaign_id=cid)
+        assert r.status_code == 200
+        assert r.json().get("credentials_persisted") is True
+
+        db = SessionLocal()
+        try:
+            camp = db.query(Campaign).filter(Campaign.id == cid).first()
+            assert camp.bq_project == "proj"
+            assert camp.bq_dataset == "ds"
+            assert camp.bq_credentials_enc  # non-empty ciphertext
+        finally:
+            db.close()
+
+    def test_connect_without_campaign_id_does_not_persist(self, client, auth_headers):
+        r = self._connect(client, auth_headers, campaign_id=None)
+        assert r.status_code == 200
+        assert r.json().get("credentials_persisted") is False
+
+    def test_auto_reconnect_after_cache_clear(self, client, auth_headers, make_campaign):
+        import pandas as pd
+        from unittest.mock import patch
+
+        from backend.api import routes
+
+        cid = make_campaign("BQ Reconnect")
+        assert self._connect(client, auth_headers, campaign_id=cid).status_code == 200
+
+        # Simulate a server restart: wipe the in-memory client cache.
+        routes._bq_clients.clear()
+
+        # The endpoint must rebuild the client from persisted creds, not 400.
+        # An empty query result yields 422 (proves we got past the cache check).
+        with patch("backend.api.routes.bq_get_client", return_value=object()), patch(
+            "backend.api.routes.query_ga4_sessions", return_value=pd.DataFrame()
+        ):
+            r = client.post(
+                "/api/dda/run-from-bigquery",
+                params={"project": "proj", "dataset": "ds", "campaign_id": cid},
+                headers=auth_headers,
+            )
+        assert r.status_code == 422  # "No events found" — reconnect succeeded
+        assert "not connected" not in (r.json().get("detail", "")).lower()
+
+    def test_no_reconnect_without_persisted_credentials(self, client, auth_headers, make_campaign):
+        from backend.api import routes
+
+        cid = make_campaign("BQ NoCreds")
+        routes._bq_clients.clear()
+
+        r = client.post(
+            "/api/dda/run-from-bigquery",
+            params={"project": "nope", "dataset": "nope", "campaign_id": cid},
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+        assert "not connected" in r.json()["detail"].lower()

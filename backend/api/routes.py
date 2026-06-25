@@ -1,6 +1,8 @@
 """API routes for Time's Hub | Attribution Intelligence."""
 
 import json
+import logging
+import os
 import time as _time
 from datetime import datetime, timezone
 from io import BytesIO
@@ -15,6 +17,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from backend.api.deps import check_campaign_access, get_current_user
 from backend.auth import authenticate_user, create_access_token
+from backend.crypto import decrypt, encrypt
 from backend.db.database import get_db
 from backend.db.models import (
     Campaign,
@@ -76,6 +79,8 @@ from backend.integrations.bigquery import (
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 # In-memory BQ client cache with 1-hour TTL and bounded size.
 # Credentials are NOT stored in cache — only the BQ client object.
 _BQ_CACHE_MAX = 10
@@ -96,6 +101,46 @@ def _bq_cache_set(key: str, value: dict) -> None:
         _bq_clients.pop(oldest, None)
     value["_ts"] = _time.monotonic()
     _bq_clients[key] = value
+
+
+def _bq_reconnect_from_campaign(
+    db: Session,
+    project: str,
+    dataset: str,
+    campaign_id: int | None = None,
+) -> dict | None:
+    """Rebuild a BQ client from persisted Campaign credentials after cache miss.
+
+    The in-memory cache is lost on server restart. If the campaign has
+    encrypted BQ credentials saved (via /connect with campaign_id), decrypt
+    them and re-create the client transparently — no re-upload needed.
+
+    Returns the cached entry on success, or None when no usable credentials
+    exist (e.g. ENCRYPTION_KEY changed across restart → decrypt fails).
+    """
+    if campaign_id:
+        camp = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    else:
+        camp = (
+            db.query(Campaign)
+            .filter(
+                Campaign.bq_project == project,
+                Campaign.bq_dataset == dataset,
+                Campaign.bq_credentials_enc != "",
+            )
+            .first()
+        )
+    if not camp or not camp.bq_credentials_enc:
+        return None
+    try:
+        creds_str = decrypt(camp.bq_credentials_enc)
+        client = bq_get_client(creds_str)
+    except Exception:
+        # Decrypt failure (rotated/ephemeral key) or invalid credentials.
+        return None
+    cache_key = f"{project}:{dataset}"
+    _bq_cache_set(cache_key, {"client": client})
+    return _bq_cache_get(cache_key)
 
 
 @router.get("/health")
@@ -1103,12 +1148,16 @@ async def bq_connect(
     credentials: UploadFile = File(...),
     project: str = Query(...),
     dataset: str = Query(...),
+    campaign_id: int | None = Query(None),
     _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> dict:
     """Upload service account JSON and test BQ connection.
 
     Returns connection status, available date range, table count.
-    Credentials are held in memory only (not persisted to disk).
+    The BQ client is cached in memory. When campaign_id is supplied, the
+    credentials are also encrypted and persisted to the Campaign so the
+    connection survives a server restart (auto-reconnect on cache miss).
     """
     if credentials.size and credentials.size > 1_000_000:
         raise HTTPException(status_code=400, detail="Credentials file too large")
@@ -1157,6 +1206,27 @@ async def bq_connect(
     cache_key = f"{project}:{dataset}"
     _bq_cache_set(cache_key, {"client": client})
 
+    # Persist encrypted credentials so the connection survives a restart.
+    info["credentials_persisted"] = False
+    if campaign_id:
+        camp = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        if camp:
+            try:
+                camp.bq_project = project
+                camp.bq_dataset = dataset
+                camp.bq_credentials_enc = encrypt(creds_str)
+                db.commit()
+                info["credentials_persisted"] = True
+                if not os.environ.get("ENCRYPTION_KEY"):
+                    logger.warning(
+                        "BQ credentials persisted with an ephemeral ENCRYPTION_KEY; "
+                        "they will NOT be decryptable after a restart. "
+                        "Set ENCRYPTION_KEY for durable auto-reconnect."
+                    )
+            except Exception as e:
+                db.rollback()
+                logger.warning("Failed to persist BQ credentials: %s", e)
+
     return info
 
 
@@ -1167,7 +1237,9 @@ def bq_preview(
     start_date: str = Query(None),
     end_date: str = Query(None),
     conversion_events: str = Query("purchase"),
+    campaign_id: int | None = Query(None),
     _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> dict:
     """Pull GA4 sessions from BQ and return summary (without running DDA).
 
@@ -1175,6 +1247,8 @@ def bq_preview(
     """
     cache_key = f"{project}:{dataset}"
     cached = _bq_cache_get(cache_key)
+    if not cached:
+        cached = _bq_reconnect_from_campaign(db, project, dataset, campaign_id)
     if not cached:
         raise HTTPException(status_code=400, detail="BigQuery not connected. Call /connect first.")
 
@@ -1220,6 +1294,8 @@ def run_dda_from_bigquery(
 
     cache_key = f"{project}:{dataset}"
     cached = _bq_cache_get(cache_key)
+    if not cached:
+        cached = _bq_reconnect_from_campaign(db, project, dataset, campaign_id)
     if not cached:
         raise HTTPException(status_code=400, detail="BigQuery not connected. Call /connect first.")
 

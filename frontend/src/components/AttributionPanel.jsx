@@ -128,7 +128,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       const formData = new FormData()
       formData.append('credentials', bqFile)
       const res = await axios.post(`${API}/integrations/bigquery/connect`, formData, {
-        params: { project: bqProject, dataset: bqDataset },
+        params: { project: bqProject, dataset: bqDataset, campaign_id: campaign?.id || null },
       })
       setConnected(res.data)
     } catch (err) {
@@ -142,13 +142,13 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       }
     }
     setConnecting(false)
-  }, [bqProject, bqDataset, bqFile])
+  }, [bqProject, bqDataset, bqFile, campaign])
 
   const handlePreview = useCallback(async () => {
     setPreviewLoading(true)
     setDdaError('')
     try {
-      const params = { project: bqProject, dataset: bqDataset, conversion_events: conversionEvents }
+      const params = { project: bqProject, dataset: bqDataset, conversion_events: conversionEvents, campaign_id: campaign?.id || null }
       if (startDate) params.start_date = startDate.replace(/-/g, '')
       if (endDate) params.end_date = endDate.replace(/-/g, '')
       const res = await axios.post(`${API}/integrations/bigquery/preview`, null, { params })
@@ -157,7 +157,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       setDdaError(err.response?.data?.detail || err.message)
     }
     setPreviewLoading(false)
-  }, [bqProject, bqDataset, startDate, endDate, conversionEvents])
+  }, [bqProject, bqDataset, startDate, endDate, conversionEvents, campaign])
 
   const handleRunDDA = useCallback(async () => {
     setDdaLoading(true)
