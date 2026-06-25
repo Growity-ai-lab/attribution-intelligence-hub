@@ -342,6 +342,28 @@ class TestSummarizeTouchpoints:
         assert result["channels"]["meta"] == 2
         assert result["channels"]["google"] == 1
 
+    def test_channel_revenue_split(self):
+        # Measured revenue is tied to the channel of each converting session.
+        tps = [
+            {"lead_id": "L1", "session_id": "s1", "channel": "meta", "converted": True, "revenue": 100.0},
+            {"lead_id": "L2", "session_id": "s2", "channel": "google", "converted": True, "revenue": 250.0},
+            {"lead_id": "L3", "session_id": "s3", "channel": "meta", "converted": True, "revenue": 50.0},
+            {"lead_id": "L4", "session_id": "s4", "channel": "google", "converted": False, "revenue": 0.0},
+        ]
+        result = summarize_touchpoints(tps)
+        assert result["total_revenue"] == 400.0
+        assert result["channel_revenue"]["meta"] == 150.0
+        assert result["channel_revenue"]["google"] == 250.0
+
+    def test_channel_revenue_excludes_nonconverted(self):
+        # Revenue on a non-converted touchpoint must not appear anywhere.
+        tps = [
+            {"lead_id": "L1", "session_id": "s1", "channel": "meta", "converted": False, "revenue": 999.0},
+        ]
+        result = summarize_touchpoints(tps)
+        assert result["total_revenue"] == 0.0
+        assert result["channel_revenue"] == {}
+
 
 # ── default_date_range ───────────────────────────────────────────────
 

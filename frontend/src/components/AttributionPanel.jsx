@@ -778,6 +778,63 @@ ORDER BY user_pseudo_id, event_timestamp`}</pre>
             )
           })()}
 
+          {/* Gercek (GA4) Kanal Geliri — donusen oturumun kanalina bagli olculen gelir */}
+          {!isLead && ddaResult.bq_summary?.channel_revenue
+            && Object.keys(ddaResult.bq_summary.channel_revenue).length > 0 && (() => {
+            const chRev = ddaResult.bq_summary.channel_revenue
+            const sorted = Object.entries(chRev)
+              .filter(([ch]) => !isOrganic(ch))
+              .sort((a, b) => b[1] - a[1])
+            if (sorted.length === 0) return null
+            const measuredTotal = sorted.reduce((s, [, v]) => s + v, 0)
+            const revData = {
+              labels: sorted.map(([ch]) => ch),
+              datasets: [{
+                label: 'Gercek (GA4) Gelir',
+                data: sorted.map(([, v]) => v),
+                backgroundColor: sorted.map(([ch], i) => getChannelColor(ch, i) + '80'),
+                borderColor: sorted.map(([ch], i) => getChannelColor(ch, i)),
+                borderWidth: 1,
+                borderRadius: 3,
+              }],
+            }
+            const revOpts = {
+              indexAxis: 'y',
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: ctx => `${fmtMoney(ctx.parsed.x)} TL` } },
+              },
+              scales: {
+                x: { ticks: { callback: v => `${fmtMoney(v)} TL` } },
+                y: { grid: { display: false } },
+              },
+            }
+            return (
+              <div className="dark-card">
+                <div className="card-hdr">
+                  <span className="card-title">Gerçek (GA4) Kanal Geliri</span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    Ölçülen toplam: {fmtMoney(measuredTotal)} TL
+                  </span>
+                </div>
+                <div className="px-4 pt-3">
+                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                    Her satışın geliri, dönüşen oturumun kanalına bağlanır — GA4 kanal raporuyla
+                    doğrudan kıyaslanabilir. Üstteki grafik DDA modelinin <span className="text-slate-300">atfettiği</span> geliri,
+                    bu grafik GA4'te <span className="text-slate-300">fiilen gerçekleşen</span> geliri gösterir.
+                  </p>
+                </div>
+                <div className="p-4 pt-2">
+                  <div style={{ height: Math.max(180, sorted.length * 32) }}>
+                    <Bar data={revData} options={revOpts} />
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Attribution Table */}
           <div className="dark-card">
             <div className="card-hdr">

@@ -135,14 +135,13 @@ WITH base_events AS (
       traffic_source.medium
     ) AS medium,
     traffic_source.name AS campaign,
+    -- Revenue is taken ONLY from ecommerce.purchase_revenue to match GA4's
+    -- purchase-revenue reporting. The generic event_params.value fallback was
+    -- removed: that param is attached to many non-purchase events and inflated
+    -- the total whenever conversion_events included a non-purchase event.
     IF(
       event_name IN UNNEST(@conversion_events),
-      COALESCE(
-        ecommerce.purchase_revenue,
-        (SELECT value.double_value FROM UNNEST(event_params) WHERE key = 'value'),
-        (SELECT CAST(value.int_value AS FLOAT64) FROM UNNEST(event_params) WHERE key = 'value'),
-        0
-      ),
+      COALESCE(ecommerce.purchase_revenue, 0),
       0
     ) AS revenue,
     (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS ga_session_id,
@@ -168,13 +167,33 @@ deduped AS (
   FROM base_events
   WHERE event_name IN UNNEST(@conversion_events)
 ),
+-- Dedup revenue at the transaction level: GA4's revenue reports count each
+-- transaction_id once. After the per-(user,event_name) dedup above, the same
+-- transaction can still survive under multiple conversion event names, so
+-- assign revenue only to the first row per (user, transaction_id) and zero the
+-- rest. Rows without a transaction_id keep their revenue (already collapsed by
+-- _rn on the event_timestamp fallback).
+deduped_txn AS (
+  SELECT
+    *,
+    IF(
+      transaction_id IS NOT NULL,
+      ROW_NUMBER() OVER (
+        PARTITION BY user_pseudo_id, transaction_id
+        ORDER BY event_timestamp
+      ),
+      1
+    ) AS _txn_rn
+  FROM deduped
+  WHERE _rn = 1
+),
 non_conversion AS (
   SELECT * FROM base_events
   WHERE event_name NOT IN UNNEST(@conversion_events)
 )
 SELECT user_pseudo_id, event_ts, event_name, source, medium, campaign,
-       revenue, ga_session_id
-FROM deduped WHERE _rn = 1
+       IF(_txn_rn = 1, revenue, 0) AS revenue, ga_session_id
+FROM deduped_txn
 UNION ALL
 SELECT user_pseudo_id, event_ts, event_name, source, medium, campaign,
        revenue, ga_session_id
@@ -329,6 +348,7 @@ def summarize_touchpoints(touchpoints: list[dict]) -> dict:
         return {"total_events": 0}
 
     channels: dict[str, int] = {}
+    channel_revenue: dict[str, float] = {}
     conversions = 0
     total_revenue = 0.0
     users = set()
@@ -345,7 +365,15 @@ def summarize_touchpoints(touchpoints: list[dict]) -> dict:
             if uid not in converted_users:
                 conversions += 1
                 converted_users.add(uid)
-            total_revenue += tp.get("revenue", 0)
+            rev = tp.get("revenue", 0) or 0
+            total_revenue += rev
+            # Measured (not modeled) revenue per channel: each transaction's
+            # revenue is tied to the channel of its converting session. Directly
+            # comparable to GA4's per-channel revenue report, unlike the
+            # DDA-attributed split (total_revenue * attribution weight) shown
+            # elsewhere in the UI.
+            if rev:
+                channel_revenue[ch] = channel_revenue.get(ch, 0.0) + rev
 
     return {
         "total_events": len(touchpoints),
@@ -353,6 +381,10 @@ def summarize_touchpoints(touchpoints: list[dict]) -> dict:
         "sessions": len(sessions),
         "conversions": conversions,
         "total_revenue": round(total_revenue, 2),
+        "channel_revenue": {
+            k: round(v, 2)
+            for k, v in sorted(channel_revenue.items(), key=lambda x: -x[1])
+        },
         "channels": dict(sorted(channels.items(), key=lambda x: -x[1])),
     }
 
