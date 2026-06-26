@@ -604,7 +604,7 @@ ORDER BY user_pseudo_id, event_timestamp`}</pre>
           <div className="p-4">
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
-                <p className="text-[10px] text-slate-400 uppercase">Toplam Event</p>
+                <p className="text-[10px] text-slate-400 uppercase">Toplam Temas</p>
                 <p className="text-sm font-mono text-slate-100">{fmtN(preview.total_events)}</p>
               </div>
               <div className="bg-dark-bg rounded-lg p-2.5 text-center">
@@ -663,7 +663,7 @@ ORDER BY user_pseudo_id, event_timestamp`}</pre>
           {ddaResult.bq_summary && (
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam Event</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam Temas</p>
                 <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.total_events)}</p>
               </div>
               <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">

@@ -118,12 +118,7 @@ WITH base_events AS (
   SELECT
     user_pseudo_id,
     event_timestamp,
-    TIMESTAMP_MICROS(event_timestamp) AS event_ts,
     event_name,
-    -- Session-scoped acquisition (per-event/session) takes priority over the
-    -- user-scoped first-touch `traffic_source`, so a user arriving from
-    -- different channels across sessions produces a genuine multi-touch journey
-    -- instead of collapsing to a single first-touch channel.
     COALESCE(
       collected_traffic_source.manual_source,
       (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'source'),
@@ -135,10 +130,6 @@ WITH base_events AS (
       traffic_source.medium
     ) AS medium,
     traffic_source.name AS campaign,
-    -- Revenue is taken ONLY from ecommerce.purchase_revenue to match GA4's
-    -- purchase-revenue reporting. The generic event_params.value fallback was
-    -- removed: that param is attached to many non-purchase events and inflated
-    -- the total whenever conversion_events included a non-purchase event.
     IF(
       event_name IN UNNEST(@conversion_events),
       COALESCE(ecommerce.purchase_revenue, 0),
@@ -156,26 +147,15 @@ WITH base_events AS (
       OR event_name IN UNNEST(@conversion_events)
     )
 ),
-deduped AS (
+-- Dedup revenue per transaction: assign revenue only to the first row
+-- per (user, transaction_id) so the same purchase isn't double-counted
+-- across multiple conversion event names.
+txn_revenue AS (
   SELECT
-    *,
-    ROW_NUMBER() OVER (
-      PARTITION BY user_pseudo_id, event_name,
-        COALESCE(transaction_id, CAST(event_timestamp AS STRING))
-      ORDER BY event_timestamp
-    ) AS _rn
-  FROM base_events
-  WHERE event_name IN UNNEST(@conversion_events)
-),
--- Dedup revenue at the transaction level: GA4's revenue reports count each
--- transaction_id once. After the per-(user,event_name) dedup above, the same
--- transaction can still survive under multiple conversion event names, so
--- assign revenue only to the first row per (user, transaction_id) and zero the
--- rest. Rows without a transaction_id keep their revenue (already collapsed by
--- _rn on the event_timestamp fallback).
-deduped_txn AS (
-  SELECT
-    *,
+    user_pseudo_id,
+    transaction_id,
+    event_timestamp,
+    revenue,
     IF(
       transaction_id IS NOT NULL,
       ROW_NUMBER() OVER (
@@ -184,20 +164,45 @@ deduped_txn AS (
       ),
       1
     ) AS _txn_rn
-  FROM deduped
-  WHERE _rn = 1
+  FROM base_events
+  WHERE event_name IN UNNEST(@conversion_events)
+    AND revenue > 0
 ),
-non_conversion AS (
-  SELECT * FROM base_events
-  WHERE event_name NOT IN UNNEST(@conversion_events)
+-- Aggregate to one row per (user, session). This reduces 100K+ event rows
+-- to ~4K session rows, cutting memory from ~500MB to ~20MB.
+session_grain AS (
+  SELECT
+    b.user_pseudo_id,
+    b.ga_session_id,
+    TIMESTAMP_MICROS(MIN(b.event_timestamp)) AS event_ts,
+    ANY_VALUE(b.source) AS source,
+    ANY_VALUE(b.medium) AS medium,
+    ANY_VALUE(b.campaign) AS campaign,
+    MAX(IF(b.event_name IN UNNEST(@conversion_events), 1, 0)) AS is_conversion,
+    -- Pick one conversion event name for converted sessions (ga4_to_touchpoints
+    -- checks event_name membership in conv_set).
+    MAX(IF(b.event_name IN UNNEST(@conversion_events), b.event_name, NULL)) AS conv_event_name,
+    -- Sum only transaction-deduped revenue for this session
+    COALESCE(SUM(
+      IF(t._txn_rn = 1, t.revenue, 0)
+    ), 0) AS session_revenue
+  FROM base_events b
+  LEFT JOIN txn_revenue t
+    ON b.user_pseudo_id = t.user_pseudo_id
+    AND b.event_timestamp = t.event_timestamp
+    AND b.transaction_id = t.transaction_id
+  GROUP BY b.user_pseudo_id, b.ga_session_id
 )
-SELECT user_pseudo_id, event_ts, event_name, source, medium, campaign,
-       IF(_txn_rn = 1, revenue, 0) AS revenue, ga_session_id
-FROM deduped_txn
-UNION ALL
-SELECT user_pseudo_id, event_ts, event_name, source, medium, campaign,
-       revenue, ga_session_id
-FROM non_conversion
+SELECT
+  user_pseudo_id,
+  event_ts,
+  IF(is_conversion = 1, conv_event_name, 'session') AS event_name,
+  source,
+  medium,
+  campaign,
+  session_revenue AS revenue,
+  ga_session_id
+FROM session_grain
 ORDER BY user_pseudo_id, event_ts
 LIMIT @row_limit
 """
@@ -210,18 +215,12 @@ def query_ga4_sessions(
     start_date: str,
     end_date: str,
     conversion_events: list[str] | None = None,
-    row_limit: int = 500_000,
+    row_limit: int = 200_000,
 ) -> pd.DataFrame:
     """Pull session-level touchpoint data from GA4 BQ export.
 
-    Parameters
-    ----------
-    start_date, end_date : YYYYMMDD strings
-    conversion_events : e.g. ["purchase", "generate_lead"]
-    row_limit : max rows to return (default 500k, keeps query fast)
-
-    Returns DataFrame with columns:
-      user_pseudo_id, event_ts, event_name, source, medium, campaign, revenue
+    After session-grain aggregation the row count equals unique sessions
+    (typically 2-10K), not raw events (100K+).
     """
     if conversion_events is None:
         conversion_events = ["purchase"]
@@ -235,7 +234,9 @@ def query_ga4_sessions(
             bigquery.ScalarQueryParameter("row_limit", "INT64", row_limit),
         ]
     )
-    df = client.query(sql, job_config=job_config).to_dataframe()
+    df = client.query(sql, job_config=job_config).to_dataframe(
+        create_bqstorage_client=False,
+    )
     return df
 
 
@@ -296,24 +297,26 @@ def ga4_to_touchpoints(df: pd.DataFrame, conversion_events: list[str] | None = N
     conv_set = set(conversion_events)
     results: list[dict] = []
 
-    for _, row in df.iterrows():
-        channel = _source_medium_label(row.get("source"), row.get("medium"))
-        event = str(row.get("event_name", ""))
+    cols = list(df.columns)
+    for row in df.itertuples(index=False):
+        row_dict = dict(zip(cols, row))
+        channel = _source_medium_label(row_dict.get("source"), row_dict.get("medium"))
+        event = str(row_dict.get("event_name", ""))
         converted = event in conv_set
-        revenue = float(row.get("revenue", 0) or 0) if converted else 0.0
-        ga_sid = row.get("ga_session_id")
+        revenue = float(row_dict.get("revenue", 0) or 0) if converted else 0.0
+        ga_sid = row_dict.get("ga_session_id")
         try:
             sid_int = int(ga_sid)
-            session_id = f"{row['user_pseudo_id']}_{sid_int}"
+            session_id = f"{row_dict['user_pseudo_id']}_{sid_int}"
         except (TypeError, ValueError):
-            session_id = str(row["user_pseudo_id"])
+            session_id = str(row_dict["user_pseudo_id"])
 
         results.append({
-            "lead_id": str(row["user_pseudo_id"]),
-            "timestamp": str(row["event_ts"]),
+            "lead_id": str(row_dict["user_pseudo_id"]),
+            "timestamp": str(row_dict["event_ts"]),
             "channel": channel,
             "touchpoint_type": event,
-            "campaign": str(row.get("campaign") or ""),
+            "campaign": str(row_dict.get("campaign") or ""),
             "segment": "",
             "converted": converted,
             "session_id": session_id,

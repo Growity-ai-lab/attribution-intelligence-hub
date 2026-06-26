@@ -1303,6 +1303,7 @@ def _run_dda_bq_background(
             return
 
         touchpoints = ga4_to_touchpoints(df, conv_list)
+        del df
         touchpoints = consolidate_channels(touchpoints, max_channels=12)
         summary = summarize_touchpoints(touchpoints)
 
