@@ -175,9 +175,22 @@ session_grain AS (
     b.user_pseudo_id,
     b.ga_session_id,
     TIMESTAMP_MICROS(MIN(b.event_timestamp)) AS event_ts,
-    ANY_VALUE(b.source) AS source,
-    ANY_VALUE(b.medium) AS medium,
-    ANY_VALUE(b.campaign) AS campaign,
+    -- Session acquisition = the session's first event that carries a real
+    -- source. Events whose source is NULL/(not set)/data-not-available are
+    -- ordered last, so a session only collapses to "unknown" when EVERY event
+    -- lacks a source. This matches GA4's session-scoped attribution and stops
+    -- ANY_VALUE from arbitrarily picking a null source over a real one.
+    ARRAY_AGG(
+      STRUCT(b.source, b.medium, b.campaign)
+      ORDER BY
+        CASE
+          WHEN b.source IS NULL
+            OR LOWER(b.source) IN ('(not set)', 'data not available', 'not available')
+          THEN 1 ELSE 0
+        END,
+        b.event_timestamp
+      LIMIT 1
+    )[OFFSET(0)] AS first_touch,
     MAX(IF(b.event_name IN UNNEST(@conversion_events), 1, 0)) AS is_conversion,
     -- Pick one conversion event name for converted sessions (ga4_to_touchpoints
     -- checks event_name membership in conv_set).
@@ -197,9 +210,9 @@ SELECT
   user_pseudo_id,
   event_ts,
   IF(is_conversion = 1, conv_event_name, 'session') AS event_name,
-  source,
-  medium,
-  campaign,
+  first_touch.source AS source,
+  first_touch.medium AS medium,
+  first_touch.campaign AS campaign,
   session_revenue AS revenue,
   ga_session_id
 FROM session_grain
