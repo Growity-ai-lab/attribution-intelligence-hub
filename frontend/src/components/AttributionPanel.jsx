@@ -626,7 +626,7 @@ ORDER BY user_pseudo_id, event_timestamp`}</pre>
             </div>
             {preview.channels && (
               <div className="space-y-1">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Kanal Dağılımı</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Kanal Bazlı Oturum Dağılımı</p>
                 {Object.entries(preview.channels).slice(0, 15).map(([ch, count], i) => (
                   <div key={ch} className="flex items-center gap-2 text-xs">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getChannelColor(ch, i) }} />
