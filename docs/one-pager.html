@@ -16,7 +16,8 @@
     --linkedin:#8b5cf6; --dv360:#06b6d4; --youtube:#ef4444;
     --green:#22c55e;
   }
-  *{box-sizing:border-box;margin:0;padding:0}
+  *{box-sizing:border-box;margin:0;padding:0;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;}
   body{
     background:var(--bg);
     color:var(--text);
@@ -158,9 +159,17 @@
 
   @page{size:A4;margin:0}
   @media print{
-    body{padding:0;gap:0;background:var(--bg)}
-    .page{border:none;border-radius:0;width:100%;min-height:100vh;page-break-after:always}
-    .page:last-child{page-break-after:auto}
+    html,body{background:var(--bg) !important}
+    body{padding:0;gap:0}
+    .page{
+      border:none;border-radius:0;width:100%;
+      min-height:auto;overflow:visible;
+      break-inside:avoid;page-break-inside:avoid;
+      break-after:page;page-break-after:always;
+    }
+    .page:last-child{break-after:auto;page-break-after:auto}
+    /* keep the orange grid/gradient texture in the exported PDF */
+    .page::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   }
 </style>
 </head>
