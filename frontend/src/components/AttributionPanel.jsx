@@ -50,6 +50,21 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
   const [conversionEvents, setConversionEvents] = useState('purchase')
   const [showMethodology, setShowMethodology] = useState(false)
 
+  // Generic BQ table mapping (source-agnostic connector)
+  const [gTable, setGTable] = useState('')
+  const [gEntityCol, setGEntityCol] = useState('')
+  const [gTimestampCol, setGTimestampCol] = useState('')
+  const [gTimestampType, setGTimestampType] = useState('datetime')
+  const [gChannelMode, setGChannelMode] = useState('channel') // 'channel' | 'sourcemedium'
+  const [gChannelCol, setGChannelCol] = useState('')
+  const [gSourceCol, setGSourceCol] = useState('')
+  const [gMediumCol, setGMediumCol] = useState('')
+  const [gConvMode, setGConvMode] = useState('column') // 'column' | 'event'
+  const [gConvertedCol, setGConvertedCol] = useState('')
+  const [gEventCol, setGEventCol] = useState('')
+  const [gConversionValues, setGConversionValues] = useState('')
+  const [gRevenueCol, setGRevenueCol] = useState('')
+
   // Budget simulation
   const [channelSpends, setChannelSpends] = useState({})
   const [scenarioSpends, setScenarioSpends] = useState({})
@@ -159,6 +174,20 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
     setPreviewLoading(false)
   }, [bqProject, bqDataset, startDate, endDate, conversionEvents, campaign])
 
+  // Shared poller for asynchronous (background) DDA runs.
+  const pollDdaResult = useCallback(async (result_id) => {
+    for (let i = 0; i < 120; i++) {
+      await new Promise(r => setTimeout(r, 3000))
+      try {
+        const s = await axios.get(`${API}/dda/status/${result_id}`)
+        if (s.data.status === 'complete') { setDdaResult(s.data); setDdaLoading(false); return }
+        if (s.data.status === 'error') { setDdaError(s.data.detail || 'DDA analizi başarısız oldu'); setDdaLoading(false); return }
+      } catch { /* retry */ }
+    }
+    setDdaError('DDA analizi zaman aşımına uğradı')
+    setDdaLoading(false)
+  }, [setDdaResult])
+
   const handleRunDDA = useCallback(async () => {
     setDdaLoading(true)
     setDdaError('')
@@ -173,28 +202,14 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       if (endDate) params.end_date = endDate.replace(/-/g, '')
       const res = await axios.post(`${API}/dda/run-from-bigquery`, null, { params })
       const { result_id, status } = res.data
-      if (status === 'running' && result_id) {
-        const poll = async () => {
-          for (let i = 0; i < 120; i++) {
-            await new Promise(r => setTimeout(r, 3000))
-            try {
-              const s = await axios.get(`${API}/dda/status/${result_id}`)
-              if (s.data.status === 'complete') { setDdaResult(s.data); setDdaLoading(false); return }
-              if (s.data.status === 'error') { setDdaError(s.data.detail || 'DDA analizi başarısız oldu'); setDdaLoading(false); return }
-            } catch { /* retry */ }
-          }
-          setDdaError('DDA analizi zaman aşımına uğradı')
-          setDdaLoading(false)
-        }
-        poll()
-        return
-      }
+      if (status === 'running' && result_id) { pollDdaResult(result_id); return }
       setDdaResult(res.data)
+      setDdaLoading(false)
     } catch (err) {
       setDdaError(err.response?.data?.detail || err.message)
+      setDdaLoading(false)
     }
-    setDdaLoading(false)
-  }, [bqProject, bqDataset, startDate, endDate, conversionEvents, campaign])
+  }, [bqProject, bqDataset, startDate, endDate, conversionEvents, campaign, pollDdaResult, setDdaResult])
 
   const handleRunCSV = useCallback(async () => {
     if (!csvFile) return
@@ -212,6 +227,64 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
     }
     setDdaLoading(false)
   }, [csvFile, campaign])
+
+  // Build a GenericBQMapping body from the form state (omitting unused fields).
+  const buildGenericMapping = useCallback(() => {
+    const m = {
+      table: gTable.trim(),
+      entity_col: gEntityCol.trim(),
+      timestamp_col: gTimestampCol.trim(),
+      timestamp_type: gTimestampType,
+    }
+    if (gChannelMode === 'channel') {
+      m.channel_col = gChannelCol.trim()
+    } else {
+      m.source_col = gSourceCol.trim()
+      m.medium_col = gMediumCol.trim()
+    }
+    if (gConvMode === 'column') {
+      m.converted_col = gConvertedCol.trim()
+    } else {
+      m.event_col = gEventCol.trim()
+      m.conversion_values = gConversionValues.split(',').map(s => s.trim()).filter(Boolean)
+    }
+    if (gRevenueCol.trim()) m.revenue_col = gRevenueCol.trim()
+    return m
+  }, [gTable, gEntityCol, gTimestampCol, gTimestampType, gChannelMode, gChannelCol,
+      gSourceCol, gMediumCol, gConvMode, gConvertedCol, gEventCol, gConversionValues, gRevenueCol])
+
+  const handlePreviewTable = useCallback(async () => {
+    setPreviewLoading(true)
+    setDdaError('')
+    try {
+      const params = { project: bqProject, dataset: bqDataset, campaign_id: campaign?.id || null }
+      if (startDate) params.start_date = startDate.replace(/-/g, '')
+      if (endDate) params.end_date = endDate.replace(/-/g, '')
+      const res = await axios.post(`${API}/integrations/bigquery/preview-table`, buildGenericMapping(), { params })
+      setPreview(res.data)
+    } catch (err) {
+      setDdaError(err.response?.data?.detail || err.message)
+    }
+    setPreviewLoading(false)
+  }, [bqProject, bqDataset, startDate, endDate, campaign, buildGenericMapping])
+
+  const handleRunTable = useCallback(async () => {
+    setDdaLoading(true)
+    setDdaError('')
+    try {
+      const params = { project: bqProject, dataset: bqDataset, campaign_id: campaign?.id || null }
+      if (startDate) params.start_date = startDate.replace(/-/g, '')
+      if (endDate) params.end_date = endDate.replace(/-/g, '')
+      const res = await axios.post(`${API}/dda/run-from-bigquery-table`, buildGenericMapping(), { params })
+      const { result_id, status } = res.data
+      if (status === 'running' && result_id) { pollDdaResult(result_id); return }
+      setDdaResult(res.data)
+      setDdaLoading(false)
+    } catch (err) {
+      setDdaError(err.response?.data?.detail || err.message)
+      setDdaLoading(false)
+    }
+  }, [bqProject, bqDataset, startDate, endDate, campaign, buildGenericMapping, pollDdaResult, setDdaResult])
 
   const ORGANIC_MEDIUMS = ['organic', 'referral', '(none)', 'social', 'email', 'aylikmail']
   const ORGANIC_SOURCES = ['(direct)', 'direct']
@@ -356,6 +429,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       <div className="flex gap-2" role="tablist" aria-label="Veri kaynağı seçimi">
         {[
           { id: 'bigquery', label: 'BigQuery (GA4)' },
+          { id: 'bigquery-table', label: 'BigQuery (Tablo)' },
           { id: 'csv', label: 'CSV Upload' },
         ].map(t => (
           <button
@@ -380,7 +454,7 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
       </div>
 
       {/* BigQuery Connection */}
-      {sourceTab === 'bigquery' && (
+      {(sourceTab === 'bigquery' || sourceTab === 'bigquery-table') && (
         <div className="dark-card">
           <div className="card-hdr">
             <span className="card-title">BigQuery Bağlantısı</span>
@@ -456,47 +530,162 @@ export default function AttributionPanel({ campaign, ddaResult, setDdaResult }) 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Başlangıç</label>
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                      className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-accent" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Bitiş</label>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                      className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-accent" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400 block mb-1">Conversion Events</label>
-                    <input type="text" value={conversionEvents} onChange={e => setConversionEvents(e.target.value)}
-                      placeholder="purchase"
-                      className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent" />
-                  </div>
-                </div>
+                {sourceTab === 'bigquery' && (
+                  <>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Başlangıç</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                          className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-accent" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Bitiş</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                          className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-accent" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">Conversion Events</label>
+                        <input type="text" value={conversionEvents} onChange={e => setConversionEvents(e.target.value)}
+                          placeholder="purchase"
+                          className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent" />
+                      </div>
+                    </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={handlePreview}
-                    disabled={previewLoading}
-                    className="px-4 py-2 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-300 hover:text-slate-100 transition-colors disabled:opacity-40"
-                  >
-                    {previewLoading ? 'Sorgu çalışıyor...' : 'Önizle'}
-                  </button>
-                  <button
-                    onClick={handleRunDDA}
-                    disabled={ddaLoading}
-                    className="px-4 py-2 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-40"
-                  >
-                    {ddaLoading ? 'Analiz çalışıyor...' : 'Attribution Analizi Başlat'}
-                  </button>
-                  <button
-                    onClick={() => { setConnected(null); setPreview(null); setDdaResult(null) }}
-                    className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-300 transition-colors ml-auto"
-                  >
-                    Bağlantıyı Kes
-                  </button>
-                </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handlePreview}
+                        disabled={previewLoading}
+                        className="px-4 py-2 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-300 hover:text-slate-100 transition-colors disabled:opacity-40"
+                      >
+                        {previewLoading ? 'Sorgu çalışıyor...' : 'Önizle'}
+                      </button>
+                      <button
+                        onClick={handleRunDDA}
+                        disabled={ddaLoading}
+                        className="px-4 py-2 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-40"
+                      >
+                        {ddaLoading ? 'Analiz çalışıyor...' : 'Attribution Analizi Başlat'}
+                      </button>
+                      <button
+                        onClick={() => { setConnected(null); setPreview(null); setDdaResult(null) }}
+                        className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-300 transition-colors ml-auto"
+                      >
+                        Bağlantıyı Kes
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {sourceTab === 'bigquery-table' && (() => {
+                  const inp = "w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-accent"
+                  const lbl = "text-[10px] text-slate-400 block mb-1"
+                  const pill = active => `px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors ${active ? 'bg-accent/15 border border-accent/40 text-accent' : 'bg-dark-bg border border-dark-border text-slate-400 hover:text-slate-200'}`
+                  const canRun = gTable.trim() && gEntityCol.trim() && gTimestampCol.trim()
+                    && (gChannelMode === 'channel' ? gChannelCol.trim() : (gSourceCol.trim() && gMediumCol.trim()))
+                    && (gConvMode === 'column' ? gConvertedCol.trim() : (gEventCol.trim() && gConversionValues.trim()))
+                  return (
+                  <>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      GA4 dışındaki <span className="text-slate-300">herhangi bir BigQuery tablosunu</span> (CRM, server-side GTM,
+                      app analytics, ad-cost, offline conversion) kolon eşlemesiyle aynı DDA motoruna bağlayın.
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className={lbl}>Tablo adı</label>
+                        <input type="text" value={gTable} onChange={e => setGTable(e.target.value)} placeholder="crm_events" className={inp} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Kullanıcı / Lead kolonu</label>
+                        <input type="text" value={gEntityCol} onChange={e => setGEntityCol(e.target.value)} placeholder="user_id" className={inp} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Zaman damgası kolonu</label>
+                        <input type="text" value={gTimestampCol} onChange={e => setGTimestampCol(e.target.value)} placeholder="event_time" className={inp} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={lbl}>Zaman damgası tipi</label>
+                      <select value={gTimestampType} onChange={e => setGTimestampType(e.target.value)} className={inp}>
+                        <option value="datetime">datetime / timestamp / date</option>
+                        <option value="unix_micros">unix mikrosaniye (int)</option>
+                        <option value="unix_seconds">unix saniye (int)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className={lbl + ' mb-0'}>Kanal</span>
+                        <button onClick={() => setGChannelMode('channel')} className={pill(gChannelMode === 'channel')}>Kanal kolonu</button>
+                        <button onClick={() => setGChannelMode('sourcemedium')} className={pill(gChannelMode === 'sourcemedium')}>Source + Medium</button>
+                      </div>
+                      {gChannelMode === 'channel' ? (
+                        <input type="text" value={gChannelCol} onChange={e => setGChannelCol(e.target.value)} placeholder="channel" className={inp} />
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <input type="text" value={gSourceCol} onChange={e => setGSourceCol(e.target.value)} placeholder="source" className={inp} />
+                          <input type="text" value={gMediumCol} onChange={e => setGMediumCol(e.target.value)} placeholder="medium" className={inp} />
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className={lbl + ' mb-0'}>Dönüşüm</span>
+                        <button onClick={() => setGConvMode('column')} className={pill(gConvMode === 'column')}>Dönüşüm kolonu</button>
+                        <button onClick={() => setGConvMode('event')} className={pill(gConvMode === 'event')}>Olay + değerler</button>
+                      </div>
+                      {gConvMode === 'column' ? (
+                        <input type="text" value={gConvertedCol} onChange={e => setGConvertedCol(e.target.value)} placeholder="is_converted (bool/int)" className={inp} />
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <input type="text" value={gEventCol} onChange={e => setGEventCol(e.target.value)} placeholder="event_name" className={inp} />
+                          <input type="text" value={gConversionValues} onChange={e => setGConversionValues(e.target.value)} placeholder="signup, purchase" className={inp} />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className={lbl}>Gelir kolonu (ops.)</label>
+                        <input type="text" value={gRevenueCol} onChange={e => setGRevenueCol(e.target.value)} placeholder="amount" className={inp} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Başlangıç (ops.)</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inp} />
+                      </div>
+                      <div>
+                        <label className={lbl}>Bitiş (ops.)</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inp} />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handlePreviewTable}
+                        disabled={previewLoading || !canRun}
+                        className="px-4 py-2 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-300 hover:text-slate-100 transition-colors disabled:opacity-40"
+                      >
+                        {previewLoading ? 'Sorgu çalışıyor...' : 'Önizle'}
+                      </button>
+                      <button
+                        onClick={handleRunTable}
+                        disabled={ddaLoading || !canRun}
+                        className="px-4 py-2 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {ddaLoading ? 'Analiz çalışıyor...' : 'Attribution Analizi Başlat'}
+                      </button>
+                      <button
+                        onClick={() => { setConnected(null); setPreview(null); setDdaResult(null) }}
+                        className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-slate-300 transition-colors ml-auto"
+                      >
+                        Bağlantıyı Kes
+                      </button>
+                    </div>
+                  </>
+                  )
+                })()}
               </>
             )}
           </div>
@@ -598,7 +787,7 @@ ORDER BY user_pseudo_id, event_timestamp`}</pre>
           <div className="card-hdr">
             <span className="card-title">Veri Önizleme</span>
             <span className="text-[10px] font-mono text-slate-400">
-              {preview.start_date} — {preview.end_date}
+              {preview.source_table || `${preview.start_date || ''} — ${preview.end_date || ''}`}
             </span>
           </div>
           <div className="p-4">
