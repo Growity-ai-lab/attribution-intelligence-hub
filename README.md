@@ -94,7 +94,8 @@ MMM ve incrementality katmanları şu an devre dışıdır — gerçek veriye fi
 
 ## Özellikler
 
-- **DDA Attribution:** CSV veya BigQuery GA4'ten kullanıcı yolculukları çıkarır, Markov + Shapley ensemble ile kanal katkı paylarını hesaplar
+- **DDA Attribution:** CSV veya BigQuery'den kullanıcı yolculukları çıkarır, Markov + Shapley ensemble ile kanal katkı paylarını hesaplar
+- **Kaynaktan Bağımsız Motor:** DDA motoru `lead_id, timestamp, channel, converted, revenue` standart şeması üzerinde çalışır. GA4 yalnızca ilk konnektör; CRM, server-side GTM, app analytics, ad-cost export veya offline conversion gibi **her BigQuery tablosu** kolon eşlemesiyle aynı motora akar
 - **BigQuery GA4 Entegrasyonu:** Session-scoped source/medium ile gerçek multi-touch yolculuklar
 - **Medya Planlama Simülasyonu:** Haftalık harcama planı gir, adstock/saturation modeli ile tahmini lead çıktısı al
 - **Benchmark & Sağlama:** DDA sonuçlarından empirik kanal metrikleri, plan vs gerçekleşme karşılaştırması
@@ -130,6 +131,7 @@ Backend çalışırken: **http://localhost:8000/docs** (Swagger UI)
 |----------|----------|
 | `POST /api/dda/run-from-csv` | CSV'den DDA çalıştır |
 | `POST /api/dda/run-from-bigquery` | BQ GA4'ten DDA çalıştır |
+| `POST /api/dda/run-from-bigquery-table` | Herhangi bir BQ tablosundan (kolon eşlemeli) DDA çalıştır |
 | `POST /api/media-planning/simulate` | Medya plan simülasyonu |
 | `GET /api/export/dda-report` | Excel rapor indir |
 | `GET /api/insights/trend` | Trend analizi |

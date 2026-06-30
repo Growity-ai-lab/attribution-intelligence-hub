@@ -17,7 +17,12 @@ from backend.integrations.bigquery import (
     consolidate_channels,
     summarize_touchpoints,
     default_date_range,
+    build_generic_query,
+    generic_to_touchpoints,
 )
+from backend.data.schemas import GenericBQMapping
+from backend.models.dda.data_prep import extract_journeys
+from pydantic import ValidationError
 
 
 # ── Alert Rules ──────────────────────────────────────────────────────
@@ -555,3 +560,132 @@ class TestConfigValidation:
     def test_unified_weights_sum_to_one(self):
         from backend.config import UNIFIED_WEIGHTS
         assert abs(sum(UNIFIED_WEIGHTS.values()) - 1.0) < 1e-6
+
+
+# ── Generic BigQuery connector (source-agnostic) ─────────────────────
+
+
+def _gmap(**over):
+    """Builder-compatible mapping kwargs (no conversion_values — that is a
+    query-parameter, not a build_generic_query argument)."""
+    base = dict(
+        table="crm_events", entity_col="user_id", timestamp_col="ts",
+        channel_col="channel", event_col="event_name", revenue_col="amount",
+    )
+    base.update(over)
+    return base
+
+
+class TestGenericBQMapping:
+    def test_valid_channel_and_event_mapping(self):
+        m = GenericBQMapping(**_gmap(), conversion_values=["signup"])
+        assert m.table == "crm_events"
+        assert m.conversion_values == ["signup"]
+
+    def test_valid_source_medium_and_converted_col(self):
+        m = GenericBQMapping(
+            table="t", entity_col="uid", timestamp_col="ts",
+            source_col="src", medium_col="med", converted_col="is_conv",
+        )
+        assert m.source_col == "src" and m.converted_col == "is_conv"
+
+    def test_missing_channel_mapping_rejected(self):
+        with pytest.raises(ValidationError):
+            GenericBQMapping(
+                table="t", entity_col="uid", timestamp_col="ts",
+                converted_col="is_conv",
+            )
+
+    def test_missing_conversion_mapping_rejected(self):
+        with pytest.raises(ValidationError):
+            GenericBQMapping(
+                table="t", entity_col="uid", timestamp_col="ts",
+                channel_col="ch",
+            )
+
+
+class TestBuildGenericQuery:
+    def test_channel_and_event_path(self):
+        sql = build_generic_query(project="p", dataset="d", **_gmap())
+        assert "`p.d.crm_events`" in sql
+        assert "CAST(channel AS STRING) AS channel_raw" in sql
+        assert "event_name IN UNNEST(@conversion_events)" in sql
+        assert "SAFE_CAST(amount AS FLOAT64)" in sql
+        assert "LIMIT @row_limit" in sql
+
+    def test_source_medium_and_converted_path(self):
+        sql = build_generic_query(
+            project="p", dataset="d", table="t", entity_col="uid",
+            timestamp_col="ts", source_col="src", medium_col="med",
+            converted_col="is_conv",
+        )
+        assert "CAST(src AS STRING) AS source" in sql
+        assert "SAFE_CAST(is_conv AS BOOL)" in sql
+
+    def test_unix_micros_timestamp(self):
+        sql = build_generic_query(
+            project="p", dataset="d", table="t", entity_col="uid",
+            timestamp_col="ts", timestamp_type="unix_micros",
+            channel_col="ch", converted_col="c",
+        )
+        assert "TIMESTAMP_MICROS(ts)" in sql
+
+    def test_date_filter_only_when_requested(self):
+        with_filter = build_generic_query(project="p", dataset="d", has_date_filter=True, **_gmap())
+        without = build_generic_query(project="p", dataset="d", has_date_filter=False, **_gmap())
+        assert "PARSE_DATE('%Y%m%d', @start)" in with_filter
+        assert "PARSE_DATE" not in without
+
+    def test_injection_in_column_rejected(self):
+        with pytest.raises(ValueError):
+            build_generic_query(**_gmap(entity_col="uid; DROP TABLE x", project="p", dataset="d"))
+
+    def test_injection_in_table_rejected(self):
+        with pytest.raises(ValueError):
+            build_generic_query(project="p", dataset="d", **_gmap(table="t`; DROP TABLE x"))
+
+    def test_requires_channel_or_source_medium(self):
+        with pytest.raises(ValueError):
+            build_generic_query(
+                project="p", dataset="d", table="t", entity_col="uid",
+                timestamp_col="ts", converted_col="c",
+            )
+
+
+class TestGenericToTouchpoints:
+    def test_maps_rows_to_touchpoint_schema(self):
+        df = pd.DataFrame([
+            {"lead_id": "u1", "event_ts": "2026-01-01T00:00:00", "channel_raw": "Email",
+             "source": None, "medium": None, "event_name": "click", "is_conversion": False, "revenue": 0},
+            {"lead_id": "u1", "event_ts": "2026-01-02T00:00:00", "channel_raw": "Paid Search",
+             "source": None, "medium": None, "event_name": "signup", "is_conversion": True, "revenue": 250.0},
+        ])
+        tps = generic_to_touchpoints(df)
+        assert len(tps) == 2
+        assert tps[0]["channel"] == "Email"
+        assert tps[1]["converted"] is True
+        assert tps[1]["revenue"] == 250.0
+        # revenue only counts on converted rows
+        assert tps[0]["revenue"] == 0.0
+
+    def test_falls_back_to_source_medium_label(self):
+        df = pd.DataFrame([
+            {"lead_id": "u1", "event_ts": "2026-01-01T00:00:00", "channel_raw": None,
+             "source": "google", "medium": "cpc", "event_name": "x", "is_conversion": False, "revenue": 0},
+        ])
+        tps = generic_to_touchpoints(df)
+        assert tps[0]["channel"] == "google / cpc"
+
+    def test_feeds_dda_journey_extraction(self):
+        # End-to-end: a generic table flows into the same engine as GA4/CSV.
+        rows = []
+        for i in range(6):
+            uid = f"u{i}"
+            rows.append({"lead_id": uid, "event_ts": "2026-01-01T00:00:00", "channel_raw": "Email",
+                         "source": None, "medium": None, "event_name": "click", "is_conversion": False, "revenue": 0})
+            rows.append({"lead_id": uid, "event_ts": "2026-01-02T00:00:00", "channel_raw": "Paid Search",
+                         "source": None, "medium": None, "event_name": "signup", "is_conversion": True, "revenue": 100.0})
+        tps = generic_to_touchpoints(pd.DataFrame(rows))
+        journeys = extract_journeys(tps)
+        assert len(journeys) == 6
+        assert all(j.converted for j in journeys)

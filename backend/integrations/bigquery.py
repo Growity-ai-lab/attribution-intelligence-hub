@@ -408,3 +408,183 @@ def default_date_range(months: int = 6) -> tuple[str, str]:
     end = date.today()
     start = end - timedelta(days=months * 30)
     return start.strftime("%Y%m%d"), end.strftime("%Y%m%d")
+
+
+# --------------- Generic BigQuery connector ---------------
+#
+# GA4 is just ONE adapter. The DDA engine consumes a source-agnostic touchpoint
+# schema (lead_id, timestamp, channel, converted, revenue), so ANY BigQuery
+# table — CRM events, server-side GTM, app analytics, ad-cost exports, offline
+# conversions — can feed the same engine once its columns are mapped onto that
+# schema. This connector builds that mapping query dynamically.
+
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _safe_ident(name: str, *, kind: str = "kolon") -> str:
+    """Validate a BQ column/table identifier (defends against SQL injection).
+
+    Only unqualified identifiers (letters, digits, underscore) are allowed;
+    callers pass project/dataset separately so dots are never needed here.
+    """
+    if not name or not _IDENT_RE.match(name):
+        raise ValueError(
+            f"Geçersiz {kind} adı: {name!r}. Yalnızca harf, rakam ve alt çizgi kullanılabilir."
+        )
+    return name
+
+
+def build_generic_query(
+    *,
+    project: str,
+    dataset: str,
+    table: str,
+    entity_col: str,
+    timestamp_col: str,
+    timestamp_type: str = "datetime",
+    channel_col: str | None = None,
+    source_col: str | None = None,
+    medium_col: str | None = None,
+    converted_col: str | None = None,
+    event_col: str | None = None,
+    revenue_col: str | None = None,
+    has_date_filter: bool = False,
+) -> str:
+    """Build a parameterized SQL query mapping an arbitrary BQ table to the
+    standard touchpoint schema. Identifiers are validated; literals are bound
+    via query parameters (@conversion_events, @start, @end, @row_limit).
+    """
+    tbl = _safe_ident(table, kind="tablo")
+    ent = _safe_ident(entity_col)
+    ts = _safe_ident(timestamp_col)
+
+    if timestamp_type == "unix_micros":
+        dt_expr = f"DATETIME(TIMESTAMP_MICROS({ts}))"
+    elif timestamp_type == "unix_seconds":
+        dt_expr = f"DATETIME(TIMESTAMP_SECONDS({ts}))"
+    else:  # datetime / timestamp / date columns
+        dt_expr = f"DATETIME({ts})"
+    ts_expr = f"FORMAT_DATETIME('%Y-%m-%dT%H:%M:%E6S', {dt_expr})"
+
+    if channel_col:
+        ch_expr = f"CAST({_safe_ident(channel_col)} AS STRING)"
+        src_expr = "CAST(NULL AS STRING)"
+        med_expr = "CAST(NULL AS STRING)"
+    elif source_col and medium_col:
+        ch_expr = "CAST(NULL AS STRING)"
+        src_expr = f"CAST({_safe_ident(source_col)} AS STRING)"
+        med_expr = f"CAST({_safe_ident(medium_col)} AS STRING)"
+    else:
+        raise ValueError("channel_col VEYA (source_col + medium_col) eşlemesi gerekli.")
+
+    if converted_col:
+        conv_expr = f"COALESCE(SAFE_CAST({_safe_ident(converted_col)} AS BOOL), FALSE)"
+    elif event_col:
+        conv_expr = f"({_safe_ident(event_col)} IN UNNEST(@conversion_events))"
+    else:
+        raise ValueError("converted_col VEYA (event_col + conversion_values) eşlemesi gerekli.")
+
+    rev_expr = (
+        f"COALESCE(SAFE_CAST({_safe_ident(revenue_col)} AS FLOAT64), 0)"
+        if revenue_col else "0"
+    )
+    evt_expr = f"CAST({_safe_ident(event_col)} AS STRING)" if event_col else "''"
+
+    date_filter = (
+        f"  AND DATE({dt_expr}) BETWEEN PARSE_DATE('%Y%m%d', @start) "
+        f"AND PARSE_DATE('%Y%m%d', @end)\n"
+        if has_date_filter else ""
+    )
+
+    return f"""
+SELECT
+  CAST({ent} AS STRING) AS lead_id,
+  {ts_expr} AS event_ts,
+  {ch_expr} AS channel_raw,
+  {src_expr} AS source,
+  {med_expr} AS medium,
+  {evt_expr} AS event_name,
+  {conv_expr} AS is_conversion,
+  {rev_expr} AS revenue
+FROM `{project}.{dataset}.{tbl}`
+WHERE {ent} IS NOT NULL
+{date_filter}ORDER BY lead_id, event_ts
+LIMIT @row_limit
+"""
+
+
+def query_generic_events(
+    client: bigquery.Client,
+    project: str,
+    dataset: str,
+    mapping: dict,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    row_limit: int = 200_000,
+) -> pd.DataFrame:
+    """Pull touchpoint rows from an arbitrary BQ table using a column *mapping*.
+
+    *mapping* keys mirror build_generic_query kwargs (table, entity_col,
+    timestamp_col, channel_col/source_col+medium_col, converted_col/event_col,
+    conversion_values, revenue_col, timestamp_type).
+    """
+    has_date = bool(start_date and end_date)
+    builder_keys = {
+        "table", "entity_col", "timestamp_col", "timestamp_type",
+        "channel_col", "source_col", "medium_col",
+        "converted_col", "event_col", "revenue_col",
+    }
+    builder_args = {k: v for k, v in mapping.items() if k in builder_keys}
+    sql = build_generic_query(
+        project=project, dataset=dataset, has_date_filter=has_date, **builder_args
+    )
+
+    params: list = [bigquery.ScalarQueryParameter("row_limit", "INT64", row_limit)]
+    if mapping.get("event_col"):
+        conv_vals = mapping.get("conversion_values") or []
+        params.append(
+            bigquery.ArrayQueryParameter("conversion_events", "STRING", conv_vals)
+        )
+    if has_date:
+        params.append(bigquery.ScalarQueryParameter("start", "STRING", start_date))
+        params.append(bigquery.ScalarQueryParameter("end", "STRING", end_date))
+
+    job_config = bigquery.QueryJobConfig(query_parameters=params)
+    return client.query(sql, job_config=job_config).to_dataframe(
+        create_bqstorage_client=False,
+    )
+
+
+def generic_to_touchpoints(df: pd.DataFrame) -> list[dict]:
+    """Convert a generic-connector DataFrame to CRMTouchpoint-compatible dicts.
+
+    Mirrors ga4_to_touchpoints output so downstream consolidation, journey
+    extraction and the DDA pipeline are entirely source-agnostic.
+    """
+    results: list[dict] = []
+    cols = list(df.columns)
+    for row in df.itertuples(index=False):
+        d = dict(zip(cols, row))
+
+        ch_raw = d.get("channel_raw")
+        if ch_raw is not None and str(ch_raw).strip() and str(ch_raw).strip().lower() != "none":
+            channel = str(ch_raw).strip()
+        else:
+            channel = _source_medium_label(d.get("source"), d.get("medium"))
+
+        converted = bool(d.get("is_conversion"))
+        revenue = float(d.get("revenue") or 0) if converted else 0.0
+
+        results.append({
+            "lead_id": str(d["lead_id"]),
+            "timestamp": str(d["event_ts"]),
+            "channel": channel,
+            "touchpoint_type": str(d.get("event_name") or ""),
+            "campaign": "",
+            "segment": "",
+            "converted": converted,
+            "session_id": str(d["lead_id"]),
+            "revenue": revenue,
+        })
+
+    return results

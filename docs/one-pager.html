@@ -200,18 +200,18 @@
     <h1>Time's Hub
       <span class="sub">Attribution Intelligence</span>
     </h1>
-    <p class="tagline">Dijital pazarlama bütçenizin <b>gerçek etkisini</b>, son tıklamanın ötesinde, kanal kanal kanıtlayın. Markov Chain + Shapley Value ensemble ile her temasın adil katkısı tek ekranda.</p>
+    <p class="tagline">Dijital pazarlama bütçenizin <b>gerçek etkisini</b>, son tıklamanın ötesinde, kanal kanal kanıtlayın. Markov Chain + Shapley Value ensemble ile her temasın adil katkısı tek ekranda — <b>kaynaktan bağımsız</b>, warehouse-native bir motor.</p>
     <div class="descriptor">
       <span class="chip on">Data-Driven Attribution</span>
       <span class="chip">Markov Chain × Shapley Value</span>
-      <span class="chip">BigQuery GA4</span>
-      <span class="chip">6 Dijital Kanal</span>
+      <span class="chip">Warehouse-Native (BigQuery)</span>
+      <span class="chip">Kaynaktan Bağımsız</span>
     </div>
   </div>
 
   <div class="sec">
     <div class="sec-h"><span class="k"></span><h2>Neden Time's Hub?</h2></div>
-    <p class="lead">Pazarlama liderleri her platformun <b>kendi başarısını</b> raporladığı bir dünyada karar veriyor: Meta kendi dönüşümünü sahiplenir, Google son tıklamasını, GA4 ise son-etkileşim modelini gösterir. Aynı dönüşüm 3–4 kez sayılır, bütçe "en çok bağıran" kanala akar. <b>Time's Hub</b>, gerçek kullanıcı yolculuğu verisi üzerinde çift modelli bir DDA motoru çalıştırır; her kanalın çift saymayan, savunulabilir gerçek katkısını ortaya koyar.</p>
+    <p class="lead">Pazarlama liderleri her platformun <b>kendi başarısını</b> raporladığı bir dünyada karar veriyor: Meta kendi dönüşümünü sahiplenir, Google son tıklamasını, GA4 ise son-etkileşim modelini gösterir. Aynı dönüşüm 3–4 kez sayılır, bütçe "en çok bağıran" kanala akar. <b>Time's Hub</b>, gerçek kullanıcı yolculuğu verisi üzerinde çift modelli bir DDA motoru çalıştırır; her kanalın çift saymayan, savunulabilir gerçek katkısını ortaya koyar. Motor kaynaktan bağımsızdır: <b>GA4 ilk konnektör</b>, ama CRM, server-side ve warehouse'daki her tablo aynı hatta akar.</p>
   </div>
 
   <div class="pillars">
@@ -223,7 +223,7 @@
     <div class="pillar">
       <div class="ic">📊</div>
       <h3>Kanıt</h3>
-      <p>Varsayım değil, gerçek GA4 verisi. Her skor, kullanıcıların gerçek dönüşüm yolculuğundan türetilir — denetlenebilir.</p>
+      <p>Varsayım değil, gerçek warehouse verisi (GA4, CRM, server-side). Her skor, gerçek dönüşüm yolculuğundan türetilir — denetlenebilir.</p>
     </div>
     <div class="pillar">
       <div class="ic">⚡</div>
@@ -276,11 +276,11 @@
 
   <div class="sec" style="margin-top:6px">
     <div class="sec-h"><span class="k"></span><h2>Nasıl Çalışır?</h2></div>
-    <p class="lead">Ham GA4 verisinden bütçe kararına kadar uçtan uca, otomatik bir hat.</p>
+    <p class="lead">Warehouse'daki ham veriden bütçe kararına kadar uçtan uca, otomatik bir hat. Kaynak ne olursa olsun aynı standart şemaya akar.</p>
     <div class="flow">
-      <div class="step"><div class="n">01</div><h4>BigQuery GA4</h4><p>Session-scoped source/medium ile gerçek veri çekimi</p></div>
+      <div class="step"><div class="n">01</div><h4>Veri Kaynağı</h4><p>GA4 · CRM · server-side · her warehouse tablosu</p></div>
       <div class="arrow">➜</div>
-      <div class="step"><div class="n">02</div><h4>Yolculuk Çıkarımı</h4><p>Multi-touch yolculuklar + kanal haritalama</p></div>
+      <div class="step"><div class="n">02</div><h4>Kolon Eşleme</h4><p>Standart şema: kim · ne zaman · kanal · dönüşüm</p></div>
       <div class="arrow">➜</div>
       <div class="step"><div class="n">03</div><h4>Markov + Shapley</h4><p>Removal effect + koalisyon bazlı adil pay</p></div>
       <div class="arrow">➜</div>
@@ -288,13 +288,22 @@
       <div class="arrow">➜</div>
       <div class="step"><div class="n">05</div><h4>Reallocation</h4><p>Skora dayalı bütçe önerisi + rapor</p></div>
     </div>
+    <div class="chrow" style="margin-top:14px;align-items:center">
+      <span style="font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase">Konnektörler</span>
+      <span class="chip on">GA4 · hazır</span>
+      <span class="chip">CRM events</span>
+      <span class="chip">Server-side GTM</span>
+      <span class="chip">App analytics</span>
+      <span class="chip">Ad-cost export</span>
+      <span class="chip">Offline conversion</span>
+    </div>
   </div>
 
   <div class="sec">
     <div class="sec-h"><span class="k"></span><h2>Time's Hub'ı Farklı Kılan</h2></div>
     <div class="diff">
       <div class="item"><div class="ic">🔬</div><div><h4>Çift model ensemble</h4><p>Tek modele bağımlı değil. Markov'un "vazgeçilmezlik" ölçümü ile Shapley'nin "adil pay" hesabı birlikte çalışır.</p></div></div>
-      <div class="item"><div class="ic">🇹🇷</div><div><h4>Gerçek GA4 verisi</h4><p>COALESCE zinciriyle session-scoped source/medium; gerçek multi-touch yolculuk. Mock veri değil.</p></div></div>
+      <div class="item"><div class="ic">🔌</div><div><h4>Kaynaktan bağımsız</h4><p>GA4, CRM, server-side, ad-cost, offline — kolon eşlemesiyle her BigQuery tablosu aynı motora akar. GA4 ilk konnektör, mock veri değil.</p></div></div>
       <div class="item"><div class="ic">⚖️</div><div><h4>Çift saymayan</h4><p>Transaction-level dedup. Aynı dönüşüm birden çok platformda değil, yalnızca bir kez sayılır.</p></div></div>
       <div class="item"><div class="ic">📈</div><div><h4>Planlamadan performansa</h4><p>DDA + medya planlama simülasyonu + plan/gerçekleşme benchmark'ı aynı platformda.</p></div></div>
     </div>
@@ -306,7 +315,7 @@
       <div class="stat"><div class="v">6</div><div class="l">Dijital kanal</div></div>
       <div class="stat"><div class="v">2</div><div class="l">Attribution modeli</div></div>
       <div class="stat"><div class="v">65/35</div><div class="l">Markov / Shapley blend</div></div>
-      <div class="stat"><div class="v">GA4</div><div class="l">Birincil veri kaynağı</div></div>
+      <div class="stat"><div class="v">∞</div><div class="l">Veri kaynağı · GA4 ilk konnektör</div></div>
       <div class="stat"><div class="v">5</div><div class="l">Proaktif alert kuralı</div></div>
     </div>
     <div class="chrow">

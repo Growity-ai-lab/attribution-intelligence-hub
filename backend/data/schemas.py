@@ -1,6 +1,8 @@
 """Pydantic schemas for data validation."""
 
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, Field, model_validator
 
 
 class WeeklyChannelInput(BaseModel):
@@ -26,6 +28,47 @@ class CRMTouchpoint(BaseModel):
     segment: str = ""
     converted: bool = False
     session_id: str = ""
+
+
+class GenericBQMapping(BaseModel):
+    """Column mapping for the source-agnostic BigQuery connector.
+
+    Maps an arbitrary BQ table (CRM events, server-side GTM, app analytics,
+    ad-cost exports, offline conversions, ...) onto the standard touchpoint
+    schema the DDA engine consumes. GA4 is just one pre-built adapter; this
+    lets any warehouse table run through the same Markov + Shapley pipeline.
+    """
+
+    table: str = Field(..., description="BQ tablo adı (project.dataset ayrı verilir)")
+    entity_col: str = Field(..., description="Kullanıcı/lead kimliği kolonu")
+    timestamp_col: str = Field(..., description="Zaman damgası kolonu")
+    timestamp_type: Literal["datetime", "unix_micros", "unix_seconds"] = "datetime"
+
+    # Channel: either a ready channel column OR a source+medium pair.
+    channel_col: str | None = Field(None, description="Hazır kanal adı kolonu")
+    source_col: str | None = None
+    medium_col: str | None = None
+
+    # Conversion: either a boolean column OR an event column + matching values.
+    converted_col: str | None = Field(None, description="Dönüşüm bayrağı (bool/int) kolonu")
+    event_col: str | None = Field(None, description="Olay adı kolonu")
+    conversion_values: list[str] = Field(
+        default_factory=list, description="event_col için dönüşüm sayılan değerler"
+    )
+
+    revenue_col: str | None = Field(None, description="Gelir kolonu (opsiyonel)")
+
+    @model_validator(mode="after")
+    def _check_mapping(self) -> "GenericBQMapping":
+        if not self.channel_col and not (self.source_col and self.medium_col):
+            raise ValueError(
+                "channel_col VEYA (source_col + medium_col) eşlemesi zorunlu."
+            )
+        if not self.converted_col and not (self.event_col and self.conversion_values):
+            raise ValueError(
+                "converted_col VEYA (event_col + conversion_values) eşlemesi zorunlu."
+            )
+        return self
 
 
 class AdstockResult(BaseModel):

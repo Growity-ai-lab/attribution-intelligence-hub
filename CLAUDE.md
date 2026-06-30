@@ -151,17 +151,30 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 
 ## Veri Kaynaklari
 
-### 1. BigQuery GA4 Export (Birincil)
+> **Kaynaktan bagimsiz motor:** DDA motoru `lead_id, timestamp, channel, converted, revenue`
+> standart touchpoint semasi uzerinde calisir. GA4 yalnizca ilk konnektor (`ga4_to_touchpoints`);
+> CSV (`loader`) ikinci adaptor. Generic BigQuery konnektoru (`query_generic_events` +
+> `generic_to_touchpoints`) ile CRM, server-side GTM, app analytics, ad-cost export veya offline
+> conversion gibi her BQ tablosu kolon eslemesiyle ayni motora akar.
+
+### 1. BigQuery GA4 Export (Ilk konnektor)
 - Session-scoped source/medium (COALESCE zinciri: collected_traffic_source > event_params > traffic_source)
 - Otomatik channel mapping: GA4 source/medium -> hub kanal taksonomisi
 - Dusuk frekansli kanallar otomatik birlestirilir (`consolidate_channels`, max 12)
 - Conversion events parametrik (default: purchase)
 
-### 2. CSV/Excel Upload
+### 2. Generic BigQuery (Kaynaktan bagimsiz)
+- Herhangi bir BQ tablosu -> standart touchpoint semasi (`GenericBQMapping` kolon eslemesi)
+- Kanal: `channel_col` VEYA `source_col`+`medium_col`
+- Donusum: `converted_col` (bool) VEYA `event_col`+`conversion_values`
+- Zaman damgasi: datetime / unix_micros / unix_seconds
+- Identifier'lar SQL injection'a karsi dogrulanir, literal'ler query parametresiyle baglanir
+
+### 3. CSV/Excel Upload
 - CRM touchpoint CSV: lead_id, timestamp, channel, touchpoint_type, campaign, segment, converted
 - Haftalik performans CSV: week, channel, spend, impressions, clicks, leads
 
-### 3. Satis/Stok CSV
+### 4. Satis/Stok CSV
 - Haftalik satis/stok verileri: revenue, units, stock, returns, new/repeat customers
 
 ## API Endpoint'leri
@@ -178,10 +191,12 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 ### DDA Attribution
 - `POST /api/dda/run-from-csv` — CSV'den DDA calistir
 - `POST /api/dda/run-from-bigquery` — BQ GA4'ten DDA calistir
+- `POST /api/dda/run-from-bigquery-table` — Herhangi bir BQ tablosundan (kolon eslemeli) DDA calistir
 
 ### BigQuery Entegrasyonu
 - `POST /api/integrations/bigquery/connect` — BQ baglantisi test et
-- `POST /api/integrations/bigquery/preview` — Veri onizleme
+- `POST /api/integrations/bigquery/preview` — GA4 veri onizleme
+- `POST /api/integrations/bigquery/preview-table` — Generic tablo onizleme (kolon eslemeli)
 
 ### MMM (Simulasyon icin)
 - `GET /api/mmm/adstock/{channel}` — Adstock hesaplama
