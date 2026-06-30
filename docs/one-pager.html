@@ -170,6 +170,18 @@
     .page:last-child{break-after:auto;page-break-after:auto}
     /* keep the orange grid/gradient texture in the exported PDF */
     .page::before{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    /* PDF engines render background-clip:text as a solid fill box and
+       blurred box-shadows as solid rectangles — neutralize both for print. */
+    .hero h1{
+      background:none !important;
+      -webkit-text-fill-color:#fff !important;
+      color:#fff !important;
+    }
+    .hero h1 .sub{
+      -webkit-text-fill-color:var(--accent) !important;
+      color:var(--accent) !important;
+    }
+    .brand svg, .cta .btn{box-shadow:none !important}
   }
 </style>
 </head>
