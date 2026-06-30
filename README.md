@@ -44,16 +44,6 @@ docker compose restart        # yeniden başlat
 docker compose up --build -d  # yeniden build et
 ```
 
-### Otomatik güncelleme (opsiyonel)
-
-Remote branch'e push yapıldığında otomatik pull + rebuild için:
-
-```bash
-./scripts/auto-update.sh &              # arka planda izle (30sn aralık)
-./scripts/auto-update.sh --interval 60  # 60sn aralık
-kill $(cat .auto-update.pid)            # durdur
-```
-
 ---
 
 ## Lokal Geliştirme (Docker'sız)

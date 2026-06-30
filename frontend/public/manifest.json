@@ -1,7 +1,7 @@
 {
   "name": "Time's Hub | Attribution Intelligence",
   "short_name": "Time's Hub",
-  "description": "Multi-channel attribution modelling platform — MMM + MTA + Incrementality",
+  "description": "Veri-odaklı dijital kanal attribution platformu — Markov Chain + Shapley Value DDA motoru",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0e17",

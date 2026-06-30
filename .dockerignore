@@ -5,6 +5,5 @@ __pycache__
 .git
 .env
 *.db
-notebooks
 tests
 .ruff_cache

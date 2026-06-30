@@ -48,7 +48,7 @@ attribution-intelligence-hub/
 │   │   ├── alerts.py            # Proaktif alert kural motoru
 │   │   ├── mmm.py               # Adstock, Saturation, Response (simulasyon icin)
 │   │   ├── mmm_fit.py           # Non-linear MMM fitting
-│   │   ├── mta.py               # Position-based Shapley (legacy, aktif degil)
+│   │   ├── mta.py               # Shapley value coalition motoru (shapley_dda.py bunu kullanir)
 │   │   ├── simulation.py        # Butce simulasyonu
 │   │   ├── uncertainty.py       # CI hesaplama
 │   │   └── unified.py           # Budget reallocation (suggest_reallocation)
@@ -108,13 +108,15 @@ attribution-intelligence-hub/
 │   ├── templates/
 │   │   ├── weekly_input_template.csv
 │   │   ├── crm_touchpoints_template.csv
+│   │   ├── ga4_touchpoints_template.csv
 │   │   └── sales_stock_template.csv
 │   └── sample/
 │       ├── week_01.csv
 │       ├── week_02.csv
+│       ├── journeys_sample.csv
 │       ├── bitaksi_week_01.csv
 │       ├── bitaksi_week_02.csv
-│       └── sample_journeys.csv
+│       └── bitaksi_journeys.csv
 │
 └── tests/
     ├── conftest.py
