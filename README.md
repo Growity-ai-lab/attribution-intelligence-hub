@@ -79,8 +79,11 @@ npm run dev
 
 ### Tests
 ```bash
-python -m pytest tests/ -v
+python -m pytest tests/ -v                 # backend (geçici SQLite)
+npm run build && npx playwright test       # tarayıcı duman testleri
 ```
+
+CI (GitHub Actions) her push'ta lint, backend testleri (SQLite + Postgres), frontend build ve tarayıcı testlerini çalıştırır.
 
 ---
 

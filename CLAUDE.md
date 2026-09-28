@@ -33,6 +33,8 @@ attribution-intelligence-hub/
 ├── package.json                 # Frontend bagimliliklari
 ├── requirements.txt             # Python bagimliliklari (prod)
 ├── requirements-dev.txt         # + pytest, ruff, httpx
+├── playwright.config.js         # Tarayici duman testleri (e2e/)
+├── .github/workflows/ci.yml     # CI: lint, pytest (SQLite+Postgres), build, e2e
 │
 ├── backend/
 │   ├── main.py                  # FastAPI app entry
@@ -250,6 +252,14 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 - Testleri calistir: `python -m pytest tests/ -v` (gecici SQLite; Postgres icin `TEST_DATABASE_URL=postgresql://...`)
 - Lint: `ruff check backend/`
 - Frontend build: `npx vite build --config frontend/vite.config.js`
+- Tarayici duman testleri: `npm run build && npx playwright test` (uygulamayi gecici SQLite ile kendisi baslatir;
+  onceden kurulu Chromium icin `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`)
+
+## CI (`.github/workflows/ci.yml`)
+- Her push ve PR'da: ruff + pytest (SQLite ve Postgres 16 matrisi) ve frontend build + Playwright duman testleri
+- Duman testleri `vite build`'in yakalayamadigi render cokmelerini ("Bir hata olustu" ErrorBoundary ekrani)
+  ve yakalanmamis sayfa hatalarini yakalar; hata olursa rapor artifact olarak yuklenir
+- Yeni bir ekran/akis eklerken `e2e/smoke.spec.js`'e en az bir acilis testi ekle
 
 ## Onemli Teknik Notlar
 - `UNIFIED_WEIGHTS = {"dda": 1.0, "mmm": 0.0, "incrementality": 0.0}` — DDA tek kaynak

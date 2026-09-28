@@ -35,3 +35,7 @@ data/uploads/
 # Auto-update script runtime files
 .auto-update.pid
 .auto-update.log
+
+# Playwright
+test-results/
+playwright-report/
