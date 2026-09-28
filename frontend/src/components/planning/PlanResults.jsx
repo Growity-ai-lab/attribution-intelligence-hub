@@ -150,9 +150,10 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
           fill: false, tension: 0.3, pointRadius: 3, borderWidth: 2,
           yAxisID: 'y1',
         },
-      ],
+      // Traffic campaigns plan for impressions/clicks only; the lead lines don't apply.
+      ].filter(ds => !traffic || ds.yAxisID !== 'y1'),
     }
-  }, [result, channelColor])
+  }, [result, channelColor, traffic])
 
   const reachChartData = useMemo(() => {
     if (!result?.funnel_curve?.length) return null
@@ -258,6 +259,7 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
         title: { display: true, text: 'Impressions (K) / Clicks', font: { size: 10 }, color: '#64748b' },
       },
       y1: {
+        display: !traffic,
         position: 'right',
         ticks: { callback: v => v.toFixed(0) },
         title: { display: true, text: 'Leads', font: { size: 10 }, color: '#64748b' },
@@ -459,8 +461,12 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
               </div>
               <div className="mt-3 p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed">
                 <strong className="text-slate-300">Funnel Projeksiyon:</strong>
-                {' Spend → Impressions (CPM) → Clicks (CTR) → Leads (Lead Rate). '}
-                {'Yanit modeli ve funnel lead tahminleri paralel gosterilir — ikisi farkli varsayimlara dayanir; sapma %30\'u asarsa varsayimlar birbiriyle tutarsizdir.'}
+                {traffic
+                  ? ' Harcama → Gösterim (CPM) → Tıklama / site trafiği (CTR). Erişim ve frekans için Reach & Frequency sekmesine bakın.'
+                  : <>
+                      {' Spend → Impressions (CPM) → Clicks (CTR) → Leads (Lead Rate). '}
+                      {'Yanıt modeli ve funnel lead tahminleri paralel gösterilir — ikisi farklı varsayımlara dayanır; sapma %30\'u aşarsa varsayımlar birbiriyle tutarsızdır.'}
+                    </>}
               </div>
             </>
           )}

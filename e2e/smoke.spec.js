@@ -410,4 +410,20 @@ test('traffic (awareness) campaign: create in UI, visit wording everywhere, reac
   }
   await expect(page.getByText('Model Lead')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Haftalık Lead' })).toHaveCount(0)
+
+  // A broad-audience brief must be able to set its own universe; the default
+  // (sized for a narrow B2B audience) saturates reach.
+  // Realistic weekly spend (the channel preset is sized for a 55M TL B2B plan
+  // and saturates reach at any audience size).
+  const weekInputs = page.locator('input[type=number][placeholder="0"]')
+  for (let i = 0; i < await weekInputs.count(); i++) await weekInputs.nth(i).fill('100000')
+  const reachValue = page.getByText('Erişim (son hafta)', { exact: true }).locator('xpath=following-sibling::p[1]')
+  const reachPct = async () => parseFloat((await reachValue.innerText()).replace('%', ''))
+  // 12 × 100K TL at ~80 TL CPM ≈ 15M impressions: ≈97.6% of the default 4M
+  // audience (wait for that re-simulation, not the preset's 100%), ≈31% of 40M.
+  await expect.poll(reachPct, { timeout: 10_000 }).toBeLessThan(99.5)
+  expect(await reachPct()).toBeGreaterThan(90)
+  await page.getByRole('button', { name: /Gelişmiş Ayarlar/ }).click()
+  await page.getByLabel('Hedef Kitle (kişi)').fill('40000000')
+  await expect.poll(reachPct, { timeout: 10_000 }).toBeLessThan(50)
 })

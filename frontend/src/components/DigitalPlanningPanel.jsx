@@ -40,6 +40,10 @@ export default function DigitalPlanningPanel({ campaign }) {
   const [cpmOverride, setCpmOverride] = useState('')
   const [ctrOverride, setCtrOverride] = useState('')
   const [leadRateOverride, setLeadRateOverride] = useState('')
+  // Reach model inputs: the channel defaults are sized for a narrow B2B audience,
+  // so broad awareness briefs must set their own universe or reach saturates.
+  const [audienceOverride, setAudienceOverride] = useState('')
+  const [freqCapOverride, setFreqCapOverride] = useState('')
 
   // Digital metrics defaults (populated from preset response)
   const [channelDefaults, setChannelDefaults] = useState(null)
@@ -123,8 +127,10 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (cpmOverride !== '' && !isNaN(Number(cpmOverride))) ov.cpm_override = Number(cpmOverride)
     if (ctrOverride !== '' && !isNaN(Number(ctrOverride))) ov.ctr_override = Number(ctrOverride) / 100
     if (leadRateOverride !== '' && !isNaN(Number(leadRateOverride))) ov.lead_rate_override = Number(leadRateOverride) / 100
+    if (audienceOverride !== '' && Number(audienceOverride) > 0) ov.target_audience_override = Math.round(Number(audienceOverride))
+    if (freqCapOverride !== '' && Number(freqCapOverride) > 0) ov.freq_cap_override = Math.round(Number(freqCapOverride))
     return ov
-  }, [cpmOverride, ctrOverride, leadRateOverride])
+  }, [cpmOverride, ctrOverride, leadRateOverride, audienceOverride, freqCapOverride])
 
   // Auto-simulate with debounce
   const runSimulation = useCallback(async (spends) => {
@@ -171,7 +177,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => runSimulation(weeklySpends), 600)
     return () => clearTimeout(debounceRef.current)
-  }, [cpmOverride, ctrOverride, leadRateOverride]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cpmOverride, ctrOverride, leadRateOverride, audienceOverride, freqCapOverride]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save
   const handleSave = async () => {
@@ -701,7 +707,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               <span>{'α'} = {typeof result.alpha === 'number' ? fmtMoney(result.alpha) : result.alpha}</span>
               <span>{'γ'} = {result.gamma}</span>
               <span>Half-life = {halfLife} hafta</span>
-              <span>Max Lift = {result.max_lift} lead/hafta</span>
+              {campaign?.objective !== 'traffic' && <span>Max Lift = {result.max_lift} lead/hafta</span>}
             </div>
           )}
 
@@ -715,7 +721,7 @@ export default function DigitalPlanningPanel({ campaign }) {
             </button>
             {showAdvanced && (
               <div className="mt-2 p-3 bg-dark-bg/50 rounded-lg border border-dark-border">
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   <div>
                     <label className="text-[10px] text-slate-400 block mb-1">CPM (TL)</label>
                     <input
@@ -748,16 +754,39 @@ export default function DigitalPlanningPanel({ campaign }) {
                       className="w-full bg-dark-bg border border-dark-border rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
+                  <div>
+                    <label htmlFor="audience-override" className="text-[10px] text-slate-400 block mb-1">Hedef Kitle (kişi)</label>
+                    <input
+                      id="audience-override"
+                      type="number"
+                      value={audienceOverride}
+                      onChange={e => setAudienceOverride(e.target.value)}
+                      placeholder={channelDefaults?.target_audience?.toString() || '4000000'}
+                      step="100000"
+                      className="w-full bg-dark-bg border border-dark-border rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="freqcap-override" className="text-[10px] text-slate-400 block mb-1">Frekans Sınırı</label>
+                    <input
+                      id="freqcap-override"
+                      type="number"
+                      value={freqCapOverride}
+                      onChange={e => setFreqCapOverride(e.target.value)}
+                      placeholder={channelDefaults?.freq_cap?.toString() || '5'}
+                      className="w-full bg-dark-bg border border-dark-border rounded-lg px-2 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
                   <p className="text-[10px] text-slate-600">
-                    Bos birakilan alanlar varsayilan kanal degerleri kullanir.
+                    Boş bırakılan alanlar varsayılan kanal değerlerini kullanır. Geniş kitleli (bilinirlik) kampanyalarda hedef kitleyi girin; aksi halde erişim tavana vurur.
                   </p>
                   <button
-                    onClick={() => { setCpmOverride(''); setCtrOverride(''); setLeadRateOverride('') }}
+                    onClick={() => { setCpmOverride(''); setCtrOverride(''); setLeadRateOverride(''); setAudienceOverride(''); setFreqCapOverride('') }}
                     className="text-[10px] text-slate-400 hover:text-slate-300 transition-colors"
                   >
-                    Sifirla
+                    Sıfırla
                   </button>
                 </div>
               </div>
