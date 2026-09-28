@@ -63,7 +63,13 @@ attribution-intelligence-hub/
 │   ├── export/
 │   │   └── report_builder.py    # Excel/PowerPoint rapor olusturucu
 │   ├── api/
-│   │   ├── routes.py            # Core API (auth, data, DDA, BQ, unified, alerts, trends)
+│   │   ├── common.py            # Route'larin paylastigi yardimcilar (validasyon, DDA serialize/persist, demo sandbox)
+│   │   ├── routes_auth.py       # Health + login/demo/me
+│   │   ├── routes_workspace.py  # Client/Campaign CRUD
+│   │   ├── routes_data.py       # Veri yukleme, ornek veri, sablonlar, satis/stok
+│   │   ├── routes_dda.py        # DDA: journey/CSV calistirma, /dda/latest, /dda/status
+│   │   ├── routes_bigquery.py   # BQ baglanti, onizleme, arka plan GA4/tablo DDA calismalari, client cache
+│   │   ├── routes_mmm.py        # MMM, butce simulasyonu, reallocation, kanal config
 │   │   ├── routes_benchmarks.py # Plan vs gerceklesme, kanal benchmark'lari
 │   │   ├── routes_export.py     # Excel/PPTX export + trend endpoint'leri
 │   │   ├── routes_alerts.py     # Alert endpoint'leri + DDA sonrasi degerlendirme
@@ -241,6 +247,7 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 ## Kodlama Kurallari
 - Python: type hints kullan, docstring yaz, pytest ile test et
 - React: functional components + hooks, Tailwind utility classes
+- Route modulleri birbirini import etmez; paylasilan yardimcilar `backend/api/common.py`'de
 - Her model fonksiyonu saf (pure) olsun — side effect yok, test edilebilir
 - Veri validasyonu Pydantic ile
 - Error handling: kullaniciya anlamli hata mesajlari (Turkce)

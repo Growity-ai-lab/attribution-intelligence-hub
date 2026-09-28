@@ -13,7 +13,12 @@ from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import FileResponse, Response
 
-from backend.api.routes import router
+from backend.api.routes_auth import router as auth_router
+from backend.api.routes_bigquery import router as bigquery_router
+from backend.api.routes_data import router as data_router
+from backend.api.routes_dda import router as dda_router
+from backend.api.routes_mmm import router as mmm_router
+from backend.api.routes_workspace import router as workspace_router
 from backend.api.routes_benchmarks import router as bench_router
 from backend.api.routes_export import router as export_router
 from backend.api.routes_alerts import router as alerts_router
@@ -87,7 +92,12 @@ app.add_middleware(
 )
 
 # API routes
-app.include_router(router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
+app.include_router(workspace_router, prefix="/api")
+app.include_router(data_router, prefix="/api")
+app.include_router(mmm_router, prefix="/api")
+app.include_router(dda_router, prefix="/api")
+app.include_router(bigquery_router, prefix="/api")
 app.include_router(media_router, prefix="/api")
 app.include_router(bench_router, prefix="/api")
 app.include_router(export_router, prefix="/api")

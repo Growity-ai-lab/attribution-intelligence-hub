@@ -1154,8 +1154,8 @@ class TestBQAutoReconnect:
         params = {"project": "proj", "dataset": "ds"}
         if campaign_id is not None:
             params["campaign_id"] = campaign_id
-        with patch("backend.api.routes.bq_get_client", return_value=object()), patch(
-            "backend.api.routes.bq_test_connection",
+        with patch("backend.api.routes_bigquery.bq_get_client", return_value=object()), patch(
+            "backend.api.routes_bigquery.bq_test_connection",
             return_value={"ok": True, "event_tables": 3, "first_date": "20260101", "last_date": "20260601"},
         ):
             return client.post(
@@ -1191,7 +1191,7 @@ class TestBQAutoReconnect:
     def test_auto_reconnect_after_cache_clear(self, client, auth_headers, make_campaign):
         from unittest.mock import patch
 
-        from backend.api import routes
+        from backend.api import routes_bigquery as routes
 
         cid = make_campaign("BQ Reconnect")
         assert self._connect(client, auth_headers, campaign_id=cid).status_code == 200
@@ -1202,7 +1202,7 @@ class TestBQAutoReconnect:
         # The endpoint must rebuild the client from persisted creds, not 400.
         # The async endpoint returns 200 {"status": "running"} — proves we got
         # past the cache check (a cache miss without reconnect → 400).
-        with patch("backend.api.routes.bq_get_client", return_value=object()):
+        with patch("backend.api.routes_bigquery.bq_get_client", return_value=object()):
             r = client.post(
                 "/api/dda/run-from-bigquery",
                 params={"project": "proj", "dataset": "ds", "campaign_id": cid},
@@ -1214,7 +1214,7 @@ class TestBQAutoReconnect:
         assert "result_id" in data
 
     def test_no_reconnect_without_persisted_credentials(self, client, auth_headers, make_campaign):
-        from backend.api import routes
+        from backend.api import routes_bigquery as routes
 
         cid = make_campaign("BQ NoCreds")
         routes._bq_clients.clear()
@@ -1233,13 +1233,13 @@ class TestBQAutoReconnect:
 
     def test_dda_async_run_creates_running_result(self, client, auth_headers, make_campaign):
         from unittest.mock import patch
-        from backend.api import routes
+        from backend.api import routes_bigquery as routes
 
         cid = make_campaign("BQ Async")
         self._connect(client, auth_headers, campaign_id=cid)
         routes._bq_clients.clear()
 
-        with patch("backend.api.routes.bq_get_client", return_value=object()):
+        with patch("backend.api.routes_bigquery.bq_get_client", return_value=object()):
             r = client.post(
                 "/api/dda/run-from-bigquery",
                 params={"project": "proj", "dataset": "ds", "campaign_id": cid},

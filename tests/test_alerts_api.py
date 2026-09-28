@@ -149,7 +149,7 @@ def test_csv_dda_run_triggers_evaluation(client, auth_headers, campaign_id, samp
 def test_bq_background_run_commits_alerts_with_result(campaign_id):
     """BQ runs finish in a background thread; alerts must land in the same commit
     that marks the run complete, so a status poller never sees one without the other."""
-    from backend.api.routes import _finish_dda_run
+    from backend.api.routes_bigquery import _finish_dda_run
 
     db = SessionLocal()
     try:
