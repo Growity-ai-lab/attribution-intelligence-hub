@@ -46,6 +46,38 @@ def check_campaign_access(
     return campaign
 
 
+def resolve_read_campaign_id(db: Session, campaign_id: int, user: dict) -> int:
+    """Map a campaign to the one its stored results actually live in.
+
+    Demo users' DDA runs are written to a same-named campaign under the
+    "Demo Sandbox" client so seed data is never overwritten. Read endpoints
+    (latest result, alerts, trend, export) must look there too, or a demo
+    user never sees their own runs. Never creates the sandbox — if it does
+    not exist yet, the original campaign id is returned.
+    """
+    if user.get("role") != "demo":
+        return campaign_id
+
+    from backend.db.models import Campaign, Client
+
+    source = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if source is None:
+        return campaign_id
+    src_client = db.query(Client).filter(Client.id == source.client_id).first()
+    year = src_client.year if src_client else 2026
+    sandbox = (
+        db.query(Campaign)
+        .join(Client, Campaign.client_id == Client.id)
+        .filter(
+            Client.name == "Demo Sandbox",
+            Client.year == year,
+            Campaign.name == source.name,
+        )
+        .first()
+    )
+    return sandbox.id if sandbox else campaign_id
+
+
 def get_model_config() -> dict:
     """Return model configuration."""
     return {

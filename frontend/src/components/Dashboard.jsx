@@ -7,7 +7,18 @@ import ReallocationPanel from './ReallocationPanel'
 import DataUpload from './DataUpload'
 import AlertsPanel from './AlertsPanel'
 
-export default function Dashboard({ ddaResult, campaign, isDemo }) {
+const SOURCE_LABELS = {
+  csv: 'CSV',
+  bigquery: 'BigQuery (GA4)',
+  bigquery_generic: 'BigQuery (Tablo)',
+}
+
+const fmtRunDate = iso => {
+  const d = iso ? new Date(iso) : null
+  return d && !isNaN(d) ? d.toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }) : ''
+}
+
+export default function Dashboard({ ddaResult, resultLoading, campaign, isDemo }) {
   const { getReallocation } = useAttribution()
   const [reallocationData, setReallocationData] = useState(null)
   const [reallocationLoading, setReallocationLoading] = useState(false)
@@ -46,6 +57,19 @@ export default function Dashboard({ ddaResult, campaign, isDemo }) {
   return (
     <div className="space-y-6">
       {campaign?.id && <AlertsPanel campaignId={campaign.id} refreshKey={ddaResult} />}
+
+      {ddaResult?.stored && (
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-xl bg-dark-card border border-dark-border text-xs text-slate-400">
+          <span>Son kayıtlı analiz gösteriliyor:</span>
+          <span className="font-mono text-slate-200">{fmtRunDate(ddaResult.run_date)}</span>
+          {SOURCE_LABELS[ddaResult.data_source] && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-accent/10 text-accent border border-accent/30">
+              {SOURCE_LABELS[ddaResult.data_source]}
+            </span>
+          )}
+          <span className="ml-auto text-[10px]">Yeni analiz için <strong className="text-slate-300">Attribution</strong> sekmesi</span>
+        </div>
+      )}
 
       {/* Real BQ Summary KPIs */}
       {bq && (
@@ -100,7 +124,10 @@ export default function Dashboard({ ddaResult, campaign, isDemo }) {
       )}
 
       {/* No data — guide user to Attribution tab */}
-      {!ddaResult && (
+      {!ddaResult && resultLoading && (
+        <div className="dark-card p-8 text-center text-xs text-slate-400">Son analiz yükleniyor...</div>
+      )}
+      {!ddaResult && !resultLoading && (
         <div className="dark-card p-8 text-center">
           <div className="text-3xl mb-3 opacity-50">&#x1f4ca;</div>
           <h3 className="text-sm font-semibold text-slate-200 mb-2">Attribution analizi henüz çalıştırılmadı</h3>

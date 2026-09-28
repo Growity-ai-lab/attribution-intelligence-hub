@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from backend.api.deps import check_campaign_access, get_current_user
+from backend.api.deps import check_campaign_access, get_current_user, resolve_read_campaign_id
 from backend.db.database import get_db
 from backend.db.models import Alert, DDAResult
 from backend.models.alerts import compute_trend_series, evaluate_alerts
@@ -140,7 +140,8 @@ def list_alerts(
 ) -> list[dict]:
     """List a campaign's alerts, newest first (unacknowledged only by default)."""
     check_campaign_access(db, campaign_id, _user)
-    q = db.query(Alert).filter(Alert.campaign_id == campaign_id)
+    read_id = resolve_read_campaign_id(db, campaign_id, _user)
+    q = db.query(Alert).filter(Alert.campaign_id == read_id)
     if not include_acknowledged:
         q = q.filter(Alert.acknowledged == 0)
     return [_serialize(a) for a in q.order_by(Alert.triggered_at.desc(), Alert.id.desc()).all()]
@@ -154,9 +155,10 @@ def alerts_summary(
 ) -> dict:
     """Count unacknowledged alerts by severity."""
     check_campaign_access(db, campaign_id, _user)
+    read_id = resolve_read_campaign_id(db, campaign_id, _user)
     open_alerts = (
         db.query(Alert)
-        .filter(Alert.campaign_id == campaign_id, Alert.acknowledged == 0)
+        .filter(Alert.campaign_id == read_id, Alert.acknowledged == 0)
         .all()
     )
     by_severity: dict[str, int] = {}

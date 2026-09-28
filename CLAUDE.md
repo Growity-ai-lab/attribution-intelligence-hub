@@ -193,6 +193,8 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 - `POST /api/dda/run-from-csv` — CSV'den DDA calistir
 - `POST /api/dda/run-from-bigquery` — BQ GA4'ten DDA calistir
 - `POST /api/dda/run-from-bigquery-table` — Herhangi bir BQ tablosundan (kolon eslemeli) DDA calistir
+- `GET /api/dda/status/{result_id}` — Arka plan (BQ) calismasinin durumu/sonucu
+- `GET /api/dda/latest?campaign_id=` — Kampanyanin son tamamlanmis DDA sonucu (`status: none` yoksa)
 
 ### BigQuery Entegrasyonu
 - `POST /api/integrations/bigquery/connect` — BQ baglantisi test et
@@ -255,7 +257,11 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 - MediaPlanSimulation DB sutunu `weekly_grps` adini tasir (SQLite rename kisitlamasi) ama API'de `weekly_spends` olarak kullanilir
 - BQ credentials in-memory cache: TTL = 3600s, key = `{project}:{dataset}`
 - Campaign modeli BQ config alanlari tasir: `bq_project`, `bq_dataset`, `bq_credentials_enc` (Fernet sifrelenmis)
-- DDA sonuclari `DDAResult` tablosuna persist edilir (benchmark, trend, export icin)
+- DDA sonuclari `DDAResult` tablosuna persist edilir (benchmark, trend, export, rapor sayfasi icin)
+  - Rapor sayfasi kampanya acilinca `/dda/latest` ile son kayitli sonucu yukler
+  - Snapshot'a yalnizca dolu alanlar yazilir (bos `{}` JS'te truthy; CSV sonucunda BQ KPI'larini cizip cokertiyordu)
+- Demo kullanicinin calismalari "Demo Sandbox" altinda ayni adli kampanyaya yazilir; okuma endpoint'leri
+  (latest, alerts, trend, export) `resolve_read_campaign_id` ile oraya yonlenir (sandbox'i olusturmaz)
 - Alert sistemi 5 kural: conversion_drop, volume_drop, channel_concentration, channel_disappeared, sustained_decline
   - Her tamamlanan DDA calismasindan sonra otomatik degerlendirilir (CSV: sonuc kaydindan sonra; BQ: sonucla ayni commit'te)
   - Karsilastirma yalnizca `status == "complete"` calismalarla yapilir; ayni calisma icin ayni kural tekrar yazilmaz

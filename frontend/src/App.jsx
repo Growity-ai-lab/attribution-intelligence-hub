@@ -45,10 +45,29 @@ export default function App() {
   const { user, loading, login, loginAsDemo, logout } = useAuth()
   const [activeTab, setActiveTab] = useState('unified')
   const [ddaResult, setDdaResult] = useState(null)
+  const [resultLoading, setResultLoading] = useState(false)
   const [workspace, setWorkspace] = useState(null) // { client, campaign }
   const [standaloneTool, setStandaloneTool] = useState(null) // 'media' | null (digital planning)
 
   const isDemo = user?.role === 'demo'
+
+  // Load the campaign's latest stored DDA result, so the report survives a
+  // reload/restart instead of only showing runs from this browser session.
+  const campaignId = workspace?.campaign?.id
+  useEffect(() => {
+    if (!campaignId) return
+    let cancelled = false
+    setDdaResult(null) // a new campaign never inherits the previous one's result
+    setResultLoading(true)
+    axios.get('/api/dda/latest', { params: { campaign_id: campaignId } })
+      .then(res => {
+        // Never overwrite a run the user started while this was loading.
+        if (!cancelled && res.data?.status === 'complete') setDdaResult(prev => prev ?? res.data)
+      })
+      .catch(err => console.error('[App] son DDA sonucu yüklenemedi:', err))
+      .finally(() => { if (!cancelled) setResultLoading(false) })
+    return () => { cancelled = true }
+  }, [campaignId])
 
   // Auto-select first workspace for demo users
   useEffect(() => {
@@ -66,7 +85,10 @@ export default function App() {
         if (cancelled || !campaigns.length) return
         // Prefer "AutoMatic Filo" or first available
         const camp = campaigns.find(c => c.name.includes('AutoMatic')) || campaigns[0]
-        const channels = camp.channels ? camp.channels.split(',').map(c => c.trim()) : []
+        // The API returns channels as an array; tolerate a legacy comma string too.
+        const channels = Array.isArray(camp.channels)
+          ? camp.channels
+          : (camp.channels ? camp.channels.split(',').map(c => c.trim()) : [])
         setWorkspace({
           client: po,
           campaign: { ...camp, channels },
@@ -266,7 +288,7 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {activeTab === 'unified' && <div role="tabpanel" id="tabpanel-unified" aria-labelledby="tab-unified"><Dashboard ddaResult={ddaResult} campaign={workspace.campaign} isDemo={isDemo} /></div>}
+        {activeTab === 'unified' && <div role="tabpanel" id="tabpanel-unified" aria-labelledby="tab-unified"><Dashboard ddaResult={ddaResult} resultLoading={resultLoading} campaign={workspace.campaign} isDemo={isDemo} /></div>}
         {activeTab === 'attribution' && <div role="tabpanel" id="tabpanel-attribution" aria-labelledby="tab-attribution"><AttributionPanel campaign={workspace.campaign} ddaResult={ddaResult} setDdaResult={setDdaResult} /></div>}
         {activeTab === 'media' && <div role="tabpanel" id="tabpanel-media" aria-labelledby="tab-media"><DigitalPlanningPanel campaign={workspace.campaign} /></div>}
       </main>

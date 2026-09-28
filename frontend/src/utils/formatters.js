@@ -32,13 +32,17 @@ export function formatCompactTL(value) {
   return `${value} TL`
 }
 
+// Missing/NaN values render as an em dash instead of crashing the page.
+const isNum = v => typeof v === 'number' && Number.isFinite(v)
+
 export const fmtMoney = v => {
+  if (!isNum(v)) return '—'
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
   if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`
   return v.toFixed(0)
 }
 
 export const fmtN = v =>
-  v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0)
+  !isNum(v) ? '—' : v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0)
 
-export const fmtPct = v => `%${(v * 100).toFixed(1)}`
+export const fmtPct = v => (isNum(v) ? `%${(v * 100).toFixed(1)}` : '—')

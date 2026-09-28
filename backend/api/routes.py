@@ -16,7 +16,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session, joinedload
 
-from backend.api.deps import check_campaign_access, get_current_user
+from backend.api.deps import check_campaign_access, get_current_user, resolve_read_campaign_id
 from backend.auth import authenticate_user, create_access_token
 from backend.crypto import decrypt, encrypt
 from backend.db.database import SessionLocal, get_db
@@ -583,6 +583,12 @@ def _dda_only_unified_report(hybrid: dict[str, float]) -> dict[str, dict]:
     }
 
 
+_SNAPSHOT_KEYS = (
+    "journey_stats", "hybrid_attribution", "unified_report", "markov", "shapley_dda",
+    "assist_report", "online_channels", "channel_summary", "bq_summary", "insights", "top_paths",
+)
+
+
 def _persist_dda_result(
     db: Session,
     campaign_id: int | None,
@@ -600,18 +606,10 @@ def _persist_dda_result(
     if campaign_id is None:
         return
 
-    snapshot = {
-        "journey_stats": serialized.get("journey_stats", {}),
-        "hybrid_attribution": serialized.get("hybrid_attribution", {}),
-        "markov": serialized.get("markov", {}),
-        "shapley_dda": serialized.get("shapley_dda", {}),
-        "assist_report": serialized.get("assist_report", []),
-        "online_channels": serialized.get("online_channels", []),
-        "channel_summary": serialized.get("channel_summary", {}),
-        "bq_summary": serialized.get("bq_summary", {}),
-        "insights": serialized.get("insights", []),
-        "top_paths": serialized.get("top_paths", []),
-    }
+    # Store only keys the run actually produced: an empty {} placeholder (e.g.
+    # bq_summary on a CSV run) is truthy in JS and made the report page render
+    # BigQuery KPI tiles for a CSV result and crash on missing numbers.
+    snapshot = {k: serialized[k] for k in _SNAPSHOT_KEYS if serialized.get(k)}
     db.add(DDAResult(
         campaign_id=campaign_id,
         run_date=datetime.now(timezone.utc).isoformat(),
@@ -1619,6 +1617,45 @@ def preview_bigquery_table(
     return summary
 
 
+@router.get("/dda/latest")
+def dda_latest(
+    campaign_id: int = Query(...),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Return the campaign's most recent completed DDA result.
+
+    Lets the report page show stored results after a reload or restart
+    instead of only what was run in the current browser session. Returns
+    ``{"status": "none"}`` when the campaign has no completed run yet.
+    """
+    check_campaign_access(db, campaign_id, _user)
+    read_id = resolve_read_campaign_id(db, campaign_id, _user)
+    row = (
+        db.query(DDAResult)
+        .filter(DDAResult.campaign_id == read_id, DDAResult.status == "complete")
+        .order_by(DDAResult.run_date.desc())
+        .first()
+    )
+    if row is None:
+        return {"status": "none", "campaign_id": campaign_id}
+
+    result = json.loads(row.result_json or "{}")
+    # Older CSV rows stored empty placeholders; drop them so the UI hides those sections.
+    result = {k: v for k, v in result.items() if v not in ({}, [], None)}
+    # CSV runs persisted before unified_report was stored only kept the blend.
+    if not result.get("unified_report") and result.get("hybrid_attribution"):
+        result["unified_report"] = _dda_only_unified_report(result["hybrid_attribution"])
+    return {
+        **result,
+        "status": "complete",
+        "result_id": row.id,
+        "run_date": row.run_date,
+        "data_source": row.data_source or result.get("data_source", ""),
+        "stored": True,
+    }
+
+
 @router.get("/dda/status/{result_id}")
 def dda_status(
     result_id: int,
@@ -1633,6 +1670,8 @@ def dda_status(
     row = db.query(DDAResult).filter(DDAResult.id == result_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="DDA result not found")
+    if row.campaign_id is not None:
+        check_campaign_access(db, row.campaign_id, _user)
 
     if row.status == "running":
         return {"status": "running", "result_id": result_id}

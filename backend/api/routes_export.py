@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from starlette.responses import StreamingResponse
 
-from backend.api.deps import check_campaign_access, get_current_user
+from backend.api.deps import check_campaign_access, get_current_user, resolve_read_campaign_id
 from backend.db.database import get_db
 from backend.db.models import Campaign, DDAResult
 from backend.export.report_builder import (
@@ -29,16 +29,17 @@ def export_dda_report(
 ):
     """Export DDA attribution results as a formatted Excel workbook."""
     check_campaign_access(db, campaign_id, _user)
+    read_id = resolve_read_campaign_id(db, campaign_id, _user)
     if result_id is not None:
         dda = (
             db.query(DDAResult)
-            .filter(DDAResult.id == result_id, DDAResult.campaign_id == campaign_id)
+            .filter(DDAResult.id == result_id, DDAResult.campaign_id == read_id)
             .first()
         )
     else:
         dda = (
             db.query(DDAResult)
-            .filter(DDAResult.campaign_id == campaign_id)
+            .filter(DDAResult.campaign_id == read_id)
             .order_by(DDAResult.run_date.desc())
             .first()
         )
@@ -73,16 +74,17 @@ def export_dda_pptx(
 ):
     """Export DDA attribution results as a PowerPoint presentation."""
     check_campaign_access(db, campaign_id, _user)
+    read_id = resolve_read_campaign_id(db, campaign_id, _user)
     if result_id is not None:
         dda = (
             db.query(DDAResult)
-            .filter(DDAResult.id == result_id, DDAResult.campaign_id == campaign_id)
+            .filter(DDAResult.id == result_id, DDAResult.campaign_id == read_id)
             .first()
         )
     else:
         dda = (
             db.query(DDAResult)
-            .filter(DDAResult.campaign_id == campaign_id)
+            .filter(DDAResult.campaign_id == read_id)
             .order_by(DDAResult.run_date.desc())
             .first()
         )
@@ -116,9 +118,10 @@ def get_insight_trends(
 ) -> dict:
     """Compare the latest DDA run with the previous one for temporal insights."""
     check_campaign_access(db, campaign_id, _user)
+    read_id = resolve_read_campaign_id(db, campaign_id, _user)
     results = (
         db.query(DDAResult)
-        .filter(DDAResult.campaign_id == campaign_id, DDAResult.status == "complete")
+        .filter(DDAResult.campaign_id == read_id, DDAResult.status == "complete")
         .order_by(DDAResult.run_date.desc())
         .limit(2)
         .all()
