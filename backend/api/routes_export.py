@@ -118,7 +118,7 @@ def get_insight_trends(
     check_campaign_access(db, campaign_id, _user)
     results = (
         db.query(DDAResult)
-        .filter(DDAResult.campaign_id == campaign_id)
+        .filter(DDAResult.campaign_id == campaign_id, DDAResult.status == "complete")
         .order_by(DDAResult.run_date.desc())
         .limit(2)
         .all()

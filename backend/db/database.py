@@ -5,10 +5,23 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from backend.config import DATABASE_URL
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False, "timeout": 30},
-)
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
+
+if IS_SQLITE:
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False, "timeout": 30},
+    )
+else:
+    # Small pool: the app runs on a 512MB instance and Supabase's pooler caps
+    # connections. pre_ping drops connections the pooler has closed.
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=3,
+        max_overflow=2,
+        pool_pre_ping=True,
+        pool_recycle=300,
+    )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -17,7 +30,7 @@ class Base(DeclarativeBase):
 
 
 def migrate_add_columns() -> None:
-    """Add columns that exist in ORM models but are missing from the SQLite schema."""
+    """Add columns that exist in ORM models but are missing from the live schema."""
     insp = inspect(engine)
     for table_name in insp.get_table_names():
         existing = {col["name"] for col in insp.get_columns(table_name)}

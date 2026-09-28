@@ -237,18 +237,6 @@ class TestDDAFromJSON:
         assert sum(hybrid.values()) == pytest.approx(1.0, abs=0.01)
 
 
-# --------------- Journey Stats ---------------
-
-
-class TestJourneyStats:
-    def test_journey_stats_endpoint(self, minimal_journeys, auth_headers):
-        r = client.post("/api/dda/journey-stats", json=minimal_journeys, headers=auth_headers)
-        assert r.status_code == 200
-        data = r.json()
-        assert data["total_journeys"] == 5
-        assert data["converted"] == 3
-        assert data["not_converted"] == 2
-        assert 0 < data["conversion_rate"] < 1
 
 
 # --------------- Reallocation Flow ---------------

@@ -109,44 +109,6 @@ class ChannelDecomposition(BaseModel):
     share_ci_high: float | None = None
 
 
-class DDAResult(BaseModel):
-    """DDA pipeline result for a channel."""
-
-    channel: str
-    markov_weight: float
-    shapley_weight: float
-    blended_weight: float
-    is_online: bool
-
-
-class CrossValidationResult(BaseModel):
-    """Cross-validation result comparing DDA vs MMM."""
-
-    channel: str
-    dda_weight: float
-    mmm_weight: float
-    deviation: float
-    flagged: bool
-
-
-class UnifiedScore(BaseModel):
-    """DDA attribution score for a channel."""
-
-    channel: str
-    dda_score: float
-    unified_score: float
-
-
-class WeeklyReport(BaseModel):
-    """Weekly unified attribution report."""
-
-    week: str
-    total_spend: float
-    total_leads: int
-    baseline_leads: float
-    channel_scores: list[UnifiedScore]
-
-
 # --------------- Sales & Stock ---------------
 
 
@@ -184,44 +146,6 @@ class SalesStockSummary(BaseModel):
 
 
 # --------------- Segment Analytics ---------------
-
-
-class SegmentChannelScore(BaseModel):
-    """Per-segment, per-channel attribution score."""
-
-    segment: str
-    channel: str
-    spend: float = 0.0
-    leads: int = 0
-    sales_units: int = 0
-    sales_revenue: float = 0.0
-    cost_per_lead: float = 0.0
-    cost_per_sale: float = 0.0
-    saturation_pct: float = Field(
-        default=0.0, description="Current saturation level (0-100%)"
-    )
-    saturation_alert: str = Field(
-        default="", description="Alert: 'saturated', 'near_saturation', or ''"
-    )
-
-
-class PeriodComparison(BaseModel):
-    """Period-over-period comparison for a segment+channel."""
-
-    segment: str
-    channel: str
-    period_a: str
-    period_b: str
-    spend_a: float
-    spend_b: float
-    leads_a: int
-    leads_b: int
-    sales_a: int = 0
-    sales_b: int = 0
-    cpl_a: float = 0.0
-    cpl_b: float = 0.0
-    cpl_change_pct: float = 0.0
-    recommendation: str = ""
 
 
 # --------------- Media Planning ---------------

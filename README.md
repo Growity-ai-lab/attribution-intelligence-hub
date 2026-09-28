@@ -13,7 +13,24 @@ Hiçbir kurulum gerektirmez. Render.com hesabı ile tek tıkla deploy:
 3. Render otomatik olarak `render.yaml` dosyasını okuyup deploy eder
 4. Birkaç dakika içinde URL'niz hazır olur: `https://times-hub.onrender.com`
 
-> Giriş: `admin` / `attribution2026`
+Render panelinde şu gizli değişkenleri girin (repoda tutulmaz):
+
+| Değişken | Açıklama |
+|----------|----------|
+| `AUTH_ADMIN_PASSWORD` | `admin` kullanıcısının şifresi |
+| `DATABASE_URL` | Kalıcı Postgres adresi (aşağıya bakın). Boş kalırsa SQLite kullanılır ve **her deploy'da tüm veri silinir** |
+| `ENCRYPTION_KEY` | Saklanan BigQuery kimlik bilgilerini şifreleyen Fernet anahtarı. Sabit kalmalı |
+
+`ENCRYPTION_KEY` üretmek için:
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+### Veritabanı (Supabase)
+
+1. Supabase'de yeni bir proje açın
+2. **Connect** → **Session pooler** bağlantı adresini kopyalayın (Render'dan IPv4 ile erişim için pooler adresi gerekir)
+3. Adresi Render'da `DATABASE_URL` olarak girin. Tablolar ilk açılışta otomatik oluşturulur
 
 ---
 
@@ -33,7 +50,7 @@ Bu komut:
 
 Uygulama: **http://localhost:8000** | API Docs: **http://localhost:8000/docs**
 
-> Giriş: `admin` / `attribution2026` (`.env` dosyasından değiştirilebilir)
+> Giriş: `admin` / `.env` dosyasındaki `AUTH_ADMIN_PASSWORD`
 
 ### Yararlı Docker komutları
 
@@ -50,9 +67,8 @@ docker compose up --build -d  # yeniden build et
 
 ### Backend
 ```bash
-cd backend
-pip install -r ../requirements.txt
-uvicorn main:app --reload --port 8000
+pip install -r requirements-dev.txt
+uvicorn backend.main:app --reload --port 8000
 ```
 
 ### Frontend
@@ -77,7 +93,7 @@ python -m pytest tests/ -v
 | MMM Engine | Adstock/Saturation/Response (medya planlama simülasyonu için) |
 | Frontend | React 18 + Vite + Tailwind CSS |
 | Charts | Chart.js (react-chartjs-2) |
-| Database | SQLite (dev) / PostgreSQL (prod) |
+| Database | PostgreSQL (prod, `DATABASE_URL`) / SQLite (lokal) |
 | Veri Import | CSV/Excel (pandas) + BigQuery GA4 export |
 | Auth | JWT (python-jose) + bcrypt |
 | Export | Excel (openpyxl) + PowerPoint (python-pptx) |
@@ -135,7 +151,8 @@ Backend çalışırken: **http://localhost:8000/docs** (Swagger UI)
 | `POST /api/media-planning/simulate` | Medya plan simülasyonu |
 | `GET /api/export/dda-report` | Excel rapor indir |
 | `GET /api/insights/trend` | Trend analizi |
-| `GET /api/alerts` | Proaktif alert'ler |
+| `GET /api/alerts?campaign_id=` | Proaktif alert'ler |
+| `POST /api/alerts/{id}/acknowledge` | Alert'i okundu işaretle |
 | `POST /api/unified/reallocation` | Bütçe reallocation önerisi |
 
 Tüm endpoint listesi için `CLAUDE.md` dosyasına bakın.

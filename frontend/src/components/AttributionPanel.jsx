@@ -14,6 +14,7 @@ import { getChannelColor } from '../utils/colors'
 import { fmtMoney, fmtN, fmtPct } from '../utils/formatters'
 import { objectiveLabels } from '../utils/objectiveLabels'
 import InfoTip from './InfoTip'
+import AlertsPanel from './AlertsPanel'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
@@ -848,6 +849,8 @@ ORDER BY user_pseudo_id, event_timestamp`}</pre>
       {/* DDA Results */}
       {ddaResult && (
         <>
+          {campaign?.id && <AlertsPanel campaignId={campaign.id} refreshKey={ddaResult} />}
+
           {/* BQ Summary KPIs */}
           {ddaResult.bq_summary && (
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">

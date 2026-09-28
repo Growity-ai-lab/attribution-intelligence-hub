@@ -5,6 +5,14 @@ import os
 
 os.environ.setdefault("AUTH_SECRET_KEY", "test-secret-key-for-ci")
 os.environ.setdefault("AUTH_ADMIN_PASSWORD", "test-password-for-ci")
+# Isolate tests from the developer's database: without this every test run
+# wrote clients/campaigns into ./attribution_hub.db. Set TEST_DATABASE_URL to
+# run the suite against Postgres instead.
+import tempfile  # noqa: E402
+
+os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL") or (
+    f"sqlite:///{tempfile.mkdtemp(prefix='hub-test-')}/test.db"
+)
 
 import pytest
 from fastapi.testclient import TestClient

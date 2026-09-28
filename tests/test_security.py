@@ -196,14 +196,6 @@ class TestDDAValidation:
         assert r.status_code == 422
         assert "Invalid journey" in r.json()["detail"]
 
-    def test_journey_stats_invalid_format(self, auth_headers):
-        r = client.post(
-            "/api/dda/journey-stats",
-            json=[{"bad_key": "x"}],
-            headers=auth_headers,
-        )
-        assert r.status_code == 422
-
 
 class TestCSVEndpointSecurity:
     def test_run_from_csv_rejects_bad_extension(self, auth_headers):

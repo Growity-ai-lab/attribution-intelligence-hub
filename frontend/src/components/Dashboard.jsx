@@ -5,6 +5,7 @@ import UnifiedChart from './UnifiedChart'
 import UnifiedScoringTable from './UnifiedScoringTable'
 import ReallocationPanel from './ReallocationPanel'
 import DataUpload from './DataUpload'
+import AlertsPanel from './AlertsPanel'
 
 export default function Dashboard({ ddaResult, campaign, isDemo }) {
   const { getReallocation } = useAttribution()
@@ -44,11 +45,13 @@ export default function Dashboard({ ddaResult, campaign, isDemo }) {
 
   return (
     <div className="space-y-6">
+      {campaign?.id && <AlertsPanel campaignId={campaign.id} refreshKey={ddaResult} />}
+
       {/* Real BQ Summary KPIs */}
       {bq && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam Event</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam Temas</p>
             <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(bq.total_events)}</p>
           </div>
           <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">

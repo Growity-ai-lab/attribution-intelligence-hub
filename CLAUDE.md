@@ -20,7 +20,7 @@ Time x Growity tarafindan gelistirilir.
 - MMM Engine: Adstock/Saturation/Response model (medya planlama simulasyonu icin, attribution icin KULLANILMAZ)
 - Frontend: React 18 + Vite + Tailwind CSS
 - Charts: Chart.js (react-chartjs-2)
-- Database: SQLite (dev) -> PostgreSQL (prod)
+- Database: `DATABASE_URL` env var — Postgres in prod (Supabase), local SQLite file if unset
 - Data Import: pandas ile CSV/Excel okuma + BigQuery GA4 export
 - Auth: JWT (python-jose) + bcrypt
 - Export: openpyxl ile Excel rapor, python-pptx ile PowerPoint
@@ -31,7 +31,8 @@ attribution-intelligence-hub/
 ├── CLAUDE.md
 ├── README.md
 ├── package.json                 # Frontend bagimliliklari
-├── requirements.txt             # Python bagimliliklari
+├── requirements.txt             # Python bagimliliklari (prod)
+├── requirements-dev.txt         # + pytest, ruff, httpx
 │
 ├── backend/
 │   ├── main.py                  # FastAPI app entry
@@ -62,7 +63,8 @@ attribution-intelligence-hub/
 │   ├── api/
 │   │   ├── routes.py            # Core API (auth, data, DDA, BQ, unified, alerts, trends)
 │   │   ├── routes_benchmarks.py # Plan vs gerceklesme, kanal benchmark'lari
-│   │   ├── routes_export.py     # Excel/PPTX export endpoint'leri
+│   │   ├── routes_export.py     # Excel/PPTX export + trend endpoint'leri
+│   │   ├── routes_alerts.py     # Alert endpoint'leri + DDA sonrasi degerlendirme
 │   │   ├── routes_media.py      # Dijital medya planlama simulasyonu
 │   │   └── deps.py              # Dependency injection
 │   └── db/
@@ -78,7 +80,8 @@ attribution-intelligence-hub/
 │   │   ├── main.jsx
 │   │   ├── components/
 │   │   │   ├── Dashboard.jsx          # Ana dashboard (KPI + chart + tablo)
-│   │   │   ├── AttributionPanel.jsx   # DDA analiz paneli (BQ baglanti, CSV, sonuclar)
+│   │   │   ├── AttributionPanel.jsx   # DDA analiz paneli (BQ GA4, BQ tablo, CSV, sonuclar)
+│   │   │   ├── AlertsPanel.jsx        # Kampanya uyarilari (listele, okundu isaretle)
 │   │   │   ├── UnifiedChart.jsx       # DDA attribution bar chart
 │   │   │   ├── UnifiedScoringTable.jsx # DDA kanal skor tablosu
 │   │   │   ├── ReallocationPanel.jsx  # Butce reallocation onerisi
@@ -113,10 +116,7 @@ attribution-intelligence-hub/
 │   └── sample/
 │       ├── week_01.csv
 │       ├── week_02.csv
-│       ├── journeys_sample.csv
-│       ├── bitaksi_week_01.csv
-│       ├── bitaksi_week_02.csv
-│       └── bitaksi_journeys.csv
+│       └── journeys_sample.csv
 │
 └── tests/
     ├── conftest.py
@@ -127,7 +127,8 @@ attribution-intelligence-hub/
     ├── test_modules.py       # Loader, schemas, insights
     ├── test_modules2.py      # Export, alerts, simulation
     ├── test_security.py      # Auth, input validation, file upload
-    └── test_unified.py       # Reallocation
+    ├── test_unified.py       # Reallocation
+    └── test_alerts_api.py    # Alert degerlendirme + /alerts endpoint'leri
 ```
 
 ## Attribution Modeli
@@ -209,10 +210,10 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 ### Medya Planlama
 - `POST /api/media-planning/simulate` — Dijital medya plan simulasyonu
 - `POST /api/media-planning/save` — Plan kaydet
-- `GET /api/media-planning/list` — Kayitli planlari listele
-- `GET /api/media-planning/get/{id}` — Plan detayi
-- `DELETE /api/media-planning/{id}` — Plan sil
-- `GET /api/media-planning/presets` — Kanal preset harcamalari
+- `GET /api/media-planning/saved` — Kayitli planlari listele
+- `GET /api/media-planning/saved/{sim_id}` — Plan detayi
+- `DELETE /api/media-planning/saved/{sim_id}` — Plan sil
+- `GET /api/media-planning/presets/{channel}` — Kanal preset harcamalari
 
 ### Benchmark & Saglama
 - `GET /api/benchmarks/channel-metrics` — DDA'dan empirik kanal metrikleri
@@ -220,12 +221,13 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 
 ### Export
 - `GET /api/export/dda-report` — Excel DDA raporu indir
+- `GET /api/export/dda-pptx` — PowerPoint DDA sunumu indir
 
 ### Trend & Insight
 - `GET /api/insights/trend` — Snapshot karsilastirmali trend analizi
 
 ### Alert
-- `GET /api/alerts` — Kampanya alert'leri
+- `GET /api/alerts?campaign_id=&include_acknowledged=` — Kampanya alert'leri
 - `POST /api/alerts/{id}/acknowledge` — Alert okundu isaretle
 - `GET /api/alerts/summary` — Okunmamis alert ozeti
 
@@ -240,9 +242,10 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 - Error handling: kullaniciya anlamli hata mesajlari (Turkce)
 
 ## Komutlar
-- Backend calistir: `cd backend && uvicorn main:app --reload --port 8000`
+- Backend calistir (repo kokunden): `uvicorn backend.main:app --reload --port 8000`
 - Frontend calistir: `cd frontend && npm run dev`
-- Testleri calistir: `python -m pytest tests/ -v`
+- Gelistirme bagimliliklari: `pip install -r requirements-dev.txt`
+- Testleri calistir: `python -m pytest tests/ -v` (gecici SQLite; Postgres icin `TEST_DATABASE_URL=postgresql://...`)
 - Lint: `ruff check backend/`
 - Frontend build: `npx vite build --config frontend/vite.config.js`
 
@@ -254,3 +257,9 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 - Campaign modeli BQ config alanlari tasir: `bq_project`, `bq_dataset`, `bq_credentials_enc` (Fernet sifrelenmis)
 - DDA sonuclari `DDAResult` tablosuna persist edilir (benchmark, trend, export icin)
 - Alert sistemi 5 kural: conversion_drop, volume_drop, channel_concentration, channel_disappeared, sustained_decline
+  - Her tamamlanan DDA calismasindan sonra otomatik degerlendirilir (CSV: sonuc kaydindan sonra; BQ: sonucla ayni commit'te)
+  - Karsilastirma yalnizca `status == "complete"` calismalarla yapilir; ayni calisma icin ayni kural tekrar yazilmaz
+- Veritabani: `DATABASE_URL` yoksa `./attribution_hub.db` (SQLite). Render'da disk kalici degil, prod'da mutlaka Postgres URL'i verilmeli
+  - `postgres://` onekli URL'ler otomatik `postgresql://`'e cevrilir; Postgres havuzu 512MB instance icin kucuk tutulur
+  - `ENCRYPTION_KEY` kalici olmali, yoksa DB'de sakli BQ kimlik bilgileri yeniden baslatmadan sonra cozulemez
+  - Semaya yeni kolonlar `migrate_add_columns()` ile eklenir (Alembic yok)

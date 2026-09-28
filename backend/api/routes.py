@@ -54,12 +54,11 @@ from backend.data.loader import load_crm_touchpoints, load_sales_stock_csv, load
 from backend.data.schemas import (
     AdstockResult,
     ChannelDecomposition,
-    PeriodComparison,
+    GenericBQMapping,
     SalesStockSummary,
     SaturationResult,
-    SegmentChannelScore,
 )
-from backend.models.dda.data_prep import Journey, _is_truthy, extract_journeys, journey_stats
+from backend.models.dda.data_prep import Journey, _is_truthy, extract_journeys
 from backend.models.dda.ensemble import run_full_dda_pipeline
 from backend.models.mmm import (
     compute_adstock,
@@ -79,7 +78,7 @@ from backend.integrations.bigquery import (
     summarize_touchpoints,
     default_date_range,
 )
-from backend.data.schemas import GenericBQMapping
+from backend.api.routes_alerts import build_alerts_safely, evaluate_alerts_safely
 
 router = APIRouter()
 
@@ -1118,30 +1117,8 @@ async def run_dda_from_csv(
         db, target_campaign_id, serialized,
         created_by=_user.get("username", ""), data_source="csv",
     )
+    evaluate_alerts_safely(db, target_campaign_id)
     return serialized
-
-
-@router.post("/dda/journey-stats")
-def get_journey_stats(
-    journeys: list[dict] = Body(...),
-    _user: dict = Depends(get_current_user),
-) -> dict:
-    """Get summary statistics for journey data."""
-    _validate_journey_count(journeys)
-
-    journey_objects = []
-    for j in journeys:
-        try:
-            journey_objects.append(Journey(
-                lead_id=j["lead_id"],
-                channels=j["channels"],
-                converted=j.get("converted", False),
-                segment=j.get("segment", ""),
-            ))
-        except (KeyError, TypeError) as e:
-            raise HTTPException(status_code=422, detail=f"Invalid journey: {e}")
-
-    return journey_stats(journey_objects)
 
 
 # --------------- BigQuery Integration ---------------
@@ -1412,9 +1389,13 @@ def _finish_dda_run(
 
     serialized_with_summary = {**serialized, "channel_summary": summary.get("channels", {})}
 
+    # Alerts are computed first and committed together with the result, so a
+    # client polling /dda/status never sees "complete" before its alerts exist.
+    alerts = build_alerts_safely(db, target_campaign_id, serialized_with_summary, result_id)
     row = db.get(DDAResult, result_id)
     row.result_json = json.dumps(serialized_with_summary)
     row.status = "complete"
+    db.add_all(alerts)
     db.commit()
 
 
@@ -1697,8 +1678,6 @@ def get_reallocation(
 # --------------- Benchmarks (Media-Planning Validation) ---------------
 
 
-
-
 # Benchmark and export endpoints moved to routes_benchmarks.py and routes_export.py
 
 
@@ -1748,24 +1727,6 @@ async def get_template_ga4():
     if not template_path.exists():
         raise HTTPException(status_code=404, detail="Template file not found")
     return FileResponse(template_path, media_type="text/csv", filename="ga4_touchpoints_template.csv")
-
-
-@router.get("/data/sample/bitaksi/journeys")
-async def get_bitaksi_sample_journeys():
-    """Serve the BiTaksi sample journeys CSV file."""
-    sample_path = SAMPLE_DIR / "bitaksi_journeys.csv"
-    if not sample_path.exists():
-        raise HTTPException(status_code=404, detail="Sample file not found")
-    return FileResponse(sample_path, media_type="text/csv", filename="bitaksi_journeys.csv")
-
-
-@router.get("/data/sample/bitaksi/weekly")
-async def get_bitaksi_sample_weekly():
-    """Serve the BiTaksi sample weekly CSV file."""
-    sample_path = SAMPLE_DIR / "bitaksi_week_01.csv"
-    if not sample_path.exists():
-        raise HTTPException(status_code=404, detail="Sample file not found")
-    return FileResponse(sample_path, media_type="text/csv", filename="bitaksi_week_01.csv")
 
 
 # --------------- Config ---------------
@@ -2017,210 +1978,3 @@ def download_sales_stock_template() -> FileResponse:
 
 
 # ── Segment Analytics Endpoints ──────────────────────────
-
-
-@router.get("/segments/decomposition")
-def segment_decomposition(
-    campaign_id: int | None = Query(None),
-    _user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> list[dict]:
-    """Segment x Channel decomposition with saturation alerts.
-
-    Combines weekly spend/lead data with sales data to produce
-    per-segment, per-channel scoring including cost metrics and
-    saturation warnings.
-    """
-    if campaign_id is not None:
-        check_campaign_access(db, campaign_id, _user)
-    from backend.db.models import WeeklyData
-
-    # Fetch weekly data
-    wq = db.query(WeeklyData)
-    if campaign_id:
-        wq = wq.filter(WeeklyData.campaign_id == campaign_id)
-    weekly_rows = wq.all()
-
-    # Fetch sales data
-    sq = db.query(SalesStockData)
-    if campaign_id:
-        sq = sq.filter(SalesStockData.campaign_id == campaign_id)
-    sales_rows = sq.all()
-
-    # Aggregate weekly by segment+channel
-    agg: dict[tuple[str, str], dict] = {}
-    for r in weekly_rows:
-        seg = r.segment or "ALL"
-        key = (seg, r.channel)
-        if key not in agg:
-            agg[key] = {"spend": 0.0, "leads": 0, "weeks": set()}
-        agg[key]["spend"] += r.spend
-        agg[key]["leads"] += r.leads
-        agg[key]["weeks"].add(r.week)
-
-    # Aggregate sales by segment+channel
-    sales_agg: dict[tuple[str, str], dict] = {}
-    for r in sales_rows:
-        seg = r.segment or "ALL"
-        ch = r.channel or "direct"
-        key = (seg, ch)
-        if key not in sales_agg:
-            sales_agg[key] = {"sales_units": 0, "sales_revenue": 0.0}
-        sales_agg[key]["sales_units"] += r.sales_units
-        sales_agg[key]["sales_revenue"] += r.sales_revenue
-
-    # Build segment channel scores
-    results = []
-    for (seg, ch), data in agg.items():
-        spend = data["spend"]
-        leads = data["leads"]
-        sales = sales_agg.get((seg, ch), {"sales_units": 0, "sales_revenue": 0.0})
-
-        cpl = spend / leads if leads > 0 else 0.0
-        cps = spend / sales["sales_units"] if sales["sales_units"] > 0 else 0.0
-
-        # Calculate saturation level using Hill function
-        sat_pct = 0.0
-        sat_alert = ""
-        if ch in SATURATION_PARAMS and spend > 0:
-            alpha, gamma = SATURATION_PARAMS[ch]
-            n_weeks = len(data["weeks"]) or 1
-            avg_weekly = spend / n_weeks
-            decay = ADSTOCK_PARAMS.get(ch, 0.0)
-            adstocked = compute_adstock([avg_weekly] * n_weeks, decay)
-            sat_pct = compute_saturation(adstocked[-1], alpha, gamma) * 100
-
-            if sat_pct >= 85:
-                sat_alert = "saturated"
-            elif sat_pct >= 70:
-                sat_alert = "near_saturation"
-
-        results.append(SegmentChannelScore(
-            segment=seg,
-            channel=ch,
-            spend=round(spend, 2),
-            leads=leads,
-            sales_units=sales["sales_units"],
-            sales_revenue=round(sales["sales_revenue"], 2),
-            cost_per_lead=round(cpl, 2),
-            cost_per_sale=round(cps, 2),
-            saturation_pct=round(sat_pct, 1),
-            saturation_alert=sat_alert,
-        ).model_dump())
-
-    # Sort: saturated channels first, then by spend desc
-    results.sort(key=lambda x: (-1 if x["saturation_alert"] == "saturated" else 0, -x["spend"]))
-    return results
-
-
-@router.get("/segments/period-comparison")
-def period_comparison(
-    period_a: str = Query(..., description="First period, e.g. 2026-W01:2026-W06"),
-    period_b: str = Query(..., description="Second period, e.g. 2026-W07:2026-W12"),
-    segment: str | None = Query(None),
-    campaign_id: int | None = Query(None),
-    _user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> list[dict]:
-    """Compare two periods for segment+channel performance.
-
-    Produces cost-per-lead and cost-per-sale changes with recommendations.
-    Period format: 'YYYY-Www:YYYY-Www' (start:end).
-    """
-    if campaign_id is not None:
-        check_campaign_access(db, campaign_id, _user)
-    from backend.db.models import WeeklyData
-
-    def parse_period(p: str) -> tuple[str, str]:
-        parts = p.split(":")
-        if len(parts) != 2:
-            raise HTTPException(status_code=400, detail=f"Invalid period format: {p}. Use YYYY-Www:YYYY-Www")
-        return parts[0].strip(), parts[1].strip()
-
-    start_a, end_a = parse_period(period_a)
-    start_b, end_b = parse_period(period_b)
-
-    def query_period(start: str, end: str) -> list:
-        q = db.query(WeeklyData).filter(WeeklyData.week >= start, WeeklyData.week <= end)
-        if campaign_id:
-            q = q.filter(WeeklyData.campaign_id == campaign_id)
-        if segment:
-            q = q.filter(WeeklyData.segment == segment)
-        return q.all()
-
-    def query_sales_period(start: str, end: str) -> list:
-        q = db.query(SalesStockData).filter(SalesStockData.week >= start, SalesStockData.week <= end)
-        if campaign_id:
-            q = q.filter(SalesStockData.campaign_id == campaign_id)
-        if segment:
-            q = q.filter(SalesStockData.segment == segment)
-        return q.all()
-
-    def aggregate(rows, sales_rows):
-        agg = {}
-        for r in rows:
-            seg = r.segment or "ALL"
-            key = (seg, r.channel)
-            if key not in agg:
-                agg[key] = {"spend": 0.0, "leads": 0}
-            agg[key]["spend"] += r.spend
-            agg[key]["leads"] += r.leads
-
-        for r in sales_rows:
-            seg = r.segment or "ALL"
-            ch = r.channel or "direct"
-            key = (seg, ch)
-            if key not in agg:
-                agg[key] = {"spend": 0.0, "leads": 0}
-            agg[key].setdefault("sales", 0)
-            agg[key]["sales"] += r.sales_units
-        return agg
-
-    rows_a = query_period(start_a, end_a)
-    rows_b = query_period(start_b, end_b)
-    sales_a = query_sales_period(start_a, end_a)
-    sales_b = query_sales_period(start_b, end_b)
-
-    agg_a = aggregate(rows_a, sales_a)
-    agg_b = aggregate(rows_b, sales_b)
-
-    all_keys = set(agg_a.keys()) | set(agg_b.keys())
-    results = []
-
-    for seg, ch in all_keys:
-        a = agg_a.get((seg, ch), {"spend": 0, "leads": 0, "sales": 0})
-        b = agg_b.get((seg, ch), {"spend": 0, "leads": 0, "sales": 0})
-
-        cpl_a = a["spend"] / a["leads"] if a["leads"] > 0 else 0
-        cpl_b = b["spend"] / b["leads"] if b["leads"] > 0 else 0
-        cpl_change = ((cpl_b - cpl_a) / cpl_a * 100) if cpl_a > 0 else 0
-
-        # Auto-recommendation
-        rec = ""
-        if cpl_b > 0 and cpl_a > 0:
-            if cpl_change < -10:
-                rec = f"CPL {abs(cpl_change):.0f}% düştü — bu kanala bütçe artır"
-            elif cpl_change > 20:
-                rec = f"CPL {cpl_change:.0f}% arttı — doygunluk kontrolü yap, bütçe kaydır"
-            else:
-                rec = "Stabil performans"
-
-        results.append(PeriodComparison(
-            segment=seg,
-            channel=ch,
-            period_a=period_a,
-            period_b=period_b,
-            spend_a=round(a["spend"], 2),
-            spend_b=round(b["spend"], 2),
-            leads_a=a["leads"],
-            leads_b=b["leads"],
-            sales_a=a.get("sales", 0),
-            sales_b=b.get("sales", 0),
-            cpl_a=round(cpl_a, 2),
-            cpl_b=round(cpl_b, 2),
-            cpl_change_pct=round(cpl_change, 1),
-            recommendation=rec,
-        ).model_dump())
-
-    results.sort(key=lambda x: x["cpl_change_pct"])
-    return results

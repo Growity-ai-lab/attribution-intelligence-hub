@@ -1,5 +1,6 @@
 """Configuration constants for Time's Hub | Attribution Intelligence."""
 
+import os
 from pathlib import Path
 
 # Paths
@@ -9,8 +10,13 @@ UPLOAD_DIR = DATA_DIR / "uploads"
 TEMPLATE_DIR = DATA_DIR / "templates"
 SAMPLE_DIR = DATA_DIR / "sample"
 
-# Database
-DATABASE_URL = "sqlite:///./attribution_hub.db"
+# Database — set DATABASE_URL in production (e.g. a Supabase Postgres URL).
+# Falls back to a local SQLite file for development. Render's free disk is
+# ephemeral, so SQLite there loses all campaigns/DDA results on every deploy.
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip() or "sqlite:///./attribution_hub.db"
+# SQLAlchemy 2 rejects the legacy "postgres://" scheme some providers still emit.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
 
 # Adstock decay parameters per channel
 ADSTOCK_PARAMS: dict[str, float] = {
