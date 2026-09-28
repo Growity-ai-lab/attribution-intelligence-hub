@@ -34,6 +34,9 @@ export default function DigitalPlanningPanel({ campaign }) {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const debounceRef = useRef(null)
+  // Spends to apply once a channel switch completes. Switching channels loads that
+  // channel's preset spends; an imported or saved plan must win over the preset.
+  const pendingSpendsRef = useRef(null)
 
   // Advanced overrides
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -95,19 +98,26 @@ export default function DigitalPlanningPanel({ campaign }) {
   // Load presets when channel changes
   useEffect(() => {
     let cancelled = false
+    const pending = pendingSpendsRef.current
+    pendingSpendsRef.current = null
     ;(async () => {
       try {
         const presets = await getMediaPlanPresets(selectedChannel)
         if (cancelled) return
         const spends = presets.preset_spends || []
         const filled = Array(numWeeks).fill(0).map((_, i) => spends[i] || 0)
-        setWeeklySpends(filled)
+        setWeeklySpends(pending ?? filled)
         if (presets.digital_metrics) setChannelDefaults(presets.digital_metrics)
         setResult(null)
         setCpmOverride('')
         setCtrOverride('')
         setLeadRateOverride('')
-      } catch (err) { console.error('[DigitalPlanning]', err) }
+        setAudienceOverride('')
+        setFreqCapOverride('')
+      } catch (err) {
+        console.error('[DigitalPlanning]', err)
+        if (!cancelled && pending) setWeeklySpends(pending) // never drop an imported/saved plan
+      }
     })()
     return () => { cancelled = true }
   }, [selectedChannel, getMediaPlanPresets]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -197,13 +207,22 @@ export default function DigitalPlanningPanel({ campaign }) {
     } catch (err) { console.error('[DigitalPlanning]', err) }
   }
 
+  // Put a plan's weekly spends on a channel without the channel's preset overwriting them.
+  const applySpendsToChannel = (channel, spends) => {
+    if (channel === selectedChannel) {
+      setWeeklySpends(spends)
+    } else {
+      pendingSpendsRef.current = spends
+      setSelectedChannel(channel)
+    }
+  }
+
   const handleLoadPlan = async (id) => {
     try {
       const plan = await getSavedMediaPlan(id)
-      setSelectedChannel(plan.channel)
       const spends = plan.weekly_spends || []
       setNumWeeks(spends.length)
-      setWeeklySpends(spends)
+      applySpendsToChannel(plan.channel, spends)
       setShowSavedList(false)
     } catch (err) { console.error('[DigitalPlanning]', err) }
   }
@@ -265,9 +284,7 @@ export default function DigitalPlanningPanel({ campaign }) {
   const handleImportApply = (channel) => {
     const agg = getEffectiveImportAgg()
     if (!agg[channel]) return
-    setSelectedChannel(channel)
-    const spends = distributeSpend(agg[channel].totalSpend, numWeeks, importDistribution)
-    setWeeklySpends(spends)
+    applySpendsToChannel(channel, distributeSpend(agg[channel].totalSpend, numWeeks, importDistribution))
     setShowImportModal(false)
     setImportData(null)
   }

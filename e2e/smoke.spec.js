@@ -204,6 +204,13 @@ test('media planning: simulate, charts, save/load/reconcile/delete, Excel import
 
   // Save → list → reconcile against the DDA run from the previous test → load → delete
   const planName = `E2E Plan ${Date.now()}`
+  const totalLabel = page.getByText(/^Toplam: /).first()
+  // Make the plan differ from the channel preset, so a preset overwrite is detectable.
+  const presetTotal = await totalLabel.innerText()
+  await page.locator('input[type=number][placeholder="0"]').first().fill('7777000')
+  await expect(totalLabel).not.toHaveText(presetTotal)
+  await expect(page.getByRole('button', { name: 'Kaydet', exact: true }).first()).toBeVisible()
+  const savedTotal = await totalLabel.innerText()
   await page.getByRole('button', { name: 'Kaydet', exact: true }).first().click()
   await page.getByPlaceholder('Simülasyon adı...').fill(planName)
   await page.getByPlaceholder('Simülasyon adı...').press('Enter')
@@ -211,7 +218,20 @@ test('media planning: simulate, charts, save/load/reconcile/delete, Excel import
   await expect(page.getByText(planName)).toBeVisible()
   await page.getByRole('button', { name: `${planName} planını gerçekleşmeyle doğrula` }).click()
   await expect(page.getByText(/Plan vs Gerçekleşme|Sağlama verisi yok/).first()).toBeVisible()
+  // Load it while a different channel is selected: the plan (Google) must win
+  // over the preset that switching channels loads.
+  await page.getByRole('button', { name: 'Meta Ads', exact: true }).click()
+  await expect(totalLabel).not.toHaveText(savedTotal)
+  if (!(await page.getByText(planName).isVisible())) {
+    await page.getByRole('button', { name: 'Yükle', exact: true }).click() // the list toggles
+  }
+  // Switching to the plan's channel re-fetches that channel's presets; check the
+  // total only after that response has landed, or a late overwrite slips by.
+  const presetsLoaded = page.waitForResponse(r => r.url().includes('/api/media-planning/presets/'))
   await page.getByText(planName).click()
+  await presetsLoaded
+  await page.waitForTimeout(300) // let React apply the response
+  await expect(totalLabel).toHaveText(savedTotal)
   await page.getByRole('button', { name: 'Yükle', exact: true }).click()
   await expect(page.getByText(planName)).toBeVisible()
   // Row actions are reachable without hover (touch/keyboard) and named for screen readers.
@@ -239,7 +259,10 @@ test('media planning: simulate, charts, save/load/reconcile/delete, Excel import
   const dialog = page.getByRole('dialog', { name: 'Plan içe aktarma' })
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Eşit' }).click()
+  // Meta is listed first; Google is the selected channel, so this switches channels.
   await dialog.getByRole('button', { name: 'Uygula', exact: true }).first().click()
+  await expect(page.getByRole('button', { name: 'Meta Ads', exact: true })).toHaveClass(/text-white/)
+  await expect(totalLabel).toHaveText('Toplam: 120K TL') // the imported Meta line, not Meta's preset
   await expect(page.getByText('Model Lead').first()).toBeVisible()
 })
 

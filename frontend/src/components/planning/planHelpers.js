@@ -135,12 +135,17 @@ export function parseMediaPlanExcel(file) {
 }
 
 export function distributeSpend(totalSpend, numWeeks, mode = 'front-loaded') {
+  let weeks
   if (mode === 'even') {
-    const weekly = Math.round(totalSpend / numWeeks / 1000) * 1000
-    return Array(numWeeks).fill(weekly)
+    weeks = Array(numWeeks).fill(Math.round(totalSpend / numWeeks / 1000) * 1000)
+  } else {
+    // Front-loaded: first week gets ~1.4x avg, linearly decreasing
+    const weights = Array.from({ length: numWeeks }, (_, i) => numWeeks - i * 0.6)
+    const totalW = weights.reduce((a, b) => a + b, 0)
+    weeks = weights.map(w => Math.round((w / totalW) * totalSpend / 1000) * 1000)
   }
-  // Front-loaded: first week gets ~1.4x avg, linearly decreasing
-  const weights = Array.from({ length: numWeeks }, (_, i) => numWeeks - i * 0.6)
-  const totalW = weights.reduce((a, b) => a + b, 0)
-  return weights.map(w => Math.round((w / totalW) * totalSpend / 1000) * 1000)
+  // Rounding to 1,000 TL can drift the total; keep the plan's budget exact.
+  const drift = totalSpend - weeks.reduce((a, b) => a + b, 0)
+  if (weeks.length) weeks[weeks.length - 1] += drift
+  return weeks
 }
