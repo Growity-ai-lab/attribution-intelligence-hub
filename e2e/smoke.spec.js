@@ -192,6 +192,12 @@ test('media planning: simulate, charts, save/load/reconcile/delete, Excel import
     await expect(value).toHaveText(/\d/)
   }
 
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'CSV İndir' }).click(),
+  ])
+  expect(download.suggestedFilename()).toMatch(/^dijital_plan_google_.*\.csv$/)
+
   // Save → list → reconcile against the DDA run from the previous test → load → delete
   const planName = `E2E Plan ${Date.now()}`
   await page.getByRole('button', { name: 'Kaydet', exact: true }).first().click()

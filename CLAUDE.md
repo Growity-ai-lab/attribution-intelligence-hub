@@ -99,7 +99,10 @@ attribution-intelligence-hub/
 │   │   │   ├── UnifiedChart.jsx       # DDA attribution bar chart
 │   │   │   ├── UnifiedScoringTable.jsx # DDA kanal skor tablosu
 │   │   │   ├── ReallocationPanel.jsx  # Butce reallocation onerisi
-│   │   │   ├── DigitalPlanningPanel.jsx # Medya planlama (Excel import, simulasyon, 5 chart)
+│   │   │   ├── DigitalPlanningPanel.jsx # Medya planlama: girdiler, senaryolar, kayit/yukleme, Excel import
+│   │   │   ├── planning/
+│   │   │   │   ├── PlanResults.jsx      # Sonuc: KPI, GA4 saglama, 5 grafik, optimum, haftalik tablo, CSV
+│   │   │   │   └── planHelpers.js       # Excel medya plani okuma, kanal esleme, dagitim, sabitler
 │   │   │   ├── DataUpload.jsx         # CSV/Excel yukleme
 │   │   │   ├── WorkspaceSelector.jsx  # Client/Campaign secici
 │   │   │   ├── LoginPage.jsx          # Giris ekrani
