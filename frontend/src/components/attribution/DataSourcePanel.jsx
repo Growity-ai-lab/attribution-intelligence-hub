@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import axios from 'axios'
 import { getChannelColor } from '../../utils/colors'
 import { fmtMoney, fmtN } from '../../utils/formatters'
@@ -46,6 +46,49 @@ export default function DataSourcePanel({ campaign, ddaResult, setDdaResult }) {
   const [gConversionValues, setGConversionValues] = useState('')
   const [gRevenueCol, setGRevenueCol] = useState('')
 
+  // What this campaign remembers about BigQuery (project, dataset, stored credentials, table mapping)
+  const [savedConfig, setSavedConfig] = useState(null)
+  const [mappingSaveState, setMappingSaveState] = useState('') // '' | 'saving' | 'saved' | error text
+
+  const applyMapping = useCallback((m) => {
+    if (!m) return
+    setGTable(m.table || '')
+    setGEntityCol(m.entity_col || '')
+    setGTimestampCol(m.timestamp_col || '')
+    setGTimestampType(m.timestamp_type || 'datetime')
+    setGChannelMode(m.channel_col ? 'channel' : 'sourcemedium')
+    setGChannelCol(m.channel_col || '')
+    setGSourceCol(m.source_col || '')
+    setGMediumCol(m.medium_col || '')
+    setGConvMode(m.converted_col ? 'column' : 'event')
+    setGConvertedCol(m.converted_col || '')
+    setGEventCol(m.event_col || '')
+    setGConversionValues((m.conversion_values || []).join(', '))
+    setGRevenueCol(m.revenue_col || '')
+  }, [])
+
+  // Any edit after a save means the stored mapping is no longer what's on screen.
+  useEffect(() => { setMappingSaveState('') }, [gTable, gEntityCol, gTimestampCol, gTimestampType,
+    gChannelMode, gChannelCol, gSourceCol, gMediumCol, gConvMode, gConvertedCol, gEventCol,
+    gConversionValues, gRevenueCol])
+
+  // Prefill the connect form and the table mapping from what the campaign stored.
+  useEffect(() => {
+    if (!campaign?.id) return
+    let cancelled = false
+    axios.get(`${API}/integrations/bigquery/saved-config`, { params: { campaign_id: campaign.id } })
+      .then(res => {
+        if (cancelled) return
+        const cfg = res.data
+        setSavedConfig(cfg)
+        if (cfg.project) setBqProject(prev => prev || cfg.project)
+        if (cfg.dataset) setBqDataset(prev => prev || cfg.dataset)
+        applyMapping(cfg.table_mapping)
+      })
+      .catch(err => console.error('[DataSource] kayıtlı BigQuery ayarı yüklenemedi:', err))
+    return () => { cancelled = true }
+  }, [campaign?.id, applyMapping])
+
   const handleConnect = useCallback(async () => {
     if (!bqProject || !bqDataset || !bqFile) return
     setConnecting(true)
@@ -69,6 +112,23 @@ export default function DataSourcePanel({ campaign, ddaResult, setDdaResult }) {
     }
     setConnecting(false)
   }, [bqProject, bqDataset, bqFile, campaign])
+
+  const handleReconnect = useCallback(async () => {
+    if (!campaign?.id) return
+    setConnecting(true)
+    setConnectError('')
+    try {
+      const res = await axios.post(`${API}/integrations/bigquery/reconnect`, null, {
+        params: { campaign_id: campaign.id },
+      })
+      setBqProject(res.data.project)
+      setBqDataset(res.data.dataset)
+      setConnected(res.data)
+    } catch (err) {
+      setConnectError(err.response?.data?.detail || err.message || 'Bilinmeyen hata')
+    }
+    setConnecting(false)
+  }, [campaign])
 
   const handlePreview = useCallback(async () => {
     setPreviewLoading(true)
@@ -164,6 +224,19 @@ export default function DataSourcePanel({ campaign, ddaResult, setDdaResult }) {
   }, [gTable, gEntityCol, gTimestampCol, gTimestampType, gChannelMode, gChannelCol,
       gSourceCol, gMediumCol, gConvMode, gConvertedCol, gEventCol, gConversionValues, gRevenueCol])
 
+  const handleSaveMapping = useCallback(async () => {
+    if (!campaign?.id) return
+    setMappingSaveState('saving')
+    try {
+      await axios.put(`${API}/integrations/bigquery/table-mapping`, buildGenericMapping(), {
+        params: { campaign_id: campaign.id },
+      })
+      setMappingSaveState('saved')
+    } catch (err) {
+      setMappingSaveState(err.response?.data?.detail ? String(err.response.data.detail) : 'Eşleme kaydedilemedi')
+    }
+  }, [campaign, buildGenericMapping])
+
   const handlePreviewTable = useCallback(async () => {
     setPreviewLoading(true)
     setDdaError('')
@@ -241,6 +314,21 @@ export default function DataSourcePanel({ campaign, ddaResult, setDdaResult }) {
           <div className="p-4 space-y-4">
             {!connected ? (
               <>
+                {savedConfig?.has_credentials && (
+                  <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                    <p className="text-xs text-slate-300 flex-1 min-w-[12rem]">
+                      Bu kampanyanın kayıtlı bağlantısı var:{' '}
+                      <span className="font-mono text-emerald-400">{savedConfig.project}.{savedConfig.dataset}</span>
+                    </p>
+                    <button
+                      onClick={handleReconnect}
+                      disabled={connecting}
+                      className="px-4 py-2 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-500 transition-colors disabled:opacity-40"
+                    >
+                      {connecting ? 'Bağlanıyor...' : 'Kayıtlı bağlantıyla devam et'}
+                    </button>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] text-slate-400 block mb-1">Project ID</label>
@@ -444,6 +532,13 @@ export default function DataSourcePanel({ campaign, ddaResult, setDdaResult }) {
                         {previewLoading ? 'Sorgu çalışıyor...' : 'Önizle'}
                       </button>
                       <button
+                        onClick={handleSaveMapping}
+                        disabled={!canRun || mappingSaveState === 'saving'}
+                        className="px-4 py-2 rounded-lg text-xs font-medium bg-dark-bg border border-dark-border text-slate-300 hover:text-slate-100 transition-colors disabled:opacity-40"
+                      >
+                        {mappingSaveState === 'saving' ? 'Kaydediliyor...' : 'Eşlemeyi kaydet'}
+                      </button>
+                      <button
                         onClick={handleRunTable}
                         disabled={ddaLoading || !canRun}
                         className="px-4 py-2 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -457,6 +552,12 @@ export default function DataSourcePanel({ campaign, ddaResult, setDdaResult }) {
                         Bağlantıyı Kes
                       </button>
                     </div>
+                    {mappingSaveState === 'saved' && (
+                      <p className="text-xs text-emerald-400">Eşleme kaydedildi. Bu kampanya bir sonraki açılışta bu değerlerle gelecek.</p>
+                    )}
+                    {mappingSaveState && !['saving', 'saved'].includes(mappingSaveState) && (
+                      <p className="text-xs text-red-400">{mappingSaveState}</p>
+                    )}
                   </>
                   )
                 })()}

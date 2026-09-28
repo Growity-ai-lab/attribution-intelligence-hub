@@ -217,6 +217,9 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 - `POST /api/integrations/bigquery/connect` — BQ baglantisi test et
 - `POST /api/integrations/bigquery/preview` — GA4 veri onizleme
 - `POST /api/integrations/bigquery/preview-table` — Generic tablo onizleme (kolon eslemeli)
+- `GET /api/integrations/bigquery/saved-config?campaign_id=` — Kampanyanin kayitli project/dataset, kimlik bilgisi var mi, tablo eslemesi (kimlik bilgisinin kendisi asla donmez)
+- `PUT /api/integrations/bigquery/table-mapping?campaign_id=` — Tablo eslemesini kaydet (onizleme/calistirmada da otomatik kaydedilir)
+- `POST /api/integrations/bigquery/reconnect?campaign_id=` — Kayitli sifreli kimlik bilgileriyle baglan (JSON yeniden yuklenmez)
 
 ### MMM (Simulasyon icin)
 - `GET /api/mmm/adstock/{channel}` — Adstock hesaplama
@@ -282,7 +285,8 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 - `DDA_BLEND_WEIGHTS = {"markov": 0.65, "shapley": 0.35}` — DDA icinde Markov agirlikli
 - MediaPlanSimulation DB sutunu `weekly_grps` adini tasir (SQLite rename kisitlamasi) ama API'de `weekly_spends` olarak kullanilir
 - BQ credentials in-memory cache: TTL = 3600s, key = `{project}:{dataset}`
-- Campaign modeli BQ config alanlari tasir: `bq_project`, `bq_dataset`, `bq_credentials_enc` (Fernet sifrelenmis)
+- Campaign modeli BQ config alanlari tasir: `bq_project`, `bq_dataset`, `bq_credentials_enc` (Fernet sifrelenmis),
+  `bq_table_mapping` (son kullanilan GenericBQMapping, JSON). Demo kullanicinin yazdiklari sandbox kampanyaya gider
 - DDA sonuclari `DDAResult` tablosuna persist edilir (benchmark, trend, export, rapor sayfasi icin)
   - Rapor sayfasi kampanya acilinca `/dda/latest` ile son kayitli sonucu yukler
   - Snapshot'a yalnizca dolu alanlar yazilir (bos `{}` JS'te truthy; CSV sonucunda BQ KPI'larini cizip cokertiyordu)

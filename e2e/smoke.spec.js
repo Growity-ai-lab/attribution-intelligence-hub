@@ -292,3 +292,70 @@ test('a token that expires mid-session signs the user out', async ({ page }) => 
   await expect(page.locator('input[type=password]')).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem('th_token'))).toBeNull()
 })
+
+async function mockBigQueryConnect(page) {
+  await page.route('**/api/integrations/bigquery/connect**', route => route.fulfill({
+    json: { event_tables: 3, first_date: '2026-01-01', last_date: '2026-06-30' },
+  }))
+}
+
+async function connectWithUpload(page) {
+  await page.getByPlaceholder('unicef-bagis').fill('demo-project')
+  await page.getByPlaceholder('analytics_358380518').fill('demo_dataset')
+  await page.locator('input[type=file]').first().setInputFiles({
+    name: 'creds.json', mimeType: 'application/json', buffer: Buffer.from('{}'),
+  })
+  await page.getByRole('button', { name: 'Bağlan', exact: true }).click()
+}
+
+test('the BigQuery table mapping is remembered for the campaign', async ({ page }) => {
+  await mockBigQueryConnect(page)
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'Premium Market')
+  await page.getByRole('tab', { name: 'Attribution', exact: true }).click()
+  await page.getByRole('tab', { name: 'BigQuery (Tablo)' }).click()
+  await connectWithUpload(page)
+
+  await page.getByPlaceholder('crm_events').fill('crm_touchpoints')
+  await page.getByPlaceholder('user_id').fill('customer_id')
+  await page.getByPlaceholder('event_time').fill('touch_ts')
+  await page.getByRole('button', { name: 'Source + Medium' }).click()
+  await page.getByPlaceholder('source', { exact: true }).fill('utm_source')
+  await page.getByPlaceholder('medium', { exact: true }).fill('utm_medium')
+  await page.getByRole('button', { name: 'Olay + değerler' }).click()
+  await page.getByPlaceholder('event_name').fill('event')
+  await page.getByPlaceholder('signup, purchase').fill('lead_form, demo_request')
+  await page.getByRole('button', { name: 'Eşlemeyi kaydet' }).click()
+  await expect(page.getByText('Eşleme kaydedildi')).toBeVisible()
+
+  // A fresh page load: the campaign's mapping comes back from the server.
+  await page.reload()
+  await page.getByRole('tab', { name: 'BigQuery (Tablo)' }).click()
+  await connectWithUpload(page)
+  await expect(page.getByPlaceholder('crm_events')).toHaveValue('crm_touchpoints')
+  await expect(page.getByPlaceholder('source', { exact: true })).toHaveValue('utm_source')
+  await expect(page.getByPlaceholder('signup, purchase')).toHaveValue('lead_form, demo_request')
+  await expect(page.getByRole('button', { name: 'Attribution Analizi Başlat' })).toBeEnabled()
+})
+
+test('a campaign with stored credentials connects without re-uploading JSON', async ({ page }) => {
+  // Stored credentials need real BigQuery; the endpoints are covered by pytest,
+  // here only the UI wiring is exercised.
+  await page.route('**/api/integrations/bigquery/saved-config**', route => route.fulfill({
+    json: { project: 'saved-proj', dataset: 'saved_ds', has_credentials: true, table_mapping: null },
+  }))
+  let reconnects = 0
+  await page.route('**/api/integrations/bigquery/reconnect**', route => {
+    reconnects += 1
+    return route.fulfill({ json: { ok: true, event_tables: 7, first_date: '2026-02-01', last_date: '2026-07-01', project: 'saved-proj', dataset: 'saved_ds' } })
+  })
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'Premium Market')
+  await page.getByRole('tab', { name: 'Attribution', exact: true }).click()
+
+  await expect(page.getByText('saved-proj.saved_ds')).toBeVisible()
+  await expect(page.getByPlaceholder('unicef-bagis')).toHaveValue('saved-proj')
+  await page.getByRole('button', { name: 'Kayıtlı bağlantıyla devam et' }).click()
+  await expect(page.getByText('BQ Bağlı: 7 tablo')).toBeVisible()
+  expect(reconnects).toBe(1)
+})

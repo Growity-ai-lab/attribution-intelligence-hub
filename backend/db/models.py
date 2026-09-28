@@ -36,6 +36,7 @@ class Campaign(Base):
     bq_dataset = Column(String, default="")
     bq_credentials_enc = Column(String, default="")
     bq_conversion_events = Column(String, default="purchase")
+    bq_table_mapping = Column(String, default="")  # JSON GenericBQMapping, last used for this campaign
     sync_enabled = Column(Integer, default=0)
     sync_frequency_hours = Column(Integer, default=24)
     last_sync_at = Column(String, default="")

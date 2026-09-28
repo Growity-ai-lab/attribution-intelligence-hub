@@ -8,7 +8,7 @@ import time as _time
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
-from backend.api.deps import check_campaign_access, get_current_user
+from backend.api.deps import check_campaign_access, get_current_user, resolve_read_campaign_id
 from backend.crypto import decrypt, encrypt
 from backend.db.database import SessionLocal, get_db
 from backend.db.models import (
@@ -114,6 +114,36 @@ def _bq_reconnect_from_campaign(
     return _bq_cache_get(cache_key)
 
 
+def _write_id(db: Session, campaign_id: int, user: dict) -> int:
+    """Campaign that per-campaign BQ settings are written to.
+
+    Demo users write to their "Demo Sandbox" copy so seed campaigns are never
+    modified (connect used to persist demo credentials onto the seed campaign).
+    """
+    return _ensure_demo_sandbox_campaign(db, campaign_id) if user.get("role") == "demo" else campaign_id
+
+
+def _read_id(db: Session, campaign_id: int | None, user: dict) -> int | None:
+    return resolve_read_campaign_id(db, campaign_id, user) if campaign_id else None
+
+
+def _save_table_mapping(db: Session, campaign_id: int | None, mapping: GenericBQMapping, user: dict) -> bool:
+    """Remember the last table mapping used for a campaign (best effort)."""
+    if not campaign_id:
+        return False
+    try:
+        camp = db.query(Campaign).filter(Campaign.id == _write_id(db, campaign_id, user)).first()
+        if camp is None:
+            return False
+        camp.bq_table_mapping = mapping.model_dump_json()
+        db.commit()
+        return True
+    except Exception:
+        logger.exception("Failed to save BQ table mapping (campaign_id=%s)", campaign_id)
+        db.rollback()
+        return False
+
+
 @router.post("/integrations/bigquery/connect")
 async def bq_connect(
     credentials: UploadFile = File(...),
@@ -180,7 +210,8 @@ async def bq_connect(
     # Persist encrypted credentials so the connection survives a restart.
     info["credentials_persisted"] = False
     if campaign_id:
-        camp = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        check_campaign_access(db, campaign_id, _user)
+        camp = db.query(Campaign).filter(Campaign.id == _write_id(db, campaign_id, _user)).first()
         if camp:
             try:
                 camp.bq_project = project
@@ -219,7 +250,7 @@ def bq_preview(
     cache_key = f"{project}:{dataset}"
     cached = _bq_cache_get(cache_key)
     if not cached:
-        cached = _bq_reconnect_from_campaign(db, project, dataset, campaign_id)
+        cached = _bq_reconnect_from_campaign(db, project, dataset, _read_id(db, campaign_id, _user))
     if not cached:
         raise HTTPException(status_code=400, detail="BigQuery not connected. Call /connect first.")
 
@@ -462,7 +493,7 @@ def run_dda_from_bigquery(
     cache_key = f"{project}:{dataset}"
     cached = _bq_cache_get(cache_key)
     if not cached:
-        cached = _bq_reconnect_from_campaign(db, project, dataset, campaign_id)
+        cached = _bq_reconnect_from_campaign(db, project, dataset, _read_id(db, campaign_id, _user))
     if not cached:
         raise HTTPException(status_code=400, detail="BigQuery not connected. Call /connect first.")
 
@@ -532,7 +563,7 @@ def run_dda_from_bigquery_table(
     cache_key = f"{project}:{dataset}"
     cached = _bq_cache_get(cache_key)
     if not cached:
-        cached = _bq_reconnect_from_campaign(db, project, dataset, campaign_id)
+        cached = _bq_reconnect_from_campaign(db, project, dataset, _read_id(db, campaign_id, _user))
     if not cached:
         raise HTTPException(status_code=400, detail="BigQuery not connected. Call /connect first.")
 
@@ -558,6 +589,7 @@ def run_dda_from_bigquery_table(
     db.commit()
     db.refresh(dda_row)
     result_id = dda_row.id
+    _save_table_mapping(db, campaign_id, mapping, _user)
 
     threading.Thread(
         target=_run_dda_generic_bq_background,
@@ -584,10 +616,12 @@ def preview_bigquery_table(
     db: Session = Depends(get_db),
 ) -> dict:
     """Preview a generic BQ table mapping (summary only, no DDA run)."""
+    if campaign_id is not None:
+        check_campaign_access(db, campaign_id, _user)
     cache_key = f"{project}:{dataset}"
     cached = _bq_cache_get(cache_key)
     if not cached:
-        cached = _bq_reconnect_from_campaign(db, project, dataset, campaign_id)
+        cached = _bq_reconnect_from_campaign(db, project, dataset, _read_id(db, campaign_id, _user))
     if not cached:
         raise HTTPException(status_code=400, detail="BigQuery not connected. Call /connect first.")
 
@@ -606,4 +640,75 @@ def preview_bigquery_table(
     summary["end_date"] = end_date
     summary["source_table"] = f"{dataset}.{mapping.table}"
     summary["row_limit_applied"] = len(df) >= 100_000
+    summary["mapping_saved"] = _save_table_mapping(db, campaign_id, mapping, _user)
     return summary
+
+
+@router.get("/integrations/bigquery/saved-config")
+def bq_saved_config(
+    campaign_id: int = Query(...),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """What this campaign remembers about BigQuery, to prefill the connect form.
+
+    Never returns the credentials themselves — only whether they are stored.
+    """
+    check_campaign_access(db, campaign_id, _user)
+    camp = db.query(Campaign).filter(Campaign.id == _read_id(db, campaign_id, _user)).first()
+    mapping = None
+    if camp is not None and camp.bq_table_mapping:
+        try:
+            mapping = GenericBQMapping.model_validate_json(camp.bq_table_mapping).model_dump(exclude_none=True)
+        except ValueError:
+            logger.warning("Ignoring invalid stored table mapping (campaign_id=%s)", camp.id)
+    return {
+        "project": (camp.bq_project or "") if camp else "",
+        "dataset": (camp.bq_dataset or "") if camp else "",
+        "has_credentials": bool(camp and camp.bq_credentials_enc),
+        "table_mapping": mapping,
+    }
+
+
+@router.put("/integrations/bigquery/table-mapping")
+def bq_save_table_mapping(
+    mapping: GenericBQMapping,
+    campaign_id: int = Query(...),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Store a generic-table column mapping for the campaign."""
+    check_campaign_access(db, campaign_id, _user)
+    if not _save_table_mapping(db, campaign_id, mapping, _user):
+        raise HTTPException(status_code=500, detail="Eşleme kaydedilemedi.")
+    return {"saved": True, "table_mapping": mapping.model_dump(exclude_none=True)}
+
+
+@router.post("/integrations/bigquery/reconnect")
+def bq_reconnect(
+    campaign_id: int = Query(...),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Connect with the campaign's stored (encrypted) credentials — no JSON re-upload."""
+    check_campaign_access(db, campaign_id, _user)
+    read_id = _read_id(db, campaign_id, _user)
+    camp = db.query(Campaign).filter(Campaign.id == read_id).first()
+    if camp is None or not camp.bq_credentials_enc or not camp.bq_project or not camp.bq_dataset:
+        raise HTTPException(status_code=404, detail="Bu kampanya için kayıtlı BigQuery bağlantısı yok.")
+    cached = _bq_reconnect_from_campaign(db, camp.bq_project, camp.bq_dataset, read_id)
+    if not cached:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Kayıtlı kimlik bilgileri çözülemedi (ENCRYPTION_KEY değişmiş olabilir). "
+                "Service account JSON dosyasını yeniden yükleyin."
+            ),
+        )
+    try:
+        info = bq_test_connection(cached["client"], camp.bq_project, camp.bq_dataset)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"BigQuery bağlantı hatası: {e}")
+    if not info.get("ok"):
+        raise HTTPException(status_code=400, detail=info.get("error", "Bağlantı kurulamadı"))
+    return {**info, "project": camp.bq_project, "dataset": camp.bq_dataset}
