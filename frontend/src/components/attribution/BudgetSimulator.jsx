@@ -12,7 +12,8 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
   const objective = campaign?.objective || 'lead'
   const leadValue = campaign?.lead_value || 0
   const L = objectiveLabels(objective)
-  const isLead = objective === 'lead'
+  const isLead = objective === 'lead' // lead-only extras (lead value, value-ROAS)
+  const countBased = L.countBased  // lead + traffic: counts and cost per conversion
   // Budget simulation
   const [channelSpends, setChannelSpends] = useState({})
   const [scenarioSpends, setScenarioSpends] = useState({})
@@ -132,8 +133,8 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
           <div className="card-hdr">
             <span className="card-title">
               {L.section}
-              <InfoTip text={isLead
-                ? "DDA katkı paylarını kullanarak kanal bazlı atfedilen lead ve CPL hesaplar. Harcama verisi manuel girilir veya CSV ile yüklenir. Senaryo modunda bütçe değişikliklerinin lead'e etkisini simüle edebilirsiniz."
+              <InfoTip text={countBased
+                ? `DDA katkı paylarını kullanarak kanal bazlı atfedilen ${L.unit} ve ${L.costName} hesaplar. Harcama verisi manuel girilir veya CSV ile yüklenir. Senaryo modunda bütçe değişikliklerinin ${L.unit} sayısına etkisini simüle edebilirsiniz.`
                 : "DDA katkı paylarını kullanarak kanal bazlı ROAS ve CPA hesaplar. Harcama verisi manuel girilir veya CSV ile yüklenir. Senaryo modunda bütçe değişikliklerinin gelire etkisini simüle edebilirsiniz."} />
             </span>
             <span className="text-[10px] font-mono text-slate-400">
@@ -163,18 +164,18 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
                     )}
                     {simResult && <th className="text-right py-2 px-2">
                       {L.attributedCol}
-                      <InfoTip text={isLead
-                        ? "DDA katkı payına göre bu kanala atfedilen lead sayısı."
+                      <InfoTip text={countBased
+                        ? `DDA katkı payına göre bu kanala atfedilen ${L.unit} sayısı.`
                         : "DDA katkı payına göre bu kanala atfedilen gelir miktarı."} />
                     </th>}
-                    {simResult && !isLead && <th className="text-right py-2 px-2">
+                    {simResult && !countBased && <th className="text-right py-2 px-2">
                       ROAS
                       <InfoTip text="Return On Ad Spend — kanala atfedilen gelir / harcama. 1x üstü karlı demektir." />
                     </th>}
                     {simResult && <th className="text-right py-2 px-2">
-                      {isLead ? 'CPL (₺)' : 'CPA (₺)'}
-                      <InfoTip text={isLead
-                        ? "Cost Per Lead — her bir atfedilen lead için harcanan tutar. Düşük = verimli."
+                      {countBased ? L.primaryCol : 'CPA (₺)'}
+                      <InfoTip text={countBased
+                        ? `${L.costDescription} Düşük = verimli.`
                         : "Cost Per Acquisition — her bir atfedilen dönüşüm için harcanan tutar. Düşük = verimli."} />
                     </th>}
                     {simResult && isLead && leadValue > 0 && <th className="text-right py-2 px-2">
@@ -183,8 +184,8 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
                     </th>}
                     {simResult?.recommendations && <th className="text-center py-2 px-2">
                       Aksiyon
-                      <InfoTip text={isLead
-                        ? "CPL karşılaştırmasına göre otomatik bütçe önerisi. Artır: düşük CPL, Azalt: yüksek CPL, Koru: ortalama."
+                      <InfoTip text={countBased
+                        ? `${L.costName} karşılaştırmasına göre otomatik bütçe önerisi. Artır: düşük ${L.costName}, Azalt: yüksek ${L.costName}, Koru: ortalama.`
                         : "ROAS ve CPA karşılaştırmasına göre otomatik bütçe önerisi. Artır: verimli kanal, Azalt: verimsiz, Koru: ortalama."} />
                     </th>}
                   </tr>
@@ -239,12 +240,12 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
                           )}
                           {simResult && (
                             <td className="py-1.5 px-2 text-right font-mono text-slate-300">
-                              {isLead
+                              {countBased
                                 ? (curCh?.attributed_leads != null ? fmtN(curCh.attributed_leads) : '—')
                                 : (curCh?.attributed_revenue != null ? `${fmtMoney(curCh.attributed_revenue)}` : '—')}
                             </td>
                           )}
-                          {simResult && !isLead && (
+                          {simResult && !countBased && (
                             <td className="py-1.5 px-2 text-right font-mono text-slate-300">
                               {curCh?.roas != null ? `${curCh.roas.toFixed(1)}x` : '—'}
                             </td>
@@ -340,17 +341,17 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
                   <p className="text-[10px] text-slate-400 uppercase">Toplam Harcama</p>
                   <p className="text-sm font-mono text-slate-100">{fmtMoney(simResult.current.total_spend)} ₺</p>
                 </div>
-                {isLead ? (
+                {countBased ? (
                   <>
                     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-slate-400 uppercase">Toplam Lead</p>
+                      <p className="text-[10px] text-slate-400 uppercase">{L.totalKpi}</p>
                       <p className="text-sm font-mono text-emerald-400">{fmtN(simResult.current.total_leads)}</p>
                     </div>
                     <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-slate-400 uppercase">Ort. CPL</p>
+                      <p className="text-[10px] text-slate-400 uppercase">{L.primaryKpi}</p>
                       <p className="text-sm font-mono text-amber-400">{simResult.current.avg_cpl != null ? `${fmtMoney(simResult.current.avg_cpl)} ₺` : '—'}</p>
                     </div>
-                    {leadValue > 0 && (
+                    {isLead && leadValue > 0 && (
                       <>
                         <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
                           <p className="text-[10px] text-slate-400 uppercase">Tahmini Değer</p>
@@ -390,7 +391,7 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
                   </>
                 )}
                 <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                  <p className="text-[10px] text-slate-400 uppercase">{isLead ? 'Lead' : 'Dönüşüm'}</p>
+                  <p className="text-[10px] text-slate-400 uppercase">{L.Unit}</p>
                   <p className="text-sm font-mono text-slate-100">{fmtN(simResult.current.total_conversions)}</p>
                 </div>
               </div>
@@ -401,24 +402,24 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
               <div className="space-y-3">
                 <div className="text-xs font-medium text-amber-300">Senaryo Sonucu</div>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  {isLead ? (
+                  {countBased ? (
                     <>
                       <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-amber-400/70 uppercase">Projeksiyon Lead</p>
+                        <p className="text-[10px] text-amber-400/70 uppercase">{L.scenarioTotal}</p>
                         <p className="text-sm font-mono text-amber-200">{fmtN(simResult.scenario.projected_leads)}</p>
                       </div>
                       <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-amber-400/70 uppercase">Lead Farkı</p>
+                        <p className="text-[10px] text-amber-400/70 uppercase">{L.scenarioDelta}</p>
                         <p className={`text-sm font-mono ${(simResult.scenario.projected_leads - simResult.current.total_leads) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                           {(simResult.scenario.projected_leads - simResult.current.total_leads) >= 0 ? '+' : ''}{fmtN(simResult.scenario.projected_leads - simResult.current.total_leads)}
                         </p>
                       </div>
                       <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-amber-400/70 uppercase">Yeni CPL</p>
+                        <p className="text-[10px] text-amber-400/70 uppercase">{L.scenarioPrimary}</p>
                         <p className="text-sm font-mono text-amber-200">{simResult.scenario.blended_cpl != null ? `${fmtMoney(simResult.scenario.blended_cpl)} ₺` : '—'}</p>
                       </div>
                       <div className="bg-amber-900/15 border border-amber-800/30 rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-amber-400/70 uppercase">CPL Değişim</p>
+                        <p className="text-[10px] text-amber-400/70 uppercase">{L.scenarioPrimaryDelta}</p>
                         <p className={`text-sm font-mono ${(simResult.scenario.delta_cpl || 0) <= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                           {simResult.scenario.delta_cpl != null ? `${simResult.scenario.delta_cpl >= 0 ? '+' : ''}${fmtMoney(simResult.scenario.delta_cpl)} ₺` : '—'}
                         </p>
@@ -464,20 +465,20 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
         </div>
       )}
 
-      {/* CPL Target Planner (lead mode only) */}
-      {isLead && ddaResult && simResult && (
+      {/* Target cost-per-conversion planner (count-based modes: lead / traffic) */}
+      {countBased && ddaResult && simResult && (
         <div className="dark-card">
           <div className="card-hdr">
             <span className="card-title">
-              Hedef CPL Planlayıcı
-              <InfoTip text="Hedef CPL ve lead sayısı girdiğinizde, DDA katkı paylarına göre kanal bazlı bütçe dağılımını hesaplar. Hill saturasyon modeli ile fizibilite değerlendirir." />
+              Hedef {L.costName} Planlayıcı
+              <InfoTip text={`Hedef ${L.costName} ve ${L.unit} sayısı girdiğinizde, DDA katkı paylarına göre kanal bazlı bütçe dağılımını hesaplar. Hill saturasyon modeli ile fizibilite değerlendirir.`} />
             </span>
-            <span className="text-[10px] font-mono text-slate-400">Lead modu</span>
+            <span className="text-[10px] font-mono text-slate-400">{L.badge}</span>
           </div>
           <div className="p-4 space-y-4">
             <div className="flex flex-wrap items-end gap-3">
               <div>
-                <label className="block text-[10px] text-slate-400 uppercase mb-1">Hedef CPL (₺)</label>
+                <label className="block text-[10px] text-slate-400 uppercase mb-1">Hedef {L.costName} (₺)</label>
                 <input
                   type="number"
                   min="1"
@@ -488,7 +489,7 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-slate-400 uppercase mb-1">Hedef Lead Sayısı</label>
+                <label className="block text-[10px] text-slate-400 uppercase mb-1">Hedef {L.Unit} Sayısı</label>
                 <input
                   type="number"
                   min="1"
@@ -524,7 +525,7 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
                     <p className="text-sm font-mono text-slate-100">{fmtMoney(cplPlanResult.total_budget)} ₺</p>
                   </div>
                   <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
-                    <p className="text-[10px] text-slate-400 uppercase">Proj. Lead</p>
+                    <p className="text-[10px] text-slate-400 uppercase">Proj. {L.Unit}</p>
                     <p className="text-sm font-mono text-accent">{fmtN(cplPlanResult.projected_total_leads || 0)}</p>
                   </div>
                   <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 text-center">
@@ -542,8 +543,8 @@ export default function BudgetSimulator({ campaign, ddaResult }) {
                           <th className="text-right py-2 px-2">DDA Katkı</th>
                           <th className="text-right py-2 px-2">Önerilen Bütçe</th>
                           <th className="text-right py-2 px-2">Bütçe Payı</th>
-                          <th className="text-right py-2 px-2">Proj. Lead</th>
-                          <th className="text-right py-2 px-2">Proj. CPL</th>
+                          <th className="text-right py-2 px-2">Proj. {L.Unit}</th>
+                          <th className="text-right py-2 px-2">Proj. {L.costName}</th>
                         </tr>
                       </thead>
                       <tbody>

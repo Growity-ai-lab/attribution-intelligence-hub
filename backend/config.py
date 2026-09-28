@@ -10,6 +10,13 @@ UPLOAD_DIR = DATA_DIR / "uploads"
 TEMPLATE_DIR = DATA_DIR / "templates"
 SAMPLE_DIR = DATA_DIR / "sample"
 
+# Campaign objectives. "lead" and "traffic" are count-based (conversions are
+# leads / qualified visits, cost metric = cost per conversion); "revenue" is
+# value-based (ROAS/AOV). "traffic" serves awareness/reach campaigns whose
+# goal is site visits rather than leads or sales.
+OBJECTIVES: tuple[str, ...] = ("lead", "revenue", "traffic")
+COUNT_OBJECTIVES: tuple[str, ...] = ("lead", "traffic")
+
 # Database — set DATABASE_URL in production (e.g. a Supabase Postgres URL).
 # Falls back to a local SQLite file for development. Render's free disk is
 # ephemeral, so SQLite there loses all campaigns/DDA results on every deploy.

@@ -20,6 +20,9 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineEleme
 
 /** Media-plan simulation results: KPIs, benchmark check, charts, optimum, weekly table, CSV export. */
 export default function PlanResults({ result, campaign, benchmarks, channelBenchmark, selectedChannel, numWeeks, weeklySpends }) {
+  // Traffic (awareness) campaigns plan for reach and visits; the lead model's outputs don't apply.
+  const traffic = campaign?.objective === 'traffic'
+  const lastReach = result.funnel_curve?.[result.funnel_curve.length - 1]?.reach_pct
   const [activeChartTab, setActiveChartTab] = useState('funnel')
   // CSV Export
   const exportCSV = () => {
@@ -314,6 +317,23 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
           <p className="text-[10px] text-slate-400 uppercase tracking-wide">Clicks</p>
           <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(result.summary?.total_clicks || 0)}</p>
         </div>
+        {traffic ? (
+          <>
+            <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">Erişim (son hafta)</p>
+              <p className="text-lg font-mono text-accent mt-0.5">{lastReach != null ? `%${lastReach.toFixed(1)}` : '-'}</p>
+            </div>
+            <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">Ort. CPM</p>
+              <p className="text-lg font-mono text-violet-400 mt-0.5">{result.summary?.avg_cpm > 0 ? `${fmtMoney(result.summary.avg_cpm)} TL` : '-'}</p>
+            </div>
+            <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide">Ort. CPC</p>
+              <p className="text-lg font-mono text-slate-100 mt-0.5">{result.summary?.avg_cpc > 0 ? `${fmtMoney(result.summary.avg_cpc)} TL` : '-'}</p>
+            </div>
+          </>
+        ) : (
+        <>
         <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
           <p className="text-[10px] text-slate-400 uppercase tracking-wide">Model Lead</p>
           <p className="text-lg font-mono text-accent mt-0.5">{result.summary?.total_leads_mmm?.toFixed(0) ?? '-'}</p>
@@ -328,10 +348,12 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
             {result.summary?.avg_cpl_mmm > 0 ? `${fmtMoney(result.summary.avg_cpl_mmm)} TL` : '-'}
           </p>
         </div>
+        </>
+        )}
       </div>
 
       {/* Deviation badge */}
-      {result.summary?.funnel_vs_mmm_deviation_pct != null && (
+      {!traffic && result.summary?.funnel_vs_mmm_deviation_pct != null && (
         <div className="flex items-center gap-2">
           <span className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-medium ${
             deviationHigh
@@ -409,7 +431,7 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
               { id: 'adstock', label: 'Carryover & Adstock' },
               { id: 'saturation', label: 'Saturation' },
               { id: 'reach', label: 'Reach & Frequency' },
-              { id: 'response', label: 'Haftalık Lead' },
+              ...(traffic ? [] : [{ id: 'response', label: 'Haftalık Lead' }]),
             ].map(t => (
               <button
                 key={t.id}
@@ -602,10 +624,10 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
                 <th className="text-right py-2 px-2">Adstocked</th>
                 <th className="text-right py-2 px-2">Impressions</th>
                 <th className="text-right py-2 px-2">Clicks</th>
-                <th className="text-right py-2 px-2">Model Lead</th>
-                <th className="text-right py-2 px-2">Funnel Lead</th>
+                {!traffic && <th className="text-right py-2 px-2">Model Lead</th>}
+                {!traffic && <th className="text-right py-2 px-2">Funnel Lead</th>}
                 <th className="text-right py-2 px-2">Reach %</th>
-                <th className="text-right py-2 px-2">CPL</th>
+                <th className="text-right py-2 px-2">{traffic ? 'CPC' : 'CPL'}</th>
               </tr>
             </thead>
             <tbody>
@@ -613,6 +635,7 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
                 const f = result.funnel_curve?.[i]
                 const isPeak = d.week === result.summary?.peak_week
                 const cplW = d.estimated_leads > 0 ? d.spend / d.estimated_leads : 0
+                const cpcW = f?.clicks > 0 ? d.spend / f.clicks : 0
                 return (
                   <tr
                     key={d.week}
@@ -626,11 +649,13 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
                     <td className="py-2 px-2 text-right font-mono text-slate-300">{fmtMoney(d.adstocked_spend)}</td>
                     <td className="py-2 px-2 text-right font-mono text-slate-400">{fmtN(f?.impressions || 0)}</td>
                     <td className="py-2 px-2 text-right font-mono text-slate-400">{fmtN(f?.clicks || 0)}</td>
-                    <td className="py-2 px-2 text-right font-mono text-slate-100">{d.estimated_leads.toFixed(1)}</td>
-                    <td className="py-2 px-2 text-right font-mono text-violet-400">{f?.estimated_leads_funnel?.toFixed(1) || '-'}</td>
+                    {!traffic && <td className="py-2 px-2 text-right font-mono text-slate-100">{d.estimated_leads.toFixed(1)}</td>}
+                    {!traffic && <td className="py-2 px-2 text-right font-mono text-violet-400">{f?.estimated_leads_funnel?.toFixed(1) || '-'}</td>}
                     <td className="py-2 px-2 text-right font-mono text-blue-400">%{f?.reach_pct?.toFixed(1) || '-'}</td>
                     <td className="py-2 px-2 text-right font-mono text-slate-400">
-                      {cplW > 0 ? `${fmtMoney(cplW)} TL` : '-'}
+                      {traffic
+                        ? (cpcW > 0 ? `${fmtMoney(cpcW)} TL` : '-')
+                        : (cplW > 0 ? `${fmtMoney(cplW)} TL` : '-')}
                     </td>
                   </tr>
                 )

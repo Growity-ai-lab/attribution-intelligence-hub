@@ -25,7 +25,7 @@ const API = '/api'
 export default function DdaResults({ campaign, ddaResult }) {
   const objective = campaign?.objective || 'lead'
   const L = objectiveLabels(objective)
-  const isLead = objective === 'lead'
+  const countBased = L.countBased // lead + traffic
   const [showMethodology, setShowMethodology] = useState(false)
   // Trend analysis
   const [trendData, setTrendData] = useState(null)
@@ -133,10 +133,10 @@ export default function DdaResults({ campaign, ddaResult }) {
             <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtN(ddaResult.bq_summary.unique_users)}</p>
           </div>
           <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wide">{isLead ? 'Lead (kullanıcı)' : 'Dönüşüm (kullanıcı)'}</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide">{L.convUserLabel}</p>
             <p className="text-lg font-mono text-accent mt-0.5">{fmtN(ddaResult.bq_summary.conversions)}</p>
           </div>
-          {!isLead && (
+          {!countBased && (
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
               <p className="text-[10px] text-slate-400 uppercase tracking-wide">Toplam Gelir</p>
               <p className="text-lg font-mono text-emerald-400 mt-0.5">{fmtMoney(ddaResult.bq_summary.total_revenue)} TL</p>
@@ -205,13 +205,13 @@ export default function DdaResults({ campaign, ddaResult }) {
         const totalRev = ddaResult.bq_summary?.total_revenue || 0
         const totalLeads = ddaResult.journey_stats?.converted || 0
         // Lead mode → distribute leads; revenue mode → distribute revenue (only if present)
-        const attrTotal = isLead ? totalLeads : totalRev
+        const attrTotal = countBased ? totalLeads : totalRev
         if (attrTotal <= 0) return null
         const hybrid = ddaResult.hybrid_attribution || {}
         const sorted = Object.entries(hybrid)
           .filter(([ch]) => !isOrganic(ch))
           .sort((a, b) => b[1] - a[1])
-        const fmtVal = v => isLead ? `${fmtN(v)} lead` : `${fmtMoney(v)} TL`
+        const fmtVal = v => countBased ? `${fmtN(v)} ${L.unit}` : `${fmtMoney(v)} TL`
         const attrData = {
           labels: sorted.map(([ch]) => ch),
           datasets: [{
@@ -241,7 +241,7 @@ export default function DdaResults({ campaign, ddaResult }) {
             <div className="card-hdr">
               <span className="card-title">Kanal Bazlı {L.attributedChart}</span>
               <span className="text-[10px] font-mono text-slate-400">
-                {isLead ? `Toplam lead: ${fmtN(totalLeads)}` : `Toplam gelir: ${fmtMoney(totalRev)} TL`}
+                {countBased ? `Toplam ${L.unit}: ${fmtN(totalLeads)}` : `Toplam gelir: ${fmtMoney(totalRev)} TL`}
               </span>
             </div>
             <div className="p-4">
@@ -254,7 +254,7 @@ export default function DdaResults({ campaign, ddaResult }) {
       })()}
 
       {/* Gercek (GA4) Kanal Geliri — donusen oturumun kanalina bagli olculen gelir */}
-      {!isLead && ddaResult.bq_summary?.channel_revenue
+      {!countBased && ddaResult.bq_summary?.channel_revenue
         && Object.keys(ddaResult.bq_summary.channel_revenue).length > 0 && (() => {
         const chRev = ddaResult.bq_summary.channel_revenue
         const sorted = Object.entries(chRev)

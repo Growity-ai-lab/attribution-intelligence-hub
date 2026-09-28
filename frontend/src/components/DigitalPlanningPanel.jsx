@@ -331,7 +331,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       </div>
 
       {/* Deviation warning banner */}
-      {result && deviationHigh && (
+      {result && deviationHigh && campaign?.objective !== 'traffic' && (
         <div className="px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-xs text-yellow-300 leading-relaxed">
           <strong>Tutarlılık Uyarısı:</strong> İki tahmin yöntemi %{Math.abs(deviationPct).toFixed(0)} farklı sonuç veriyor.
           {' '}Yanıt modeli (adstock + doygunluk) ile funnel hesabı (CPM/CTR/Lead Rate) farklı varsayımlara dayanır;

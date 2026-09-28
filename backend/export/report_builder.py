@@ -18,6 +18,16 @@ _THIN_BORDER = Border(
 )
 _PCT_FMT = "0.0%"
 _NUM_FMT = "#,##0"
+
+# Per-objective wording for count-based results: (total KPI, attributed column, unit)
+_COUNT_LABELS = {
+    "lead": ("Toplam Lead", "Atf. Lead", "lead"),
+    "traffic": ("Toplam Ziyaret", "Atf. Ziyaret", "ziyaret"),
+}
+
+
+def _count_labels(objective: str) -> tuple[str, str, str]:
+    return _COUNT_LABELS.get(objective, ("Dönüşüm Yapan", "Atf. Dönüşüm", "dönüşüm"))
 _DEC_FMT = "0.00"
 
 
@@ -53,7 +63,7 @@ def _build_summary_sheet(
     _write_title(ws, campaign_name, run_date)
 
     stats = result.get("journey_stats", {})
-    lead_label = "Toplam Lead" if objective == "lead" else "Dönüşüm Yapan"
+    lead_label = _count_labels(objective)[0]
     _write_header(ws, 4, ["Metrik", "Değer"])
 
     rows = [
@@ -104,7 +114,7 @@ def _build_attribution_sheet(wb: Workbook, result: dict, objective: str = "lead"
     if objective == "revenue" and total_revenue:
         attr_label, attr_total, attr_fmt = "Atf. Gelir (₺)", total_revenue, _NUM_FMT
     else:
-        attr_label, attr_total, attr_fmt = "Atf. Lead", total_leads, _NUM_FMT
+        attr_label, attr_total, attr_fmt = _count_labels(objective)[1], total_leads, _NUM_FMT
 
     _write_header(
         ws, 1,
@@ -283,7 +293,7 @@ def _slide_summary(prs, result, objective="lead"):
                   "Yolculuk Özeti", font_size=22, bold=True, color=_BRAND_ACCENT)
 
     stats = result.get("journey_stats", {})
-    lead_label = "Toplam Lead" if objective == "lead" else "Dönüşüm"
+    lead_label = _count_labels(objective)[0]
     kpis = [
         ("Toplam Yolculuk", f"{stats.get('total_journeys', 0):,}"),
         (lead_label, f"{stats.get('converted', 0):,}"),
@@ -349,7 +359,7 @@ def _slide_attribution(prs, result, objective="lead"):
         if objective == "revenue" and total_revenue:
             attr_val = f" — ₺{total_revenue * weight:,.0f}"
         else:
-            attr_val = f" — {total_leads * weight:.0f} lead" if total_leads else ""
+            attr_val = f" — {total_leads * weight:.0f} {_count_labels(objective)[2]}" if total_leads else ""
 
         _add_text_box(slide, Inches(2.0) + bar_width + Emu(int(Inches(0.15))),
                       y, Inches(3), bar_height,

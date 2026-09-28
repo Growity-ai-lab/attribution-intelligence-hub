@@ -55,7 +55,7 @@ def export_dda_report(
     wb = build_dda_report(snapshot, campaign_name, dda.run_date or "", objective)
     buf = workbook_to_bytes(wb)
 
-    mode_tag = "lead" if objective == "lead" else "gelir"
+    mode_tag = {"lead": "lead", "traffic": "trafik"}.get(objective, "gelir")
     date_tag = dda.run_date[:10] if dda.run_date else "unknown"
     filename = f"attribution_{mode_tag}_rapor_{campaign_id}_{date_tag}.xlsx"
     return StreamingResponse(
@@ -100,7 +100,7 @@ def export_dda_pptx(
     prs = build_dda_pptx(snapshot, campaign_name, dda.run_date or "", objective)
     buf = pptx_to_bytes(prs)
 
-    mode_tag = "lead" if objective == "lead" else "gelir"
+    mode_tag = {"lead": "lead", "traffic": "trafik"}.get(objective, "gelir")
     date_tag = dda.run_date[:10] if dda.run_date else "unknown"
     filename = f"attribution_{mode_tag}_sunum_{campaign_id}_{date_tag}.pptx"
     return StreamingResponse(

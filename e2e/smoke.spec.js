@@ -359,3 +359,55 @@ test('a campaign with stored credentials connects without re-uploading JSON', as
   await expect(page.getByText('BQ Bağlı: 7 tablo')).toBeVisible()
   expect(reconnects).toBe(1)
 })
+
+test('traffic (awareness) campaign: create in UI, visit wording everywhere, reach KPIs in planning', async ({ page, request }) => {
+  const clientName = `Trafik Müşteri ${Date.now()}`
+  await uiLogin(page)
+
+  // Create client + campaign through the picker with the new objective.
+  await page.getByText('+ Yeni Müşteri').click()
+  await page.getByPlaceholder('Müşteri adı...').fill(clientName)
+  await page.getByRole('button', { name: 'Trafik', exact: true }).click()
+  await page.getByRole('button', { name: 'Ekle', exact: true }).click()
+  await page.getByText(clientName).click()
+  await page.getByText('+ Yeni Kampanya').click()
+  await page.getByPlaceholder('Kampanya adı...').fill('Lansman')
+  await page.getByPlaceholder('Bütçe (TL)...').fill('15000000')
+  await expect(page.getByRole('button', { name: 'Trafik', exact: true })).toHaveAttribute('aria-pressed', 'true') // inherited
+  await expect(page.getByPlaceholder('Lead başına değer (₺, opsiyonel)...')).toHaveCount(0) // lead-only field
+  await page.getByRole('button', { name: 'Oluştur', exact: true }).click()
+  await expect(page.getByText('Erişim & Trafik').first()).toBeVisible()
+
+  // Seed a run for it through the API (qualified visits as conversions).
+  const headers = await apiLogin(request)
+  const clients = await (await request.get('/api/clients', { headers })).json()
+  const client = clients.find(c => c.name === clientName)
+  const camps = await (await request.get(`/api/clients/${client.id}/campaigns`, { headers })).json()
+  expect(camps[0].objective).toBe('traffic')
+  const run = await request.post('/api/dda/run-from-csv', {
+    headers, params: { campaign_id: camps[0].id },
+    multipart: { file: { name: 'j.csv', mimeType: 'text/csv', buffer: readFileSync('data/sample/journeys_sample.csv') } },
+  })
+  expect(run.ok()).toBeTruthy()
+
+  await page.getByText('Lansman', { exact: true }).click()
+  await page.getByRole('tab', { name: 'Attribution', exact: true }).click()
+  await expect(page.getByText('Kanal Bazlı Atfedilen Ziyaret')).toBeVisible()
+
+  const spendInputs = page.locator('input[type=number][placeholder="0"]')
+  await spendInputs.nth(0).fill('100000')
+  await page.getByRole('button', { name: 'Simüle Et', exact: true }).click()
+  await expect(page.getByText('Toplam Ziyaret').first()).toBeVisible()
+  await expect(page.getByText('Ort. Maliyet/Ziyaret')).toBeVisible()
+  await expect(page.getByText('Hedef Maliyet/Ziyaret Planlayıcı')).toBeVisible()
+  await expect(page.getByText('Toplam Lead')).toHaveCount(0)
+
+  await page.getByRole('tab', { name: 'Medya Planlama' }).click()
+  await page.getByRole('button', { name: 'Preset', exact: true }).click()
+  await expect(page.getByText('Erişim (son hafta)')).toBeVisible()
+  for (const kpi of ['Erişim (son hafta)', 'Ort. CPM', 'Ort. CPC']) {
+    await expect(page.getByText(kpi, { exact: true }).locator('xpath=following-sibling::p[1]')).toHaveText(/\d/)
+  }
+  await expect(page.getByText('Model Lead')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Haftalık Lead' })).toHaveCount(0)
+})

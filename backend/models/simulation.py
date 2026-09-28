@@ -8,7 +8,7 @@ Scenario projections use Hill saturation for diminishing returns
 when channel saturation params are available, linear fallback otherwise.
 """
 
-from backend.config import SATURATION_PARAMS
+from backend.config import COUNT_OBJECTIVES, OBJECTIVES, SATURATION_PARAMS
 from backend.integrations.bigquery import map_channel
 from backend.models.mmm import compute_saturation
 
@@ -74,12 +74,14 @@ def simulate_budget(
 ) -> dict:
     """Run budget simulation with optional what-if scenario.
 
-    objective: "revenue" (ROAS/AOV) or "lead" (CPL/attributed leads).
+    objective: "revenue" (ROAS/AOV), "lead" (CPL/attributed leads) or
+    "traffic" (cost per qualified visit). lead and traffic are count-based and
+    share the same maths; only lead mode uses lead_value.
     lead_value: optional TL value per lead — in lead mode enables value-ROAS.
     """
-    objective = objective if objective in ("lead", "revenue") else "revenue"
+    objective = objective if objective in OBJECTIVES else "revenue"
     lead_value = max(0.0, float(lead_value or 0.0))
-    primary_metric = "leads" if objective == "lead" else "revenue"
+    primary_metric = {"lead": "leads", "traffic": "visits"}.get(objective, "revenue")
 
     current_channels: dict[str, dict] = {}
     total_spend = sum(channel_spends.values())
@@ -140,8 +142,8 @@ def simulate_budget(
             round(total_value / total_spend, 2) if total_spend > 0 else None
         )
 
-    # In lead mode, recommendations are CPL-based (revenue not meaningful)
-    force_cpa = objective == "lead"
+    # Count-based modes: recommendations use cost per conversion (revenue not meaningful)
+    force_cpa = objective in COUNT_OBJECTIVES
     recommendations = generate_budget_recommendations(
         current_channels, total_spend, force_cpa=force_cpa
     )

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { OBJECTIVE_OPTIONS, objectiveLabels } from '../utils/objectiveLabels'
 import { useWorkspace } from '../hooks/useWorkspace'
 
 const CURRENT_YEAR = new Date().getFullYear()
@@ -152,17 +153,18 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
                   <div>
                     <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Varsayılan Hedef</span>
                     <div className="flex gap-2 mt-1">
-                      {['lead', 'revenue'].map(o => (
+                      {OBJECTIVE_OPTIONS.map(({ value: o, short, selectedClass }) => (
                         <button
                           key={o}
                           onClick={() => setNewClientObjective(o)}
+                          aria-pressed={newClientObjective === o}
                           className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                             newClientObjective === o
-                              ? (o === 'lead' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-blue-500 bg-blue-500/10 text-blue-400')
+                              ? selectedClass
                               : 'border-dark-border text-slate-400 hover:border-slate-600'
                           }`}
                         >
-                          {o === 'lead' ? 'Lead' : 'Gelir'}
+                          {short}
                         </button>
                       ))}
                     </div>
@@ -254,17 +256,18 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
                   <div>
                     <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Kampanya Hedefi</span>
                     <div className="flex gap-2 mt-1">
-                      {['lead', 'revenue'].map(o => (
+                      {OBJECTIVE_OPTIONS.map(({ value: o, short, selectedClass }) => (
                         <button
                           key={o}
                           onClick={() => setNewCampaign(prev => ({ ...prev, objective: o }))}
+                          aria-pressed={newCampaign.objective === o}
                           className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                             newCampaign.objective === o
-                              ? (o === 'lead' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-blue-500 bg-blue-500/10 text-blue-400')
+                              ? selectedClass
                               : 'border-dark-border text-slate-400 hover:border-slate-600'
                           }`}
                         >
-                          {o === 'lead' ? 'Lead' : 'Gelir'}
+                          {short}
                         </button>
                       ))}
                     </div>
@@ -309,12 +312,8 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                        (c.objective || 'lead') === 'lead'
-                          ? 'bg-emerald-500/15 text-emerald-400'
-                          : 'bg-blue-500/15 text-blue-400'
-                      }`}>
-                        {(c.objective || 'lead') === 'lead' ? 'Lead' : 'Gelir'}
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${objectiveLabels(c.objective || 'lead').badgeClass}`}>
+                        {objectiveLabels(c.objective || 'lead').badge}
                       </span>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
                         c.status === 'active'

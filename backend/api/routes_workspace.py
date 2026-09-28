@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
+from backend.config import OBJECTIVES
 from backend.api.deps import check_campaign_access, get_current_user
 from backend.db.database import get_db
 from backend.db.models import (
@@ -12,6 +13,8 @@ from backend.db.models import (
 )
 
 router = APIRouter()
+
+_OBJECTIVE_ERROR = "objective şunlardan biri olmalı: " + ", ".join(OBJECTIVES)
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +54,8 @@ def create_client(
     """Create a new client."""
     if not name or not name.strip():
         raise HTTPException(status_code=400, detail="Client name is required")
-    if objective not in ("lead", "revenue"):
-        raise HTTPException(status_code=400, detail="objective must be 'lead' or 'revenue'")
+    if objective not in OBJECTIVES:
+        raise HTTPException(status_code=400, detail=_OBJECTIVE_ERROR)
     client = Client(
         name=name.strip(),
         year=year,
@@ -133,8 +136,8 @@ def create_campaign(
     if not name or not name.strip():
         raise HTTPException(status_code=400, detail="Campaign name is required")
     resolved_objective = objective if objective is not None else (client.objective or "lead")
-    if resolved_objective not in ("lead", "revenue"):
-        raise HTTPException(status_code=400, detail="objective must be 'lead' or 'revenue'")
+    if resolved_objective not in OBJECTIVES:
+        raise HTTPException(status_code=400, detail=_OBJECTIVE_ERROR)
     campaign = Campaign(
         client_id=client_id,
         name=name.strip(),
@@ -174,8 +177,8 @@ def update_campaign(
     """Update campaign fields — objective/lead_value/name/budget/status."""
     campaign = check_campaign_access(db, campaign_id, _user)
     if objective is not None:
-        if objective not in ("lead", "revenue"):
-            raise HTTPException(status_code=400, detail="objective must be 'lead' or 'revenue'")
+        if objective not in OBJECTIVES:
+            raise HTTPException(status_code=400, detail=_OBJECTIVE_ERROR)
         campaign.objective = objective
     if lead_value is not None:
         campaign.lead_value = max(0.0, lead_value)

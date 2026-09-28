@@ -11,6 +11,7 @@ from backend.db.models import (
     WeeklyData,
 )
 from backend.config import (
+    COUNT_OBJECTIVES,
     ADSTOCK_PARAMS,
     BASELINE_LEADS,
     CHANNELS,
@@ -312,7 +313,7 @@ def run_budget_simulation(
       "total_revenue": 1100000,
       "total_conversions": 571,
       "scenario_spends": {"google/cpc": 60000, ...},  // optional
-      "objective": "lead" | "revenue",                // optional, default revenue
+      "objective": "lead" | "revenue" | "traffic",    // optional, default revenue
       "lead_value": 15000                              // optional, lead mode
     }
     """
@@ -334,8 +335,8 @@ def run_budget_simulation(
             status_code=400,
             detail="total_conversions zorunludur.",
         )
-    # In lead mode revenue is optional (CSV flow has no revenue)
-    if objective != "lead" and total_revenue is None:
+    # Count-based modes (lead/traffic) don't need revenue (CSV flow has none)
+    if objective not in COUNT_OBJECTIVES and total_revenue is None:
         raise HTTPException(
             status_code=400,
             detail="total_revenue ve total_conversions zorunludur.",

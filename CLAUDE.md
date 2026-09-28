@@ -12,7 +12,10 @@ Time x Growity tarafindan gelistirilir.
 - Toplam dijital butce: 55M TL
 - 4 segment: S1 Hızlı Ölçeklenen (33M), S2 Çalışanı Gözeten (13.75M), S3 Yaygın Filolu (5.5M), S4 Rakiple Çalışan (2.75M)
 - Dijital kanallar: Meta, Google, TikTok, LinkedIn, DV360+Programatik, YouTube
-- Kampanya modlari: lead-focused veya revenue-focused (iki seviyeli miras: Client.objective -> Campaign.objective)
+- Kampanya modlari (`OBJECTIVES`, config.py): `lead`, `revenue`, `traffic` (iki seviyeli miras: Client.objective -> Campaign.objective)
+  - `lead` ve `traffic` sayi bazli (`COUNT_OBJECTIVES`): donusum = lead / nitelikli ziyaret, maliyet metrigi = donusum basi maliyet
+  - `traffic` (Erisim & Trafik) bilinirlik/erisim kampanyalari icin: medya planlamada lead yerine erisim, CPM, CPC gosterilir
+  - Mod etiketleri tek yerde: `frontend/src/utils/objectiveLabels.js` (`OBJECTIVE_OPTIONS`, `objectiveLabels()`)
 
 ## Tech Stack
 - Backend: Python 3.11+ / FastAPI
