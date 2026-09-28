@@ -107,7 +107,8 @@ export default function DigitalPlanningPanel({ campaign }) {
         const spends = presets.preset_spends || []
         const filled = Array(numWeeks).fill(0).map((_, i) => spends[i] || 0)
         setWeeklySpends(pending ?? filled)
-        if (presets.digital_metrics) setChannelDefaults(presets.digital_metrics)
+        // The presets endpoint returns the channel defaults as `metrics`.
+        setChannelDefaults(presets.metrics || null)
         setResult(null)
         setCpmOverride('')
         setCtrOverride('')

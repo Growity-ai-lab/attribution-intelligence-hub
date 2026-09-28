@@ -449,4 +449,10 @@ test('traffic (awareness) campaign: create in UI, visit wording everywhere, reac
   await page.getByRole('button', { name: /Gelişmiş Ayarlar/ }).click()
   await page.getByLabel('Hedef Kitle (kişi)').fill('40000000')
   await expect.poll(reachPct, { timeout: 10_000 }).toBeLessThan(50)
+
+  // Placeholders show the selected channel's real defaults (they used to read a
+  // key the presets API never returns and always showed generic values, which
+  // happen to equal Meta's — hence checking YouTube).
+  await page.getByRole('button', { name: 'YouTube', exact: true }).click()
+  await expect(page.getByLabel('Hedef Kitle (kişi)')).toHaveAttribute('placeholder', '6000000')
 })
