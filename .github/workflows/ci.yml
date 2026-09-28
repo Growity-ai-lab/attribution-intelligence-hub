@@ -55,7 +55,7 @@ jobs:
         run: python -m pytest tests/ -q
 
   e2e:
-    name: Frontend build + browser smoke tests
+    name: Frontend lint + build + browser smoke tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,6 +75,9 @@ jobs:
         run: |
           npm ci
           pip install -r requirements.txt
+
+      - name: Lint frontend
+        run: npm run lint
 
       - name: Build frontend
         run: npm run build

@@ -114,3 +114,39 @@ test('generic BigQuery table form renders after connecting', async ({ page }) =>
   await page.getByPlaceholder('is_converted (bool/int)').fill('is_converted')
   await expect(run).toBeEnabled()
 })
+
+test('budget simulator and CPL planner run end to end', async ({ page, request }) => {
+  // Exercises the simulator's click handlers, which only fail at click time.
+  const headers = await apiLogin(request)
+  const campaignId = await findCampaign(request, headers, 'Petrol Ofisi', 'AutoMatic Filo')
+  const run = await request.post('/api/dda/run-from-csv', {
+    headers,
+    params: { campaign_id: campaignId },
+    multipart: {
+      file: { name: 'journeys.csv', mimeType: 'text/csv', buffer: readFileSync('data/sample/journeys_sample.csv') },
+    },
+  })
+  expect(run.ok()).toBeTruthy()
+
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'AutoMatic Filo')
+  await page.getByRole('tab', { name: 'Attribution', exact: true }).click()
+
+  const spendInputs = page.locator('input[type=number][placeholder="0"]')
+  await expect(spendInputs.first()).toBeVisible()
+  await spendInputs.nth(0).fill('100000')
+  await spendInputs.nth(1).fill('50000')
+  await page.getByRole('button', { name: 'Simüle Et', exact: true }).click()
+  await expect(page.getByText('Toplam Harcama').first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Senaryo Ekle' }).click()
+  await page.getByRole('button', { name: 'Senaryoyu Simüle Et' }).click()
+
+  await page.getByPlaceholder('örn. 500').fill('500')
+  await page.getByPlaceholder('örn. 1000').fill('200')
+  await page.getByRole('button', { name: 'Hesapla', exact: true }).click()
+  await expect(page.getByText('Fizibilite')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Sıfırla', exact: true }).click()
+  await expect(page.getByText('Toplam Harcama')).toHaveCount(0)
+})

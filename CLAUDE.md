@@ -88,7 +88,13 @@ attribution-intelligence-hub/
 │   │   ├── main.jsx
 │   │   ├── components/
 │   │   │   ├── Dashboard.jsx          # Ana dashboard (KPI + chart + tablo)
-│   │   │   ├── AttributionPanel.jsx   # DDA analiz paneli (BQ GA4, BQ tablo, CSV, sonuclar)
+│   │   │   ├── AttributionPanel.jsx   # Attribution sekmesi: asagidaki parcalari birlestirir
+│   │   │   ├── attribution/
+│   │   │   │   ├── DataSourcePanel.jsx  # Kaynak secimi (BQ GA4, BQ tablo, CSV), onizleme, calistirma
+│   │   │   │   ├── DdaResults.jsx       # KPI, grafikler, katki/asist tablolari, cikarimlar, trend, export
+│   │   │   │   ├── BudgetSimulator.jsx  # Butce/gelir-lead simulasyonu + hedef CPL planlayici
+│   │   │   │   ├── JourneyDetails.jsx   # En sik donusum yollari + yolculuk istatistikleri
+│   │   │   │   └── organic.js           # Organik/direct kanal tespiti
 │   │   │   ├── AlertsPanel.jsx        # Kampanya uyarilari (listele, okundu isaretle)
 │   │   │   ├── UnifiedChart.jsx       # DDA attribution bar chart
 │   │   │   ├── UnifiedScoringTable.jsx # DDA kanal skor tablosu
@@ -257,13 +263,13 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 - Frontend calistir: `cd frontend && npm run dev`
 - Gelistirme bagimliliklari: `pip install -r requirements-dev.txt`
 - Testleri calistir: `python -m pytest tests/ -v` (gecici SQLite; Postgres icin `TEST_DATABASE_URL=postgresql://...`)
-- Lint: `ruff check backend/`
+- Lint: `ruff check backend/` ve `npm run lint` (ESLint: tanimsiz degisken/JSX bileseni hata sayilir)
 - Frontend build: `npx vite build --config frontend/vite.config.js`
 - Tarayici duman testleri: `npm run build && npx playwright test` (uygulamayi gecici SQLite ile kendisi baslatir;
   onceden kurulu Chromium icin `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`)
 
 ## CI (`.github/workflows/ci.yml`)
-- Her push ve PR'da: ruff + pytest (SQLite ve Postgres 16 matrisi) ve frontend build + Playwright duman testleri
+- Her push ve PR'da: ruff + pytest (SQLite ve Postgres 16 matrisi) ve ESLint + frontend build + Playwright duman testleri
 - Duman testleri `vite build`'in yakalayamadigi render cokmelerini ("Bir hata olustu" ErrorBoundary ekrani)
   ve yakalanmamis sayfa hatalarini yakalar; hata olursa rapor artifact olarak yuklenir
 - Yeni bir ekran/akis eklerken `e2e/smoke.spec.js`'e en az bir acilis testi ekle
