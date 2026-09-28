@@ -1181,7 +1181,7 @@ export default function DigitalPlanningPanel({ campaign }) {
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
               <p className="text-[10px] text-slate-400 uppercase tracking-wide">Ort. Haftalık</p>
-              <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtMoney(result.summary?.avg_weekly_spend || totalSpend / numWeeks)} TL</p>
+              <p className="text-lg font-mono text-slate-100 mt-0.5">{fmtMoney(result.summary?.avg_spend || totalSpend / numWeeks)} TL</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
               <p className="text-[10px] text-slate-400 uppercase tracking-wide">Impressions</p>
@@ -1193,16 +1193,16 @@ export default function DigitalPlanningPanel({ campaign }) {
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
               <p className="text-[10px] text-slate-400 uppercase tracking-wide">Model Lead</p>
-              <p className="text-lg font-mono text-accent mt-0.5">{result.summary?.total_leads?.toFixed(0) || '-'}</p>
+              <p className="text-lg font-mono text-accent mt-0.5">{result.summary?.total_leads_mmm?.toFixed(0) ?? '-'}</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
               <p className="text-[10px] text-slate-400 uppercase tracking-wide">Funnel Lead</p>
-              <p className="text-lg font-mono text-violet-400 mt-0.5">{result.summary?.total_funnel_leads?.toFixed(0) || '-'}</p>
+              <p className="text-lg font-mono text-violet-400 mt-0.5">{result.summary?.total_leads_funnel?.toFixed(0) ?? '-'}</p>
             </div>
             <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
               <p className="text-[10px] text-slate-400 uppercase tracking-wide">CPL (Model)</p>
               <p className="text-lg font-mono text-slate-100 mt-0.5">
-                {result.summary?.avg_cpl > 0 ? `${fmtMoney(result.summary.avg_cpl)} TL` : '-'}
+                {result.summary?.avg_cpl_mmm > 0 ? `${fmtMoney(result.summary.avg_cpl_mmm)} TL` : '-'}
               </p>
             </div>
           </div>

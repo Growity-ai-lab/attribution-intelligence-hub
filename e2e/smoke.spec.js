@@ -17,12 +17,19 @@ test.afterEach(async ({ page }, testInfo) => {
   expect(testInfo.pageErrors, 'uncaught page errors').toEqual([])
 })
 
+// /api/auth/login is rate limited (5/min per IP), so the suite logs in for
+// real once — through the UI form — and reuses that token afterwards.
+let adminToken = null
+
 async function apiLogin(request) {
-  const res = await request.post('/api/auth/login', {
-    form: { username: 'admin', password: ADMIN_PASSWORD },
-  })
-  expect(res.ok()).toBeTruthy()
-  return { Authorization: `Bearer ${(await res.json()).access_token}` }
+  if (!adminToken) {
+    const res = await request.post('/api/auth/login', {
+      form: { username: 'admin', password: ADMIN_PASSWORD },
+    })
+    expect(res.ok()).toBeTruthy()
+    adminToken = (await res.json()).access_token
+  }
+  return { Authorization: `Bearer ${adminToken}` }
 }
 
 async function findCampaign(request, headers, clientName, campaignName) {
@@ -33,10 +40,20 @@ async function findCampaign(request, headers, clientName, campaignName) {
 }
 
 async function uiLogin(page) {
+  if (adminToken) {
+    // Reuse the token; the rest of the flow (/auth/me, data loading) stays real.
+    await page.route('**/api/auth/login', route => route.fulfill({
+      json: { access_token: adminToken, token_type: 'bearer' },
+    }))
+  }
   await page.goto('/')
   await page.locator('input[type=password]').fill(ADMIN_PASSWORD)
   await page.locator('input:not([type=password])').first().fill('admin')
+  const loginResponse = page.waitForResponse('**/api/auth/login')
   await page.locator('input[type=password]').press('Enter')
+  const res = await loginResponse
+  expect(res.ok()).toBeTruthy()
+  adminToken ??= (await res.json()).access_token
   await expect(page.getByText('Petrol Ofisi').first()).toBeVisible()
 }
 
@@ -61,6 +78,7 @@ test('demo login lands on the Petrol Ofisi campaign and every tab renders', asyn
 })
 
 test('report page shows the stored result after a CSV run', async ({ page, request }) => {
+  await uiLogin(page) // the suite's one real form login
   const headers = await apiLogin(request)
   const campaignId = await findCampaign(request, headers, 'Petrol Ofisi', 'Premium Market')
   const run = await request.post('/api/dda/run-from-csv', {
@@ -76,7 +94,6 @@ test('report page shows the stored result after a CSV run', async ({ page, reque
   })
   expect(run.ok()).toBeTruthy()
 
-  await uiLogin(page)
   await openCampaign(page, 'Petrol Ofisi', 'Premium Market')
   await expect(page.getByText('Son kayıtlı analiz gösteriliyor')).toBeVisible()
   await expect(page.getByText('Uyarılar')).toBeVisible()
@@ -149,4 +166,65 @@ test('budget simulator and CPL planner run end to end', async ({ page, request }
 
   await page.getByRole('button', { name: 'Sıfırla', exact: true }).click()
   await expect(page.getByText('Toplam Harcama')).toHaveCount(0)
+})
+
+test('media planning: simulate, charts, save/load/reconcile/delete, Excel import', async ({ page }) => {
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'AutoMatic Filo')
+  await page.getByRole('tab', { name: 'Medya Planlama' }).click()
+
+  await page.getByRole('button', { name: 'Preset', exact: true }).click()
+  await expect(page.getByText('Model Lead').first()).toBeVisible()
+
+  for (const s of ['Maksimum', 'Minimum', 'Optimum']) {
+    await page.getByRole('button', { name: s }).click()
+  }
+  for (const t of ['Carryover & Adstock', 'Saturation', 'Reach & Frequency', 'Haftalık Lead', 'Funnel Projeksiyon']) {
+    await page.getByRole('button', { name: t }).click()
+  }
+  await page.getByRole('button', { name: 'Google Ads', exact: true }).click()
+  await page.getByRole('button', { name: 'Preset', exact: true }).click()
+  await expect(page.getByText('Model Lead').first()).toBeVisible()
+  // Headline KPIs must show numbers: they used to read summary keys the API
+  // never returns (total_leads vs total_leads_mmm) and always rendered "-".
+  for (const kpi of ['Model Lead', 'Funnel Lead', 'CPL (Model)']) {
+    const value = page.getByText(kpi, { exact: true }).locator('xpath=following-sibling::p[1]')
+    await expect(value).toHaveText(/\d/)
+  }
+
+  // Save → list → reconcile against the DDA run from the previous test → load → delete
+  const planName = `E2E Plan ${Date.now()}`
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).first().click()
+  await page.getByPlaceholder('Simülasyon adı...').fill(planName)
+  await page.getByPlaceholder('Simülasyon adı...').press('Enter')
+  await page.getByRole('button', { name: 'Yükle', exact: true }).click()
+  await expect(page.getByText(planName)).toBeVisible()
+  await page.getByRole('button', { name: 'Dogrula' }).first().click()
+  await expect(page.getByText(/Plan vs Gerçekleşme|Sağlama verisi yok/).first()).toBeVisible()
+  await page.getByText(planName).click()
+  await page.getByRole('button', { name: 'Yükle', exact: true }).click()
+  await expect(page.getByText(planName)).toBeVisible()
+  const row = page.locator('div.group', { hasText: planName })
+  await row.hover()
+  await row.getByRole('button', { name: 'x', exact: true }).click()
+  await expect(page.getByText(planName)).toHaveCount(0)
+
+  // Excel import of a real .xlsx media plan
+  const XLSX = (await import('xlsx')).default
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Mecra', 'Site/Network', 'Net Yayın Bedeli'],
+    ['Meta', 'Instagram', 120000],
+    ['Google', 'Search', 80000],
+  ]), 'Plan')
+  await page.locator('input[type=file][accept=".xlsx,.xls,.csv"]').setInputFiles({
+    name: 'plan.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }),
+  })
+  const dialog = page.getByRole('dialog', { name: 'Plan içe aktarma' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('button', { name: 'Eşit' }).click()
+  await dialog.getByRole('button', { name: 'Uygula', exact: true }).first().click()
+  await expect(page.getByText('Model Lead').first()).toBeVisible()
 })
