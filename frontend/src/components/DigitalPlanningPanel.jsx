@@ -411,9 +411,9 @@ export default function DigitalPlanningPanel({ campaign }) {
         {/* Saved Plans List */}
         {showSavedList && (
           <div className="px-4 py-3 bg-dark-bg/50 border-b border-dark-border">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2">Kayitli Planlar (Dijital)</p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-2">Kayıtlı Planlar (Dijital)</p>
             {savedPlans.length === 0 ? (
-              <p className="text-xs text-slate-400">Henuz kayitli dijital plan yok.</p>
+              <p className="text-xs text-slate-400">Henüz kayıtlı dijital plan yok.</p>
             ) : (
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {savedPlans.map(p => (
@@ -427,15 +427,18 @@ export default function DigitalPlanningPanel({ campaign }) {
                       <button
                         onClick={() => handleReconcile(p.id)}
                         disabled={reconLoading}
-                        className="opacity-0 group-hover:opacity-100 text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all"
+                        aria-label={`${p.name} planını gerçekleşmeyle doğrula`}
+                        className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all"
                       >
-                        {reconLoading ? '...' : 'Dogrula'}
+                        {reconLoading ? '...' : 'Doğrula'}
                       </button>
                       <button
                         onClick={() => handleDeletePlan(p.id)}
-                        className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 text-xs transition-all"
+                        aria-label={`${p.name} planını sil`}
+                        title="Planı sil"
+                        className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 px-1 text-slate-400 hover:text-red-400 text-xs transition-all"
                       >
-                        x
+                        ×
                       </button>
                     </div>
                   </div>

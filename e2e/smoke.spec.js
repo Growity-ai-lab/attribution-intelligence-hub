@@ -78,6 +78,8 @@ test('demo login lands on the Petrol Ofisi campaign and every tab renders', asyn
 })
 
 test('report page shows the stored result after a CSV run', async ({ page, request }) => {
+  const configCalls = []
+  page.on('request', req => { if (req.url().includes('/api/config/channels')) configCalls.push(req.url()) })
   await uiLogin(page) // the suite's one real form login
   const headers = await apiLogin(request)
   const campaignId = await findCampaign(request, headers, 'Petrol Ofisi', 'Premium Market')
@@ -96,6 +98,8 @@ test('report page shows the stored result after a CSV run', async ({ page, reque
 
   await openCampaign(page, 'Petrol Ofisi', 'Premium Market')
   await expect(page.getByText('Son kayıtlı analiz gösteriliyor')).toBeVisible()
+  await page.waitForLoadState('networkidle')
+  expect(configCalls, 'channel config is not fetched (it was unused and fetched 3x)').toEqual([])
   await expect(page.getByText('Uyarılar')).toBeVisible()
   await expect(page.getByText('DDA Kanal Attribution')).toBeVisible()
 
@@ -205,14 +209,18 @@ test('media planning: simulate, charts, save/load/reconcile/delete, Excel import
   await page.getByPlaceholder('Simülasyon adı...').press('Enter')
   await page.getByRole('button', { name: 'Yükle', exact: true }).click()
   await expect(page.getByText(planName)).toBeVisible()
-  await page.getByRole('button', { name: 'Dogrula' }).first().click()
+  await page.getByRole('button', { name: `${planName} planını gerçekleşmeyle doğrula` }).click()
   await expect(page.getByText(/Plan vs Gerçekleşme|Sağlama verisi yok/).first()).toBeVisible()
   await page.getByText(planName).click()
   await page.getByRole('button', { name: 'Yükle', exact: true }).click()
   await expect(page.getByText(planName)).toBeVisible()
-  const row = page.locator('div.group', { hasText: planName })
-  await row.hover()
-  await row.getByRole('button', { name: 'x', exact: true }).click()
+  // Row actions are reachable without hover (touch/keyboard) and named for screen readers.
+  await page.setViewportSize({ width: 390, height: 844 })
+  const del = page.getByRole('button', { name: `${planName} planını sil` })
+  // poll: the button fades in via a CSS transition after the resize
+  await expect.poll(() => del.evaluate(el => getComputedStyle(el).opacity)).toBe('1')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.getByRole('button', { name: `${planName} planını sil` }).click()
   await expect(page.getByText(planName)).toHaveCount(0)
 
   // Excel import of a real .xlsx media plan

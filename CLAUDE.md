@@ -108,12 +108,11 @@ attribution-intelligence-hub/
 │   │   │   ├── LoginPage.jsx          # Giris ekrani
 │   │   │   └── InfoTip.jsx            # Tooltip bilesen
 │   │   ├── hooks/
-│   │   │   ├── useAttribution.js      # Core API (DDA, export, trend, alerts)
+│   │   │   ├── useAttribution.js      # useDDA + useMMM + useMediaPlanning + useFileOps birlesimi
 │   │   │   ├── useDDA.js              # DDA-specific API calls
 │   │   │   ├── useMediaPlanning.js    # Medya planlama API calls
 │   │   │   ├── useMMM.js             # MMM/decomposition API (simulasyon icin)
 │   │   │   ├── useFileOps.js          # Dosya yukleme/indirme
-│   │   │   ├── useChannelConfig.js    # Kanal konfigurasyonu
 │   │   │   ├── useWorkspace.js        # Client/Campaign yonetimi
 │   │   │   └── useAuth.js             # Authentication
 │   │   ├── utils/
