@@ -118,6 +118,7 @@ attribution-intelligence-hub/
 │   │   │   └── useAuth.js             # Authentication
 │   │   ├── utils/
 │   │   │   ├── formatters.js          # Sayi/para formatlama
+│   │   │   ├── session.js             # Oturum kaliciligi (token, secili kampanya/sekme)
 │   │   │   ├── colors.js             # Kanal renk paleti (6 dijital kanal)
 │   │   │   └── objectiveLabels.js     # Lead/Revenue modu etiketleri
 │   │   └── styles/
@@ -288,6 +289,9 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
   - Snapshot'a yalnizca dolu alanlar yazilir (bos `{}` JS'te truthy; CSV sonucunda BQ KPI'larini cizip cokertiyordu)
 - Demo kullanicinin calismalari "Demo Sandbox" altinda ayni adli kampanyaya yazilir; okuma endpoint'leri
   (latest, alerts, trend, export) `resolve_read_campaign_id` ile oraya yonlenir (sandbox'i olusturmaz)
+- Oturum: JWT `localStorage`'da (`th_token`) tutulur, acilista `/auth/me` ile dogrulanir; herhangi bir API cagrisi
+  401 donerse oturum kapanir. Secili kampanya ve sekme `sessionStorage`'da (sekme bazli, yenilemede geri yuklenir).
+  Cikista hepsi temizlenir. Depolama erisimi `utils/session.js` uzerinden (erisilemezse sessizce oturumsuz davranir)
 - Alert sistemi 5 kural: conversion_drop, volume_drop, channel_concentration, channel_disappeared, sustained_decline
   - Her tamamlanan DDA calismasindan sonra otomatik degerlendirilir (CSV: sonuc kaydindan sonra; BQ: sonucla ayni commit'te)
   - Karsilastirma yalnizca `status == "complete"` calismalarla yapilir; ayni calisma icin ayni kural tekrar yazilmaz

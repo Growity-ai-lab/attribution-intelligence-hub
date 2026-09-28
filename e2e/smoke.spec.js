@@ -234,3 +234,53 @@ test('media planning: simulate, charts, save/load/reconcile/delete, Excel import
   await dialog.getByRole('button', { name: 'Uygula', exact: true }).first().click()
   await expect(page.getByText('Model Lead').first()).toBeVisible()
 })
+
+test('a reload keeps the user signed in on the same campaign and tab', async ({ page }) => {
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'Premium Market')
+  await page.getByRole('tab', { name: 'Attribution', exact: true }).click()
+
+  await page.reload()
+  await expect(page.locator('header').first()).toContainText('Premium Market')
+  await expect(page.getByRole('tab', { name: 'Attribution', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('input[type=password]')).toHaveCount(0)
+})
+
+test('an invalid stored token lands on the login page and is discarded', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem('seeded')) {
+      localStorage.setItem('th_token', 'not-a-valid-jwt')
+      sessionStorage.setItem('seeded', '1')
+    }
+  })
+  await page.goto('/')
+  await expect(page.locator('input[type=password]')).toBeVisible()
+  expect(await page.evaluate(() => localStorage.getItem('th_token'))).toBeNull()
+})
+
+test('logout forgets the session and the previous campaign', async ({ page }) => {
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'Premium Market')
+  await page.getByRole('button', { name: 'Oturumu kapat' }).click()
+  await expect(page.locator('input[type=password]')).toBeVisible()
+
+  await page.reload()
+  await expect(page.locator('input[type=password]')).toBeVisible()
+
+  // Signing back in starts at the campaign picker, not the old campaign.
+  await uiLogin(page)
+  await expect(page.locator('header').first()).not.toContainText('Premium Market')
+})
+
+test('a token that expires mid-session signs the user out', async ({ page }) => {
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'Premium Market')
+  // Let the campaign's own requests finish first, so the 401 is triggered by
+  // the click below rather than racing in-flight loads.
+  await page.waitForLoadState('networkidle')
+  // From now on the server rejects the token, as it would after expiry.
+  await page.route('**/api/**', route => route.fulfill({ status: 401, json: { detail: 'Invalid or expired token' } }))
+  await page.getByRole('button', { name: /Kampanyalar/ }).click()
+  await expect(page.locator('input[type=password]')).toBeVisible()
+  expect(await page.evaluate(() => localStorage.getItem('th_token'))).toBeNull()
+})

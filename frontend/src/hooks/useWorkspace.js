@@ -7,6 +7,7 @@ export function useWorkspace() {
   const [clients, setClients] = useState([])
   const [campaigns, setCampaigns] = useState([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const fetchClients = useCallback(async (year = null) => {
     setLoading(true)
@@ -14,7 +15,13 @@ export function useWorkspace() {
       const params = year ? { year } : {}
       const res = await axios.get(`${API}/clients`, { params })
       setClients(res.data)
+      setError('')
       return res.data
+    } catch (err) {
+      // Callers fire these from effects without awaiting; never let them reject.
+      console.error('[useWorkspace] müşteriler yüklenemedi:', err)
+      setError('Müşteri listesi yüklenemedi. Bağlantınızı kontrol edip sayfayı yenileyin.')
+      return []
     } finally {
       setLoading(false)
     }
@@ -34,7 +41,12 @@ export function useWorkspace() {
     try {
       const res = await axios.get(`${API}/clients/${clientId}/campaigns`)
       setCampaigns(res.data)
+      setError('')
       return res.data
+    } catch (err) {
+      console.error('[useWorkspace] kampanyalar yüklenemedi:', err)
+      setError('Kampanya listesi yüklenemedi. Bağlantınızı kontrol edip sayfayı yenileyin.')
+      return []
     } finally {
       setLoading(false)
     }
@@ -57,7 +69,7 @@ export function useWorkspace() {
   }, [])
 
   return {
-    clients, campaigns, loading,
+    clients, campaigns, loading, error,
     fetchClients, createClient, deleteClient,
     fetchCampaigns, createCampaign, updateCampaign, deleteCampaign,
   }

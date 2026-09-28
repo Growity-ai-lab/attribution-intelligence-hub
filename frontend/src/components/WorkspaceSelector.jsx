@@ -13,7 +13,7 @@ function formatBudget(val) {
 
 export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
   const {
-    clients, campaigns, loading,
+    clients, campaigns, loading, error,
     fetchClients, createClient, deleteClient,
     fetchCampaigns, createCampaign, deleteCampaign,
   } = useWorkspace()
@@ -84,6 +84,12 @@ export default function WorkspaceSelector({ onSelect, onStandaloneTool }) {
   return (
     <div className="min-h-screen bg-dark-bg bg-grid-overlay">
       <div className="max-w-5xl mx-auto px-4 py-8">
+
+        {error && (
+          <div role="alert" className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400">
+            {error}
+          </div>
+        )}
 
         {/* Year Selector */}
         <div className="flex items-center gap-4 mb-8">

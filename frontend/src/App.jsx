@@ -6,6 +6,7 @@ import WorkspaceSelector from './components/WorkspaceSelector'
 import Dashboard from './components/Dashboard'
 import DigitalPlanningPanel from './components/DigitalPlanningPanel'
 import AttributionPanel from './components/AttributionPanel'
+import { savedWorkspace, saveWorkspace, savedTab, saveTab } from './utils/session'
 
 class ErrorBoundary extends Component {
   state = { hasError: false, error: null }
@@ -41,15 +42,71 @@ const TABS = [
 
 export { ErrorBoundary }
 
+// The API returns channels as an array; tolerate a legacy comma string too.
+const withChannelList = camp => ({
+  ...camp,
+  channels: Array.isArray(camp.channels)
+    ? camp.channels
+    : (camp.channels ? camp.channels.split(',').map(c => c.trim()) : []),
+})
+
+const isTabId = id => TABS.some(t => t.id === id)
+
 export default function App() {
   const { user, loading, login, loginAsDemo, logout } = useAuth()
-  const [activeTab, setActiveTab] = useState('unified')
+  const [activeTab, setActiveTab] = useState(() => (isTabId(savedTab()) ? savedTab() : 'unified'))
   const [ddaResult, setDdaResult] = useState(null)
   const [resultLoading, setResultLoading] = useState(false)
   const [workspace, setWorkspace] = useState(null) // { client, campaign }
   const [standaloneTool, setStandaloneTool] = useState(null) // 'media' | null (digital planning)
+  // True while the campaign open before a reload is being restored.
+  const [restoringWorkspace, setRestoringWorkspace] = useState(() => Boolean(savedWorkspace()))
 
   const isDemo = user?.role === 'demo'
+
+  const selectWorkspace = ws => {
+    saveWorkspace(ws)
+    setWorkspace(ws)
+  }
+
+  useEffect(() => { saveTab(activeTab) }, [activeTab])
+
+  // Signing out (or an expired token) must not leave the previous user's
+  // campaign, result or tab behind for whoever signs in next.
+  useEffect(() => {
+    if (user || loading) return
+    setWorkspace(null)
+    setDdaResult(null)
+    setStandaloneTool(null)
+    setActiveTab('unified')
+    setRestoringWorkspace(false)
+  }, [user, loading])
+
+  // After a reload, reopen the campaign this tab was on.
+  useEffect(() => {
+    if (!user || workspace || !restoringWorkspace) return
+    const saved = savedWorkspace()
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [clientsRes, campsRes] = await Promise.all([
+          axios.get('/api/clients'),
+          axios.get(`/api/clients/${saved.clientId}/campaigns`),
+        ])
+        const client = clientsRes.data.find(c => c.id === saved.clientId)
+        const camp = campsRes.data.find(c => c.id === saved.campaignId)
+        if (cancelled) return
+        if (client && camp) setWorkspace({ client, campaign: withChannelList(camp) })
+        else saveWorkspace(null) // deleted since: fall back to the selector
+      } catch (err) {
+        console.error('[App] kampanya geri yüklenemedi:', err)
+        if (!cancelled) saveWorkspace(null)
+      } finally {
+        if (!cancelled) setRestoringWorkspace(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [user, workspace, restoringWorkspace])
 
   // Load the campaign's latest stored DDA result, so the report survives a
   // reload/restart instead of only showing runs from this browser session.
@@ -71,7 +128,7 @@ export default function App() {
 
   // Auto-select first workspace for demo users
   useEffect(() => {
-    if (!isDemo || workspace) return
+    if (!isDemo || workspace || restoringWorkspace) return
     let cancelled = false
     ;(async () => {
       try {
@@ -85,20 +142,13 @@ export default function App() {
         if (cancelled || !campaigns.length) return
         // Prefer "AutoMatic Filo" or first available
         const camp = campaigns.find(c => c.name.includes('AutoMatic')) || campaigns[0]
-        // The API returns channels as an array; tolerate a legacy comma string too.
-        const channels = Array.isArray(camp.channels)
-          ? camp.channels
-          : (camp.channels ? camp.channels.split(',').map(c => c.trim()) : [])
-        setWorkspace({
-          client: po,
-          campaign: { ...camp, channels },
-        })
+        selectWorkspace({ client: po, campaign: withChannelList(camp) })
       } catch (err) { console.error('[App] demo workspace auto-select:', err) }
     })()
     return () => { cancelled = true }
-  }, [isDemo, workspace])
+  }, [isDemo, workspace, restoringWorkspace])
 
-  if (loading) {
+  if (loading || (user && restoringWorkspace && !workspace)) {
     return (
       <div className="min-h-screen bg-dark-bg flex items-center justify-center">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-orange-600 animate-pulse" />
@@ -180,13 +230,13 @@ export default function App() {
             </button>
           </div>
         </header>
-        <WorkspaceSelector onSelect={setWorkspace} onStandaloneTool={setStandaloneTool} />
+        <WorkspaceSelector onSelect={selectWorkspace} onStandaloneTool={setStandaloneTool} />
       </div>
     )
   }
 
   const handleBackToWorkspace = () => {
-    setWorkspace(null)
+    selectWorkspace(null)
     setDdaResult(null)
     setActiveTab('unified')
   }
