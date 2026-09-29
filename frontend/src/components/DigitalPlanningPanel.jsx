@@ -16,7 +16,7 @@ import { useAttribution } from '../hooks/useAttribution'
 import { CHANNEL_LABELS, CHANNEL_COLORS } from '../utils/colors'
 import { fmtMoney, fmtN } from '../utils/formatters'
 import PlanResults from './planning/PlanResults'
-import { ONLINE, WEEK_OPTIONS, SCENARIO_PRESETS, parseMediaPlanExcel, distributeSpend, agencyCpm, agencyClicks } from './planning/planHelpers'
+import { ONLINE, WEEK_OPTIONS, SCENARIO_PRESETS, parseMediaPlanExcel, distributeSpend, agencyCpm, agencyClicks, withBasis, BASIS_OPTIONS } from './planning/planHelpers'
 import ImportedPlanSummary from './planning/ImportedPlanSummary'
 import { savedMediaImport, saveMediaImport } from '../utils/session'
 
@@ -68,6 +68,10 @@ export default function DigitalPlanningPanel({ campaign }) {
     () => savedMediaImport(campaign?.id ?? null)?.distribution || 'front-loaded')
   const [importMappingOverrides, setImportMappingOverrides] = useState(
     () => savedMediaImport(campaign?.id ?? null)?.overrides || {})
+  // Buying model picked per line (rowIndex → 'impressions' | 'clicks' | 'views' | 'none').
+  const [importBasisOverrides, setImportBasisOverrides] = useState(
+    () => savedMediaImport(campaign?.id ?? null)?.basisOverrides || {})
+  const [showImportLines, setShowImportLines] = useState(false)
   const importCampaignRef = useRef(campaign?.id ?? null)
   const fileInputRef = useRef(null)
 
@@ -115,33 +119,39 @@ export default function DigitalPlanningPanel({ campaign }) {
     const saved = savedMediaImport(id)
     setImportData(saved?.data || null)
     setImportMappingOverrides(saved?.overrides || {})
+    setImportBasisOverrides(saved?.basisOverrides || {})
     setImportDistribution(saved?.distribution || 'front-loaded')
     setShowImportSummary(false)
   }, [campaign?.id])
 
   useEffect(() => {
     saveMediaImport(importCampaignRef.current, importData
-      ? { data: importData, overrides: importMappingOverrides, distribution: importDistribution }
+      ? { data: importData, overrides: importMappingOverrides, basisOverrides: importBasisOverrides, distribution: importDistribution }
       : null)
-  }, [importData, importMappingOverrides, importDistribution])
+  }, [importData, importMappingOverrides, importBasisOverrides, importDistribution])
+
+  // Plan lines with the user's per-line picks (channel, buying model) applied.
+  const effectiveImportLines = useMemo(() => (importData?.lineItems || []).map(item => {
+    const line = importBasisOverrides[item.rowIndex] ? withBasis(item, importBasisOverrides[item.rowIndex]) : item
+    const override = importMappingOverrides[item.rowIndex]
+    const channel = override !== undefined ? override : (item.mappedChannel || '_unmapped')
+    return { ...line, channel: channel || '_unmapped' }
+  }), [importData, importMappingOverrides, importBasisOverrides])
 
   const getEffectiveImportAgg = useCallback(() => {
-    if (!importData) return {}
     const agg = {}
-    for (const item of importData.lineItems) {
-      const ch = importMappingOverrides[item.rowIndex] !== undefined
-        ? importMappingOverrides[item.rowIndex]
-        : (item.mappedChannel || '_unmapped')
-      if (ch === '_unmapped' || ch === '') continue
+    for (const item of effectiveImportLines) {
+      const ch = item.channel
+      if (ch === '_unmapped') continue
       if (!agg[ch]) agg[ch] = { totalSpend: 0, totalImp: 0, labels: [], items: [] }
       agg[ch].totalSpend += item.spend
       agg[ch].totalImp += item.impressions
       agg[ch].items.push(item)
-      const label = `${item.mecra}${item.site ? ' / ' + item.site : ''}`
+      const label = item.label || `${item.mecra}${item.site ? ' / ' + item.site : ''}`
       if (!agg[ch].labels.includes(label)) agg[ch].labels.push(label)
     }
     return agg
-  }, [importData, importMappingOverrides])
+  }, [effectiveImportLines])
 
   // A channel's line from the imported plan, spread over the weeks; null if the plan lacks it.
   const importedSpendsFor = useCallback((channel, weeks) => {
@@ -205,7 +215,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (spendSource.kind !== 'import' || spendSource.edited) return
     const imp = importedSpendsFor(selectedChannel, numWeeks)
     if (imp) setWeeklySpends(imp.spends)
-  }, [numWeeks, importData, importDistribution, importMappingOverrides]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [numWeeks, importData, importDistribution, importMappingOverrides, importBasisOverrides]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build overrides object
   const buildOverrides = useCallback(() => {
@@ -343,6 +353,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       const parsed = await parseMediaPlanExcel(file)
       setImportData(parsed)
       setImportMappingOverrides({})
+      setImportBasisOverrides({})
       setShowImportSummary(false)
       setShowImportModal(true)
     } catch (err) {
@@ -382,10 +393,9 @@ export default function DigitalPlanningPanel({ campaign }) {
       channel: ch, totalSpend: agg[ch].totalSpend, cpm: agencyCpm(agg[ch].items),
       clicks: agencyClicks(agg[ch].items), labels: agg[ch].labels,
     }))
-    const mappedRows = new Set(plan.flatMap(p => agg[p.channel].items.map(i => i.rowIndex)))
-    const rest = importData.lineItems.filter(i => !mappedRows.has(i.rowIndex))
+    const rest = effectiveImportLines.filter(i => i.channel === '_unmapped')
     return { plan, unmapped: { count: rest.length, total: rest.reduce((a, i) => a + i.spend, 0) } }
-  }, [importData, getEffectiveImportAgg])
+  }, [importData, getEffectiveImportAgg, effectiveImportLines])
 
 
   // Derived data
@@ -700,10 +710,7 @@ export default function DigitalPlanningPanel({ campaign }) {
         {showImportModal && importData && (() => {
           const agg = getEffectiveImportAgg()
           const mappedChannels = ONLINE.filter(ch => agg[ch])
-          const unmappedItems = importData.lineItems.filter(item => {
-            const override = importMappingOverrides[item.rowIndex]
-            return override !== undefined ? (override === '_unmapped' || override === '') : !item.mappedChannel
-          })
+          const unmappedItems = effectiveImportLines.filter(item => item.channel === '_unmapped')
           const totalMapped = mappedChannels.reduce((s, ch) => s + (agg[ch]?.totalSpend || 0), 0)
 
           return (
@@ -782,29 +789,73 @@ export default function DigitalPlanningPanel({ campaign }) {
 
               {/* Unmapped items */}
               {unmappedItems.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Eşlenmeyen Satırlar</p>
-                  {unmappedItems.map(item => (
-                    <div key={item.rowIndex} className="flex items-center justify-between px-3 py-2 bg-dark-card/50 rounded-lg border border-yellow-500/20">
-                      <div>
-                        <span className="text-xs text-slate-300">{item.mecra}</span>
-                        {item.site && <span className="text-[10px] text-slate-400 ml-1">/ {item.site}</span>}
-                        <span className="ml-2 text-xs font-mono text-slate-400">{fmtMoney(item.spend)} TL</span>
-                      </div>
-                      <select
-                        value={importMappingOverrides[item.rowIndex] ?? '_unmapped'}
-                        onChange={e => handleImportChannelMapping(item.rowIndex, e.target.value)}
-                        className="bg-dark-bg border border-dark-border rounded-lg px-2 py-1 text-[11px] text-slate-300"
-                      >
-                        <option value="_unmapped">Esle...</option>
-                        {ONLINE.map(ch => (
-                          <option key={ch} value={ch}>{CHANNEL_LABELS[ch]}</option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-[11px] text-amber-300">
+                  Eşlenmeyen Satırlar: {unmappedItems.length} satır ({fmtMoney(unmappedItems.reduce((a, i) => a + i.spend, 0))} TL) — aşağıdaki satır listesinden kanal seçin.
+                </p>
               )}
+
+              {/* Every plan line: channel and buying model can be picked per line */}
+              <div className="space-y-1.5">
+                <button
+                  onClick={() => setShowImportLines(v => !v)}
+                  className="text-[10px] text-slate-400 uppercase tracking-wide hover:text-slate-200"
+                  aria-expanded={showImportLines || unmappedItems.length > 0}
+                >
+                  Satırlar ({importData.lineItems.length}) — kanal ve alım modeli {showImportLines || unmappedItems.length > 0 ? '▾' : '▸'}
+                </button>
+                {(showImportLines || unmappedItems.length > 0) && (
+                  <div className="scroll-hint">
+                    <table className="w-full text-[11px] min-w-[760px]" aria-label="Plan satırları">
+                      <thead>
+                        <tr className="text-slate-500 border-b border-dark-border">
+                          <th className="text-left py-1.5 px-2 font-normal">Satır</th>
+                          <th className="text-right py-1.5 px-2 font-normal">Bütçe</th>
+                          <th className="text-right py-1.5 px-2 font-normal">Birim maliyet</th>
+                          <th className="text-right py-1.5 px-2 font-normal">Planlanan</th>
+                          <th className="text-left py-1.5 px-2 font-normal">Alım modeli</th>
+                          <th className="text-left py-1.5 px-2 font-normal">Kanal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {effectiveImportLines.map(item => {
+                          const picked = importBasisOverrides[item.rowIndex] !== undefined
+                          const label = item.label || `${item.mecra}${item.site ? ' / ' + item.site : ''}`
+                          return (
+                            <tr key={item.rowIndex} className={`border-b border-dark-border/40 ${item.channel === '_unmapped' ? 'bg-amber-500/5' : ''}`}>
+                              <td className="py-1.5 px-2 text-slate-300">{label}</td>
+                              <td className="py-1.5 px-2 text-right font-mono text-slate-300">{fmtMoney(item.spend)}</td>
+                              <td className="py-1.5 px-2 text-right font-mono text-slate-400">{item.unit ? fmtUnit(item.unit) : '—'}</td>
+                              <td className="py-1.5 px-2 text-right font-mono text-slate-400">{item.qty ? fmtN(item.qty) : '—'}</td>
+                              <td className="py-1.5 px-2">
+                                <select
+                                  value={item.basis || 'none'}
+                                  onChange={e => setImportBasisOverrides(prev => ({ ...prev, [item.rowIndex]: e.target.value }))}
+                                  aria-label={`${label} alım modeli`}
+                                  className="bg-dark-bg border border-dark-border rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300"
+                                >
+                                  {BASIS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                                {!picked && <span className="ml-1 text-[9px] text-slate-500" title="Bütçe ÷ miktar ile birim maliyetten otomatik bulundu">oto</span>}
+                              </td>
+                              <td className="py-1.5 px-2">
+                                <select
+                                  value={item.channel}
+                                  onChange={e => handleImportChannelMapping(item.rowIndex, e.target.value)}
+                                  aria-label={`${label} kanal`}
+                                  className="bg-dark-bg border border-dark-border rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300"
+                                >
+                                  <option value="_unmapped">Eşle...</option>
+                                  {ONLINE.map(ch => <option key={ch} value={ch}>{CHANNEL_LABELS[ch]}</option>)}
+                                </select>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
 
               {/* Apply all button */}
               {mappedChannels.length > 0 && (
@@ -980,4 +1031,9 @@ function SpendSourceNote({ source, importName, distribution, channelMissingFromI
 function plannedClicksFor(pending) {
   const spend = (pending?.spends || []).reduce((a, v) => a + v, 0)
   return pending?.clicks && spend > 0 ? { clicks: pending.clicks, spend } : null
+}
+
+/** Unit costs run from 0.09 TL (push) to hundreds (CPM): keep the decimals that matter. */
+function fmtUnit(v) {
+  return v >= 100 ? fmtMoney(v) : v.toLocaleString('tr-TR', { maximumFractionDigits: v < 1 ? 3 : 2 })
 }

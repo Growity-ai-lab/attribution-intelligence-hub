@@ -181,6 +181,11 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
     (butce/miktar*1000 ≈ birim → CPM/gosterim; butce/miktar ≈ birim → search/traffic'te tiklama, TrueView'da izlenme).
     Tiklama/izlenme satirlari CPM'e katilmaz; CPC satirlarinin tiklamalari `planned_clicks` ile CTR'i belirler
   - TOPLAM / ara toplam satirlari atlanir (cift sayim)
+  - Ajans formati (Time x Growity "Media Plan"): plan tablosu olan ilk sayfa okunur (ozet sayfasi atlanir);
+    "Platform" (cihaz) sutunu site sanilmaz; "Yayin Turu" / "Kategori / Hedefleme" kanal esleme ve birim tespitine katilir;
+    butce olarak "Net Yayin Bedeli" kullanilir ("Her Sey Dahil" degil)
+  - Ice aktarma penceresinde her satirin kanali ve alim modeli (`BASIS_OPTIONS`: CPM/CPC/CPV/Diger) secilebilir;
+    otomatik tespit "oto" etiketiyle gosterilir, secimler kampanya bazinda sessionStorage'da tutulur
 
 ## Veri Kaynaklari
 

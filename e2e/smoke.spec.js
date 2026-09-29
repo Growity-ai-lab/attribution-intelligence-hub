@@ -581,3 +581,61 @@ test('mixed-unit agency plan: CPC/CPV lines, total row, news sites by name', asy
   await expect(page.getByTestId('spend-source')).toContainText('planlanan tıklama 40.0K')
   await expect(page.getByText('Clicks', { exact: true }).first().locator('xpath=following-sibling::p[1]')).toHaveText('40.0K')
 })
+
+test("agency media-plan format: summary sheet first, device column, 'Yayın Türü', per-line buying model", async ({ page }) => {
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'AutoMatic Filo')
+  await page.getByRole('tab', { name: 'Medya Planlama' }).click()
+
+  const XLSX = (await import('xlsx')).default
+  const wb = XLSX.utils.book_new()
+  // A summary sheet with a "Mecralar" column but no plan table comes first.
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['', 'Ana Mecralar', 'Mecralar', 'Spor'], ['', 'Dijital', 'Youtube', 1500000],
+  ]), 'Özet')
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['', 'Marka:', '', 'Bonus Yalıtım'],
+    ['', 'Kampanya Adı:', '', 'Ajans Formatı'],
+    [],
+    ['', 'Platform', 'Mecra', 'Site/Network', 'Kategori / Hedefleme', 'Yayın Türü', 'Reach',
+      'Planlanan (imp, view, Click)', 'Frekans', 'Tahmini Birim Maliyet \nCPM-CPC-CPL-CPS', 'Net Yayın Bedeli ', 'Her Şey Dahil Bütçe'],
+    ['', 'Desktop / Mobile', 'Google', 'Search', 'Erkek Hedef Kitle', 'Search', 'N/A', 40000, 'N/A', 5, 200000, 242800],
+    ['', 'Desktop / Mobile', 'Google', 'Youtube ', 'Hedeflemeli', 'Trueview In-Stream', 1111111, 3333333, 3, 0.3, 1000000, 1080000],
+    ['', 'Desktop / Mobile', 'Google', 'Youtube ', 'Hedeflemeli', 'Masthead', 7407407, 20000000, 3, 50, 1000000, 1080000],
+    ['', 'Desktop / Mobile', 'X', 'X', 'Hedeflemeli', 'Traffic', 'N/A', 100000, 'N/A', 5, 500000, 540000],
+    ['', 'Desktop / Mobile', 'Linkedln', 'Linkedln', 'Hedeflemeli', 'Reach', 121212, 727273, 6, 550, 400000, 432000],
+    ['', 'Desktop / Mobile', 'Trt1 ', 'Şampiyonlar Ligi ', 'Maç Özetleri', 'Preroll', 222222, 444444, 2, 0.9, 400000, 401067],
+    ['', '', '', '', '', '', '', 24644977, '', '', 3500000, 3776000],
+  ]), 'Media Plan')
+  await page.locator('input[type=file][accept=".xlsx,.xls,.csv"]').setInputFiles({
+    name: 'ajans.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }),
+  })
+  const dialog = page.getByRole('dialog', { name: 'Plan içe aktarma' })
+  await expect(dialog).toContainText('Ajans Formatı')
+  await expect(dialog.getByText('Eşlenmeyen Satırlar')).toHaveCount(0) // X and "Linkedln" map too
+  await dialog.getByRole('button', { name: /^Satırlar \(6\)/ }).click()
+  const lines = dialog.getByRole('table', { name: 'Plan satırları' })
+  await expect(lines.getByRole('row', { name: /Google \/ Search/ })).not.toContainText('Desktop') // device column is not the site
+  const model = label => lines.getByLabel(`${label} alım modeli`)
+  await expect(model('Google / Search')).toHaveValue('clicks')
+  await expect(model('Google / Youtube / Trueview In-Stream')).toHaveValue('views')
+  await expect(model('Google / Youtube / Masthead')).toHaveValue('impressions')
+  await expect(model('X / Traffic')).toHaveValue('clicks')
+  await expect(model('Trt1 / Şampiyonlar Ligi / Preroll')).toHaveValue('views')
+  await expect(lines.getByLabel('Trt1 / Şampiyonlar Ligi / Preroll kanal')).toHaveValue('dv360')
+
+  await dialog.getByRole('button', { name: 'Tüm kanalları uygula (5)' }).click()
+  const summary = page.getByRole('region', { name: 'İçe aktarılan plan özeti' })
+  await expect(summary.locator('tr', { hasText: 'Toplam' })).toContainText('3.5M') // net media, not "Her Şey Dahil"
+  const dv = summary.locator('tr', { hasText: 'DV360' })
+  await expect(dv.locator('td').nth(2)).toContainText('vars.') // CPV line: no agency CPM
+
+  // Picking the model by hand: the preroll as CPM impressions → agency CPM 900.
+  await page.getByRole('button', { name: 'İçe Aktarılan Plan' }).click()
+  await model('Trt1 / Şampiyonlar Ligi / Preroll').selectOption('impressions')
+  await expect(lines.getByRole('row', { name: /Trt1/ })).not.toContainText('oto')
+  await dialog.getByRole('button', { name: 'Tüm kanalları uygula (5)' }).click()
+  await expect(dv.locator('td').nth(2)).toContainText('900')
+})
+
