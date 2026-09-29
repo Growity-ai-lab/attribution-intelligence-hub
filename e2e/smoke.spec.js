@@ -186,6 +186,7 @@ test('media planning: simulate, charts, save/load/reconcile/delete, Excel import
   for (const t of ['Carryover & Adstock', 'Saturation', 'Reach & Frequency', 'Haftalık Lead', 'Funnel Projeksiyon']) {
     await page.getByRole('button', { name: t }).click()
   }
+  await expect(page.getByText('Optimal Harcama Onerisi')).toBeVisible()
   await page.getByRole('button', { name: 'Google Ads', exact: true }).click()
   await page.getByRole('button', { name: 'Preset', exact: true }).click()
   await expect(page.getByText('Model Lead').first()).toBeVisible()
@@ -433,6 +434,10 @@ test('traffic (awareness) campaign: create in UI, visit wording everywhere, reac
   }
   await expect(page.getByText('Model Lead')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Haftalık Lead' })).toHaveCount(0)
+  // Optimal/saturation spends come from the lead response curve: hidden for traffic.
+  await expect(page.getByText('Optimal Harcama Onerisi')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Saturation', exact: true }).click()
+  await expect(page.getByText('Doygunluk Esigi')).toHaveCount(0)
 
   // A broad-audience brief must be able to set its own universe; the default
   // (sized for a narrow B2B audience) saturates reach.

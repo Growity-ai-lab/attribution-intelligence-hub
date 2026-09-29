@@ -117,20 +117,21 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
       labels: fc.map(d => `W${d.week}`),
       datasets: [
         {
-          label: 'Impressions (K)',
-          data: fc.map(d => d.impressions / 1000),
+          label: 'Gösterim',
+          data: fc.map(d => d.impressions),
           backgroundColor: '#3b82f620',
           borderColor: '#3b82f6',
           borderWidth: 1.5, borderRadius: 2,
           yAxisID: 'y',
         },
         {
-          label: 'Clicks',
+          label: traffic ? 'Tıklama (site trafiği)' : 'Tıklama',
           data: fc.map(d => d.clicks),
           backgroundColor: '#14b8a620',
           borderColor: '#14b8a6',
           borderWidth: 1.5, borderRadius: 2,
-          yAxisID: 'y',
+          // Own axis: clicks are ~1% of impressions, so a shared axis hides one or the other.
+          yAxisID: 'yClicks',
         },
         {
           type: 'line',
@@ -208,8 +209,15 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
     },
   }
 
+  // When marginal return never drops below 10% within the scan, the threshold is only the scan limit.
+  const satFound = result?.optimal?.saturation_threshold_found !== false
+  const satLabel = result?.optimal
+    ? `${satFound ? '' : '>'}${fmtMoney(result.optimal.saturation_threshold_spend)}`
+    : ''
+
   const adstockOpts = useMemo(() => {
-    if (!result?.optimal) return lineOpts
+    // Optimal/saturation come from the lead response curve; meaningless for traffic campaigns.
+    if (!result?.optimal || traffic) return lineOpts
     const optSpend = result.optimal.optimal_weekly_spend
     const satSpend = result.optimal.saturation_threshold_spend
     return {
@@ -226,13 +234,13 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
             saturationLine: {
               type: 'line', yMin: satSpend, yMax: satSpend,
               borderColor: 'rgba(250, 204, 21, 0.5)', borderWidth: 1.5, borderDash: [6, 3],
-              label: { display: true, content: `Doygunluk: ${fmtMoney(satSpend)}`, position: 'end', backgroundColor: 'rgba(250, 204, 21, 0.15)', color: '#facc15', font: { size: 10 }, padding: 3 },
+              label: { display: true, content: `Doygunluk: ${satLabel}`, position: 'end', backgroundColor: 'rgba(250, 204, 21, 0.15)', color: '#facc15', font: { size: 10 }, padding: 3 },
             },
           },
         },
       },
     }
-  }, [result, lineOpts])
+  }, [result, lineOpts, traffic, satLabel])
 
   const satOpts = {
     ...lineOpts,
@@ -250,19 +258,26 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
     responsive: true, maintainAspectRatio: false,
     plugins: {
       legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 12, font: { size: 10 } } },
+      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtN(ctx.parsed.y)}` } },
     },
     scales: {
       x: { grid: { display: false } },
       y: {
         position: 'left',
-        ticks: { callback: v => fmtN(v) },
-        title: { display: true, text: 'Impressions (K) / Clicks', font: { size: 10 }, color: '#64748b' },
+        ticks: { callback: v => fmtN(v), color: '#3b82f6' },
+        title: { display: true, text: 'Gösterim', font: { size: 10 }, color: '#3b82f6' },
+      },
+      yClicks: {
+        position: 'right',
+        ticks: { callback: v => fmtN(v), color: '#14b8a6' },
+        title: { display: true, text: 'Tıklama', font: { size: 10 }, color: '#14b8a6' },
+        grid: { drawOnChartArea: false },
       },
       y1: {
         display: !traffic,
         position: 'right',
         ticks: { callback: v => v.toFixed(0) },
-        title: { display: true, text: 'Leads', font: { size: 10 }, color: '#64748b' },
+        title: { display: true, text: 'Lead', font: { size: 10 }, color: '#64748b' },
         grid: { drawOnChartArea: false },
       },
     },
@@ -469,9 +484,9 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
               <div className="mt-3 p-3 bg-dark-bg/50 rounded-lg border border-dark-border text-xs text-slate-400 leading-relaxed">
                 <strong className="text-slate-300">Funnel Projeksiyon:</strong>
                 {traffic
-                  ? ' Harcama → Gösterim (CPM) → Tıklama / site trafiği (CTR). Erişim ve frekans için Reach & Frequency sekmesine bakın.'
+                  ? ` Harcama → Gösterim (harcama ÷ CPM ${fmtMoney(result.digital_metrics?.cpm)} TL × 1000) → Tıklama / site trafiği (gösterim × CTR %${((result.digital_metrics?.ctr || 0) * 100).toFixed(2)}). Gösterim sol, tıklama sağ eksende; CTR sabit varsayıldığı için iki çubuk aynı oranda hareket eder. Erişim ve frekans için Reach & Frequency sekmesine bakın.`
                   : <>
-                      {' Spend → Impressions (CPM) → Clicks (CTR) → Leads (Lead Rate). '}
+                      {` Harcama → Gösterim (CPM ${fmtMoney(result.digital_metrics?.cpm)} TL) → Tıklama (CTR %${((result.digital_metrics?.ctr || 0) * 100).toFixed(2)}) → Lead (lead oranı). Gösterim sol, tıklama ve lead sağ eksenlerde; CTR sabit varsayıldığı için gösterim ve tıklama çubukları aynı oranda hareket eder. `}
                       {'Yanıt modeli ve funnel lead tahminleri paralel gösterilir — ikisi farklı varsayımlara dayanır; sapma %30\'u aşarsa varsayımlar birbiriyle tutarsızdır.'}
                     </>}
               </div>
@@ -514,7 +529,7 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
               <div className="h-72">
                 {saturationChartData && <Line data={saturationChartData} options={satOpts} />}
               </div>
-              {result.optimal && (
+              {result.optimal && !traffic && (
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   <div className="bg-dark-bg rounded-lg p-2.5 text-center">
                     <p className="text-[10px] text-slate-400 uppercase tracking-wide">Optimal Spend</p>
@@ -522,7 +537,7 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
                   </div>
                   <div className="bg-dark-bg rounded-lg p-2.5 text-center">
                     <p className="text-[10px] text-slate-400 uppercase tracking-wide">Doygunluk Esigi</p>
-                    <p className="text-sm font-mono text-yellow-400 mt-0.5">{fmtMoney(result.optimal.saturation_threshold_spend)} TL</p>
+                    <p className="text-sm font-mono text-yellow-400 mt-0.5">{satLabel} TL</p>
                   </div>
                   <div className="bg-dark-bg rounded-lg p-2.5 text-center">
                     <p className="text-[10px] text-slate-400 uppercase tracking-wide">Mevcut Ort.</p>
@@ -589,7 +604,7 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
       </div>
 
       {/* Optimal Spend Recommendation */}
-      {result.optimal && (
+      {result.optimal && !traffic && (
         <div className="dark-card border-accent/30">
           <div className="card-hdr">
             <span className="card-title">Optimal Harcama Onerisi</span>
@@ -597,7 +612,7 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
               const avg = result.optimal.current_avg_spend
               const opt = result.optimal.optimal_weekly_spend
               const thr = result.optimal.saturation_threshold_spend
-              const status = avg < opt * 0.8 ? 'low' : avg > thr ? 'high' : 'good'
+              const status = avg < opt * 0.8 ? 'low' : satFound && avg > thr ? 'high' : 'good'
               const statusConfig = {
                 low: { color: 'text-blue-400', bg: 'bg-blue-500/15', label: 'Arttirilabilir' },
                 good: { color: 'text-green-400', bg: 'bg-green-500/15', label: 'Optimal' },

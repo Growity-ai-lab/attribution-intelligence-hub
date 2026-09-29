@@ -36,7 +36,13 @@ router = APIRouter()
 # --------------- Helpers ---------------
 
 
-def _find_optimal_spend(alpha: float, gamma: float, max_lift: float) -> tuple[float, float]:
+def _find_optimal_spend(alpha: float, gamma: float, max_lift: float) -> tuple[float, float, bool]:
+    """Scan the response curve up to 4×alpha for the optimal and saturation spends.
+
+    Optimal = marginal return drops below 50% of the first step's; saturation =
+    below 10%. Returns (optimal, threshold, threshold_found): when the curve never
+    drops that far within the scan, threshold is the scan limit and found is False.
+    """
     upper = max(alpha * 4.0, 1500.0)
     n_steps = 150
     step = upper / n_steps
@@ -49,11 +55,12 @@ def _find_optimal_spend(alpha: float, gamma: float, max_lift: float) -> tuple[fl
 
     marginal_ref = responses[1] - responses[0] if len(responses) > 1 else 1.0
     if marginal_ref <= 0:
-        return float(test_spends[-1]), float(test_spends[-1])
+        return float(test_spends[-1]), float(test_spends[-1]), False
 
     optimal_spend = float(test_spends[-1])
     threshold_spend = float(test_spends[-1])
     found_optimal = False
+    found_threshold = False
     for i in range(2, len(test_spends)):
         marginal = responses[i] - responses[i - 1]
         if not found_optimal and marginal < marginal_ref * 0.5:
@@ -61,9 +68,10 @@ def _find_optimal_spend(alpha: float, gamma: float, max_lift: float) -> tuple[fl
             found_optimal = True
         if marginal < marginal_ref * 0.1:
             threshold_spend = float(test_spends[i])
+            found_threshold = True
             break
 
-    return optimal_spend, threshold_spend
+    return optimal_spend, threshold_spend, found_threshold
 
 
 def _resolve_digital_metrics(channel: str, request: MediaPlanningRequest) -> dict:
@@ -118,10 +126,24 @@ def _compute_digital_reach(
 
 
 def _generate_recommendation(
-    channel: str, avg_spend: float, optimal: float, threshold: float
+    channel: str, avg_spend: float, optimal: float, threshold: float, threshold_found: bool = True
 ) -> str:
     def _fmt(v: float) -> str:
         return f"{v/1_000_000:.1f}M TL" if v >= 1_000_000 else f"{v/1_000:.0f}K TL"
+    if not threshold_found:
+        # The curve is still above the 10% marginal-return cut at the scan limit.
+        limit = _fmt(threshold)
+        if avg_spend < optimal * 0.8:
+            return (
+                f"{channel.capitalize()} kanalında haftalık ortalama harcama {_fmt(avg_spend)} olup "
+                f"optimal seviyenin ({_fmt(optimal)}) altındadır. Ek bütçe ile marjinal lead getirisi "
+                f"hâlâ yüksek; model {limit} seviyesine kadar belirgin bir doygunluk öngörmüyor."
+            )
+        return (
+            f"{channel.capitalize()} kanalında haftalık ortalama harcama {_fmt(avg_spend)} olup "
+            f"optimal seviyenin ({_fmt(optimal)}) üzerindedir; ek her TL'nin getirisi azalıyor ancak "
+            f"model {limit} seviyesine kadar tam doygunluk öngörmüyor."
+        )
     if avg_spend < optimal * 0.8:
         return (
             f"{channel.capitalize()} kanalında haftalık ortalama harcama {_fmt(avg_spend)} olup "
@@ -238,11 +260,13 @@ def simulate_media_plan(
         "peak_week": peak_week,
     }
 
-    opt_spend, sat_threshold_spend = _find_optimal_spend(alpha, gamma, max_lift)
-    recommendation = _generate_recommendation(channel, avg_spend, opt_spend, sat_threshold_spend)
+    opt_spend, sat_threshold_spend, threshold_found = _find_optimal_spend(alpha, gamma, max_lift)
+    recommendation = _generate_recommendation(
+        channel, avg_spend, opt_spend, sat_threshold_spend, threshold_found)
     optimal = OptimalSpendResult(
         optimal_weekly_spend=round(opt_spend, 0),
         saturation_threshold_spend=round(sat_threshold_spend, 0),
+        saturation_threshold_found=threshold_found,
         current_avg_spend=round(avg_spend, 0),
         recommendation=recommendation,
     )

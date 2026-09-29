@@ -179,6 +179,9 @@ class OptimalSpendResult(BaseModel):
 
     optimal_weekly_spend: float
     saturation_threshold_spend: float
+    # False when marginal return never fell below 10% within the scan (up to 4×alpha):
+    # saturation_threshold_spend is then only the scan limit, i.e. saturation is "beyond" it.
+    saturation_threshold_found: bool = True
     current_avg_spend: float
     recommendation: str
 
