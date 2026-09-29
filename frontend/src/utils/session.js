@@ -5,6 +5,7 @@
 const TOKEN_KEY = 'th_token' // localStorage: survives reloads and new tabs until the JWT expires
 const WORKSPACE_KEY = 'th_workspace' // sessionStorage: per tab, survives reloads
 const TAB_KEY = 'th_tab'
+const MEDIA_IMPORT_KEY = 'th_media_import' // sessionStorage: last imported media plan, per campaign
 
 function read(store, key) {
   try { return window[store].getItem(key) } catch { return null }
@@ -32,9 +33,23 @@ export const saveWorkspace = ws => write('sessionStorage', WORKSPACE_KEY,
 export const savedTab = () => read('sessionStorage', TAB_KEY)
 export const saveTab = tab => write('sessionStorage', TAB_KEY, tab)
 
+/**
+ * The media plan imported from Excel for a campaign, so it survives tab switches and reloads.
+ * @returns {{data: object, overrides: object, distribution: string} | null}
+ */
+export function savedMediaImport(campaignId) {
+  try {
+    const v = JSON.parse(read('sessionStorage', MEDIA_IMPORT_KEY))
+    return v && v.campaignId === campaignId && Array.isArray(v.data?.lineItems) ? v : null
+  } catch { return null }
+}
+export const saveMediaImport = (campaignId, value) => write('sessionStorage', MEDIA_IMPORT_KEY,
+  value ? JSON.stringify({ campaignId, ...value }) : null)
+
 /** Forget everything tied to the signed-in user. */
 export function clearSession() {
   saveToken(null)
   saveWorkspace(null)
   saveTab(null)
+  saveMediaImport(null, null)
 }

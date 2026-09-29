@@ -233,8 +233,9 @@ test('media planning: simulate, charts, save/load/reconcile/delete, Excel import
   await presetsLoaded
   await page.waitForTimeout(300) // let React apply the response
   await expect(totalLabel).toHaveText(savedTotal)
+  await expect(page.getByTestId('spend-source')).toContainText(`kayıtlı plan “${planName}”`)
   await page.getByRole('button', { name: 'Yükle', exact: true }).click()
-  await expect(page.getByText(planName)).toBeVisible()
+  await expect(page.getByText(planName, { exact: true })).toBeVisible()
   // Row actions are reachable without hover (touch/keyboard) and named for screen readers.
   await page.setViewportSize({ width: 390, height: 844 })
   const del = page.getByRole('button', { name: `${planName} planını sil` })
@@ -242,7 +243,7 @@ test('media planning: simulate, charts, save/load/reconcile/delete, Excel import
   await expect.poll(() => del.evaluate(el => getComputedStyle(el).opacity)).toBe('1')
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.getByRole('button', { name: `${planName} planını sil` }).click()
-  await expect(page.getByText(planName)).toHaveCount(0)
+  await expect(page.getByText(planName, { exact: true })).toHaveCount(0)
 
   // Excel import of a real .xlsx media plan
   const XLSX = (await import('xlsx')).default
@@ -504,6 +505,25 @@ test('multi-channel import: all lines incl. planning-only placements, agency CPM
   await expect(news).not.toContainText('yer tutucu')
   await expect(summary.locator('tr', { hasText: 'X (Twitter)' })).toContainText('yer tutucu')
   await expect(news.locator('td').nth(3)).toHaveText('48.0M') // 1.2M TL / 25 TL CPM × 1000
+
+  // The spend editor follows the imported plan, not the channel's example preset.
+  const editorTotal = page.getByText(/^Toplam: /).first()
+  const source = page.getByTestId('spend-source')
+  await expect(editorTotal).toHaveText('Toplam: 2.3M TL') // Meta line: 2.25M
+  await expect(source).toContainText('içe aktarılan plan (E2E Lansman)')
+  await page.getByRole('button', { name: 'TikTok', exact: true }).click()
+  await expect(editorTotal).toHaveText('Toplam: 1.5M TL')
+  await expect(source).toContainText('içe aktarılan plan')
+  // ...and survives leaving the tab.
+  await page.getByRole('tab', { name: 'Unified Rapor' }).click()
+  await page.getByRole('tab', { name: 'Medya Planlama' }).click()
+  await expect(page.getByRole('button', { name: 'İçe Aktarılan Plan' })).toBeVisible()
+  await expect(editorTotal).toHaveText('Toplam: 2.3M TL')
+  await page.getByRole('button', { name: 'Preset', exact: true }).click()
+  await expect(source).toContainText("örnek preset")
+  await page.getByRole('button', { name: 'İçe Aktarılan Plan' }).click()
+  await dialog.getByRole('button', { name: 'Tüm kanalları uygula (10)' }).click()
+  await expect(summary).toBeVisible()
 
   await summary.getByRole('button', { name: 'Tüm kanalları kaydet (10)' }).click()
   await expect(summary.getByText('10 plan kaydedildi')).toBeVisible()

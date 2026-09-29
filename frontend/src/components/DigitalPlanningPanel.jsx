@@ -18,6 +18,7 @@ import { fmtMoney, fmtN } from '../utils/formatters'
 import PlanResults from './planning/PlanResults'
 import { ONLINE, WEEK_OPTIONS, SCENARIO_PRESETS, parseMediaPlanExcel, distributeSpend, agencyCpm } from './planning/planHelpers'
 import ImportedPlanSummary from './planning/ImportedPlanSummary'
+import { savedMediaImport, saveMediaImport } from '../utils/session'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, Filler, annotationPlugin)
 
@@ -38,6 +39,8 @@ export default function DigitalPlanningPanel({ campaign }) {
   // Spends to apply once a channel switch completes. Switching channels loads that
   // channel's preset spends; an imported or saved plan must win over the preset.
   const pendingSpendsRef = useRef(null)
+  // Where the spend inputs came from: {kind: 'preset'|'import'|'saved', label?, edited?}
+  const [spendSource, setSpendSource] = useState({ kind: 'preset' })
 
   // Advanced overrides
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -54,11 +57,15 @@ export default function DigitalPlanningPanel({ campaign }) {
 
   // Excel import state
   const [showImportModal, setShowImportModal] = useState(false)
-  const [importData, setImportData] = useState(null)
+  // The last imported plan is kept per campaign (sessionStorage), so a tab switch or reload keeps it.
+  const [importData, setImportData] = useState(() => savedMediaImport(campaign?.id ?? null)?.data || null)
   const [showImportSummary, setShowImportSummary] = useState(false)
   const [importError, setImportError] = useState('')
-  const [importDistribution, setImportDistribution] = useState('front-loaded')
-  const [importMappingOverrides, setImportMappingOverrides] = useState({})
+  const [importDistribution, setImportDistribution] = useState(
+    () => savedMediaImport(campaign?.id ?? null)?.distribution || 'front-loaded')
+  const [importMappingOverrides, setImportMappingOverrides] = useState(
+    () => savedMediaImport(campaign?.id ?? null)?.overrides || {})
+  const importCampaignRef = useRef(campaign?.id ?? null)
   const fileInputRef = useRef(null)
 
   // Save/Load state
@@ -97,10 +104,59 @@ export default function DigitalPlanningPanel({ campaign }) {
     return hit ? benchmarks.channels[hit] : null
   }, [benchmarks, selectedChannel])
 
-  // Load presets when channel changes
+  // Switching campaigns: bring back that campaign's import (if any), drop the previous one.
+  useEffect(() => {
+    const id = campaign?.id ?? null
+    if (importCampaignRef.current === id) return
+    importCampaignRef.current = id
+    const saved = savedMediaImport(id)
+    setImportData(saved?.data || null)
+    setImportMappingOverrides(saved?.overrides || {})
+    setImportDistribution(saved?.distribution || 'front-loaded')
+    setShowImportSummary(false)
+  }, [campaign?.id])
+
+  useEffect(() => {
+    saveMediaImport(importCampaignRef.current, importData
+      ? { data: importData, overrides: importMappingOverrides, distribution: importDistribution }
+      : null)
+  }, [importData, importMappingOverrides, importDistribution])
+
+  const getEffectiveImportAgg = useCallback(() => {
+    if (!importData) return {}
+    const agg = {}
+    for (const item of importData.lineItems) {
+      const ch = importMappingOverrides[item.rowIndex] !== undefined
+        ? importMappingOverrides[item.rowIndex]
+        : (item.mappedChannel || '_unmapped')
+      if (ch === '_unmapped' || ch === '') continue
+      if (!agg[ch]) agg[ch] = { totalSpend: 0, totalImp: 0, labels: [], items: [] }
+      agg[ch].totalSpend += item.spend
+      agg[ch].totalImp += item.impressions
+      agg[ch].items.push(item)
+      const label = `${item.mecra}${item.site ? ' / ' + item.site : ''}`
+      if (!agg[ch].labels.includes(label)) agg[ch].labels.push(label)
+    }
+    return agg
+  }, [importData, importMappingOverrides])
+
+  // A channel's line from the imported plan, spread over the weeks; null if the plan lacks it.
+  const importedSpendsFor = useCallback((channel, weeks) => {
+    const agg = getEffectiveImportAgg()
+    if (!agg[channel]) return null
+    return {
+      spends: distributeSpend(agg[channel].totalSpend, weeks, importDistribution),
+      cpm: agencyCpm(agg[channel].items),
+      source: { kind: 'import' },
+    }
+  }, [getEffectiveImportAgg, importDistribution])
+
+  // Load presets when channel changes. With an imported plan, its line for the
+  // channel wins over the channel's example preset.
   useEffect(() => {
     let cancelled = false
-    const pending = pendingSpendsRef.current // { spends, cpm } or null
+    // { spends, cpm, source } or null
+    const pending = pendingSpendsRef.current ?? importedSpendsFor(selectedChannel, numWeeks)
     pendingSpendsRef.current = null
     ;(async () => {
       try {
@@ -109,6 +165,7 @@ export default function DigitalPlanningPanel({ campaign }) {
         const spends = presets.preset_spends || []
         const filled = Array(numWeeks).fill(0).map((_, i) => spends[i] || 0)
         setWeeklySpends(pending?.spends ?? filled)
+        setSpendSource(pending?.source || { kind: 'preset' })
         // The presets endpoint returns the channel defaults as `metrics`.
         setChannelDefaults(presets.metrics || null)
         setResult(null)
@@ -120,7 +177,10 @@ export default function DigitalPlanningPanel({ campaign }) {
         if (pending?.cpm) setCpmOverride(String(pending.cpm))
       } catch (err) {
         console.error('[DigitalPlanning]', err)
-        if (!cancelled && pending) setWeeklySpends(pending.spends) // never drop an imported/saved plan
+        if (!cancelled && pending) { // never drop an imported/saved plan
+          setWeeklySpends(pending.spends)
+          setSpendSource(pending.source)
+        }
       }
     })()
     return () => { cancelled = true }
@@ -134,6 +194,13 @@ export default function DigitalPlanningPanel({ campaign }) {
       return prev.slice(0, numWeeks)
     })
   }, [numWeeks])
+
+  // An untouched imported line follows the week count, distribution and mapping.
+  useEffect(() => {
+    if (spendSource.kind !== 'import' || spendSource.edited) return
+    const imp = importedSpendsFor(selectedChannel, numWeeks)
+    if (imp) setWeeklySpends(imp.spends)
+  }, [numWeeks, importData, importDistribution, importMappingOverrides]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build overrides object
   const buildOverrides = useCallback(() => {
@@ -169,12 +236,14 @@ export default function DigitalPlanningPanel({ campaign }) {
       next[idx] = Math.max(0, Number(value) || 0)
       return next
     })
+    setSpendSource(prev => ({ ...prev, edited: true }))
   }
 
   const applyScenario = (key) => {
     setScenario(key)
     const mult = SCENARIO_PRESETS[key].spend_mult
     setWeeklySpends(prev => prev.map(s => Math.round((s || 500000) * mult / 10000) * 10000))
+    setSpendSource(prev => ({ ...prev, edited: true }))
   }
 
   const loadPresets = async () => {
@@ -182,6 +251,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       const presets = await getMediaPlanPresets(selectedChannel)
       const spends = presets.preset_spends || []
       setWeeklySpends(Array(numWeeks).fill(0).map((_, i) => spends[i] || 0))
+      setSpendSource({ kind: 'preset' })
     } catch (err) { console.error('[DigitalPlanning]', err) }
   }
 
@@ -213,12 +283,13 @@ export default function DigitalPlanningPanel({ campaign }) {
 
   // Put a plan's weekly spends on a channel without the channel's preset overwriting them.
   // cpm: the agency's CPM for this plan (from the imported Excel), applied as the CPM override.
-  const applySpendsToChannel = (channel, spends, cpm = null) => {
+  const applySpendsToChannel = (channel, spends, cpm = null, source = { kind: 'import' }) => {
     if (channel === selectedChannel) {
       setWeeklySpends(spends)
+      setSpendSource(source)
       if (cpm) setCpmOverride(String(cpm))
     } else {
-      pendingSpendsRef.current = { spends, cpm }
+      pendingSpendsRef.current = { spends, cpm, source }
       setSelectedChannel(channel)
     }
   }
@@ -228,7 +299,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       const plan = await getSavedMediaPlan(id)
       const spends = plan.weekly_spends || []
       setNumWeeks(spends.length)
-      applySpendsToChannel(plan.channel, spends)
+      applySpendsToChannel(plan.channel, spends, null, { kind: 'saved', label: plan.name })
       setShowSavedList(false)
     } catch (err) { console.error('[DigitalPlanning]', err) }
   }
@@ -271,24 +342,6 @@ export default function DigitalPlanningPanel({ campaign }) {
     setImportMappingOverrides(prev => ({ ...prev, [itemIdx]: newChannel }))
   }
 
-  const getEffectiveImportAgg = useCallback(() => {
-    if (!importData) return {}
-    const agg = {}
-    for (const item of importData.lineItems) {
-      const ch = importMappingOverrides[item.rowIndex] !== undefined
-        ? importMappingOverrides[item.rowIndex]
-        : (item.mappedChannel || '_unmapped')
-      if (ch === '_unmapped' || ch === '') continue
-      if (!agg[ch]) agg[ch] = { totalSpend: 0, totalImp: 0, labels: [], items: [] }
-      agg[ch].totalSpend += item.spend
-      agg[ch].totalImp += item.impressions
-      agg[ch].items.push(item)
-      const label = `${item.mecra}${item.site ? ' / ' + item.site : ''}`
-      if (!agg[ch].labels.includes(label)) agg[ch].labels.push(label)
-    }
-    return agg
-  }, [importData, importMappingOverrides])
-
   const handleImportApply = (channel) => {
     const agg = getEffectiveImportAgg()
     if (!agg[channel]) return
@@ -301,6 +354,11 @@ export default function DigitalPlanningPanel({ campaign }) {
   const handleImportApplyAll = () => {
     setShowImportModal(false)
     setShowImportSummary(true)
+    // Also put a line of the plan in the editor: the current channel if the plan has it, else the first.
+    const agg = getEffectiveImportAgg()
+    const target = agg[selectedChannel] ? selectedChannel : ONLINE.find(ch => agg[ch])
+    const imp = target && importedSpendsFor(target, numWeeks)
+    if (imp) applySpendsToChannel(target, imp.spends, imp.cpm, imp.source)
   }
 
   // Inputs for the multi-channel summary, recomputed only when the import or its mapping changes.
@@ -397,7 +455,15 @@ export default function DigitalPlanningPanel({ campaign }) {
       {/* Row 2: Spend Input Card */}
       <div className="dark-card">
         <div className="card-hdr">
-          <span className="card-title">Haftalık Harcama (TL)</span>
+          <div>
+            <span className="card-title">Haftalık Harcama (TL) · {CHANNEL_LABELS[selectedChannel] || selectedChannel}</span>
+            <SpendSourceNote
+              source={spendSource}
+              importName={importData?.campaignName}
+              distribution={importDistribution}
+              channelMissingFromImport={!!importData && spendSource.kind === 'preset'}
+            />
+          </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400 font-mono">
               Toplam: {fmtMoney(totalSpend)} TL
@@ -865,5 +931,26 @@ export default function DigitalPlanningPanel({ campaign }) {
         </div>
       )}
     </div>
+  )
+}
+
+/** One line under the spend card title saying where the weekly spends came from. */
+function SpendSourceNote({ source, importName, distribution, channelMissingFromImport }) {
+  const edited = source.edited ? ' · elle düzenlendi' : ''
+  if (source.kind === 'import') {
+    return (
+      <p className="text-[10px] text-blue-300 mt-0.5" data-testid="spend-source">
+        Kaynak: içe aktarılan plan{importName ? ` (${importName})` : ''} · {distribution === 'even' ? 'eşit' : 'ön ağırlıklı'} dağıtım{edited}
+      </p>
+    )
+  }
+  if (source.kind === 'saved') {
+    return <p className="text-[10px] text-slate-400 mt-0.5" data-testid="spend-source">Kaynak: kayıtlı plan “{source.label}”{edited}</p>
+  }
+  return (
+    <p className="text-[10px] text-amber-300 mt-0.5" data-testid="spend-source">
+      Kaynak: kanalın örnek preset'i — bu kampanyanın planı değil
+      {channelMissingFromImport && ' (içe aktarılan planda bu kanal yok)'}{edited}
+    </p>
   )
 }
