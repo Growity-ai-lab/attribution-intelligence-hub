@@ -6,6 +6,11 @@ export const CHANNEL_COLORS = {
   linkedin: '#8b5cf6',
   dv360: '#06b6d4',
   youtube: '#ef4444',
+  // media-planning-only placements
+  x: '#94a3b8',
+  mackolik: '#22c55e',
+  news: '#eab308',
+  tvekstra: '#a855f7',
 }
 
 export const CHANNEL_LABELS = {
@@ -15,6 +20,10 @@ export const CHANNEL_LABELS = {
   linkedin: 'LinkedIn',
   dv360: 'DV360+Prog.',
   youtube: 'YouTube',
+  x: 'X (Twitter)',
+  mackolik: 'Maçkolik',
+  news: 'Haber Siteleri',
+  tvekstra: 'TV Ekstra',
 }
 
 /** Chart.js dark theme constants */

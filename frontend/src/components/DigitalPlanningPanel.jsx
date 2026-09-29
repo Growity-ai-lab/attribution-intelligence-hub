@@ -16,7 +16,8 @@ import { useAttribution } from '../hooks/useAttribution'
 import { CHANNEL_LABELS, CHANNEL_COLORS } from '../utils/colors'
 import { fmtMoney, fmtN } from '../utils/formatters'
 import PlanResults from './planning/PlanResults'
-import { ONLINE, WEEK_OPTIONS, SCENARIO_PRESETS, parseMediaPlanExcel, distributeSpend } from './planning/planHelpers'
+import { ONLINE, WEEK_OPTIONS, SCENARIO_PRESETS, parseMediaPlanExcel, distributeSpend, agencyCpm } from './planning/planHelpers'
+import ImportedPlanSummary from './planning/ImportedPlanSummary'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, Filler, annotationPlugin)
 
@@ -54,6 +55,7 @@ export default function DigitalPlanningPanel({ campaign }) {
   // Excel import state
   const [showImportModal, setShowImportModal] = useState(false)
   const [importData, setImportData] = useState(null)
+  const [showImportSummary, setShowImportSummary] = useState(false)
   const [importError, setImportError] = useState('')
   const [importDistribution, setImportDistribution] = useState('front-loaded')
   const [importMappingOverrides, setImportMappingOverrides] = useState({})
@@ -98,7 +100,7 @@ export default function DigitalPlanningPanel({ campaign }) {
   // Load presets when channel changes
   useEffect(() => {
     let cancelled = false
-    const pending = pendingSpendsRef.current
+    const pending = pendingSpendsRef.current // { spends, cpm } or null
     pendingSpendsRef.current = null
     ;(async () => {
       try {
@@ -106,7 +108,7 @@ export default function DigitalPlanningPanel({ campaign }) {
         if (cancelled) return
         const spends = presets.preset_spends || []
         const filled = Array(numWeeks).fill(0).map((_, i) => spends[i] || 0)
-        setWeeklySpends(pending ?? filled)
+        setWeeklySpends(pending?.spends ?? filled)
         // The presets endpoint returns the channel defaults as `metrics`.
         setChannelDefaults(presets.metrics || null)
         setResult(null)
@@ -115,9 +117,10 @@ export default function DigitalPlanningPanel({ campaign }) {
         setLeadRateOverride('')
         setAudienceOverride('')
         setFreqCapOverride('')
+        if (pending?.cpm) setCpmOverride(String(pending.cpm))
       } catch (err) {
         console.error('[DigitalPlanning]', err)
-        if (!cancelled && pending) setWeeklySpends(pending) // never drop an imported/saved plan
+        if (!cancelled && pending) setWeeklySpends(pending.spends) // never drop an imported/saved plan
       }
     })()
     return () => { cancelled = true }
@@ -209,11 +212,13 @@ export default function DigitalPlanningPanel({ campaign }) {
   }
 
   // Put a plan's weekly spends on a channel without the channel's preset overwriting them.
-  const applySpendsToChannel = (channel, spends) => {
+  // cpm: the agency's CPM for this plan (from the imported Excel), applied as the CPM override.
+  const applySpendsToChannel = (channel, spends, cpm = null) => {
     if (channel === selectedChannel) {
       setWeeklySpends(spends)
+      if (cpm) setCpmOverride(String(cpm))
     } else {
-      pendingSpendsRef.current = spends
+      pendingSpendsRef.current = { spends, cpm }
       setSelectedChannel(channel)
     }
   }
@@ -254,6 +259,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       const parsed = await parseMediaPlanExcel(file)
       setImportData(parsed)
       setImportMappingOverrides({})
+      setShowImportSummary(false)
       setShowImportModal(true)
     } catch (err) {
       setImportError(err.message || 'Excel parse hatasi')
@@ -273,9 +279,10 @@ export default function DigitalPlanningPanel({ campaign }) {
         ? importMappingOverrides[item.rowIndex]
         : (item.mappedChannel || '_unmapped')
       if (ch === '_unmapped' || ch === '') continue
-      if (!agg[ch]) agg[ch] = { totalSpend: 0, totalImp: 0, labels: [] }
+      if (!agg[ch]) agg[ch] = { totalSpend: 0, totalImp: 0, labels: [], items: [] }
       agg[ch].totalSpend += item.spend
       agg[ch].totalImp += item.impressions
+      agg[ch].items.push(item)
       const label = `${item.mecra}${item.site ? ' / ' + item.site : ''}`
       if (!agg[ch].labels.includes(label)) agg[ch].labels.push(label)
     }
@@ -285,21 +292,28 @@ export default function DigitalPlanningPanel({ campaign }) {
   const handleImportApply = (channel) => {
     const agg = getEffectiveImportAgg()
     if (!agg[channel]) return
-    applySpendsToChannel(channel, distributeSpend(agg[channel].totalSpend, numWeeks, importDistribution))
-    setShowImportModal(false)
-    setImportData(null)
+    applySpendsToChannel(channel, distributeSpend(agg[channel].totalSpend, numWeeks, importDistribution),
+      agencyCpm(agg[channel].items))
+    setShowImportModal(false) // keep importData: the other channels stay available
   }
 
+  // Every mapped channel at once: opens the multi-channel plan summary.
   const handleImportApplyAll = () => {
-    const agg = getEffectiveImportAgg()
-    const firstChannel = ONLINE.find(ch => agg[ch])
-    if (!firstChannel) return
-    setSelectedChannel(firstChannel)
-    const spends = distributeSpend(agg[firstChannel].totalSpend, numWeeks, importDistribution)
-    setWeeklySpends(spends)
     setShowImportModal(false)
-    setImportData(null)
+    setShowImportSummary(true)
   }
+
+  // Inputs for the multi-channel summary, recomputed only when the import or its mapping changes.
+  const importPlan = useMemo(() => {
+    if (!importData) return null
+    const agg = getEffectiveImportAgg()
+    const plan = ONLINE.filter(ch => agg[ch]).map(ch => ({
+      channel: ch, totalSpend: agg[ch].totalSpend, cpm: agencyCpm(agg[ch].items), labels: agg[ch].labels,
+    }))
+    const mappedRows = new Set(plan.flatMap(p => agg[p.channel].items.map(i => i.rowIndex)))
+    const rest = importData.lineItems.filter(i => !mappedRows.has(i.rowIndex))
+    return { plan, unmapped: { count: rest.length, total: rest.reduce((a, i) => a + i.spend, 0) } }
+  }, [importData, getEffectiveImportAgg])
 
 
   // Derived data
@@ -365,6 +379,21 @@ export default function DigitalPlanningPanel({ campaign }) {
         </div>
       )}
 
+      {showImportSummary && importPlan && (
+        <ImportedPlanSummary
+          plan={importPlan.plan}
+          unmapped={importPlan.unmapped}
+          numWeeks={numWeeks}
+          distribution={importDistribution}
+          title={importData?.campaignName || campaign?.name || 'İçe aktarma'}
+          campaignId={campaign?.id || null}
+          simulateMediaPlan={simulateMediaPlan}
+          saveMediaPlan={saveMediaPlan}
+          onOpenChannel={(channel, spends, cpm) => applySpendsToChannel(channel, spends, cpm)}
+          onClose={() => setShowImportSummary(false)}
+        />
+      )}
+
       {/* Row 2: Spend Input Card */}
       <div className="dark-card">
         <div className="card-hdr">
@@ -398,6 +427,14 @@ export default function DigitalPlanningPanel({ campaign }) {
             >
               Excel İçe Aktar
             </button>
+            {importData && !showImportModal && (
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-bg border border-blue-500/30 text-blue-300 hover:text-blue-200 transition-colors"
+              >
+                İçe Aktarılan Plan
+              </button>
+            )}
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportFile} />
             {result && (
               <button
@@ -687,13 +724,13 @@ export default function DigitalPlanningPanel({ campaign }) {
               {mappedChannels.length > 0 && (
                 <div className="flex items-center justify-between pt-2 border-t border-dark-border">
                   <p className="text-[10px] text-slate-400">
-                    Bir kanala tiklayin veya ilk eslesen kanali otomatik uygulayın.
+                    "Uygula" tek kanalı düzenleyiciye alır; içe aktarılan plan kaybolmaz.
                   </p>
                   <button
                     onClick={handleImportApplyAll}
                     className="px-4 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors"
                   >
-                    İlk Kanalı Uygula ({CHANNEL_LABELS[mappedChannels[0]]})
+                    Tüm kanalları uygula ({mappedChannels.length})
                   </button>
                 </div>
               )}

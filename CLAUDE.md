@@ -105,6 +105,7 @@ attribution-intelligence-hub/
 │   │   │   ├── DigitalPlanningPanel.jsx # Medya planlama: girdiler, senaryolar, kayit/yukleme, Excel import
 │   │   │   ├── planning/
 │   │   │   │   ├── PlanResults.jsx      # Sonuc: KPI, GA4 saglama, 5 grafik, optimum, haftalik tablo, CSV
+│   │   │   │   ├── ImportedPlanSummary.jsx # Iceri aktarilan cok kanalli plan: kanal bazli ozet, toplamlar, toplu kayit, CSV
 │   │   │   │   └── planHelpers.js       # Excel medya plani okuma, kanal esleme, dagitim, sabitler
 │   │   │   ├── DataUpload.jsx         # CSV/Excel yukleme
 │   │   │   ├── WorkspaceSelector.jsx  # Client/Campaign secici
@@ -169,6 +170,13 @@ Attribution icin KULLANILMAZ. Ileride 8+ haftalik gercek veri + fit yapildiginda
 `meta`, `google`, `tiktok`, `linkedin`, `dv360`, `youtube`
 
 Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
+
+### Yalnizca medya planlamada kullanilan kanallar
+`x` (X/Twitter), `mackolik` (push), `news` (haber sitesi masthead), `tvekstra` — `EXTRA_PLANNING_CHANNELS` (config.py).
+- `CHANNELS` / `CHANNELS_SET`'e EKLENMEZ: attribution, MMM ve cekirdek 6 kanalin baseline bolusumu degismez
+  (`PLANNING_CHANNELS_SET`, `PLANNING_METRICS`, `PLANNING_ADSTOCK` vb. ayri tutulur)
+- Parametreleri YER TUTUCUDUR (piyasa verisi degil): simulasyon `assumed_metrics: true` doner, UI uyari gosterir
+- Ajans CPM'i Excel'den gelir: plan satirlarinda "CPM" ya da "Planlanan Gosterim" sutunu varsa `agencyCpm()` ile CPM override olarak kullanilir
 
 ## Veri Kaynaklari
 

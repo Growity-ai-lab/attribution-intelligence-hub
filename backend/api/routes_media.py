@@ -10,13 +10,15 @@ from sqlalchemy.orm import Session
 from backend.api.deps import check_campaign_access, get_current_user
 from backend.db.database import get_db
 from backend.config import (
-    ADSTOCK_PARAMS,
     BASELINE_LEADS,
     CHANNELS_SET,
-    DIGITAL_CHANNEL_METRICS,
+    PLACEHOLDER_METRIC_CHANNELS,
+    PLANNING_ADSTOCK,
+    PLANNING_CHANNELS_SET,
+    PLANNING_MAX_LIFT,
+    PLANNING_METRICS,
+    PLANNING_SATURATION,
     DIGITAL_PRESETS,
-    MAX_LIFT,
-    SATURATION_PARAMS,
 )
 from backend.data.schemas import (
     FunnelDataPoint,
@@ -65,7 +67,7 @@ def _find_optimal_spend(alpha: float, gamma: float, max_lift: float) -> tuple[fl
 
 
 def _resolve_digital_metrics(channel: str, request: MediaPlanningRequest) -> dict:
-    base = dict(DIGITAL_CHANNEL_METRICS[channel])
+    base = dict(PLANNING_METRICS[channel])
     if request.cpm_override is not None and request.cpm_override > 0:
         base["cpm"] = float(request.cpm_override)
     if request.ctr_override is not None and request.ctr_override > 0:
@@ -149,16 +151,18 @@ def simulate_media_plan(
 ) -> MediaPlanningResponse:
     """Simulate a digital media plan given weekly spend values."""
     channel = request.channel
-    if channel not in CHANNELS_SET:
+    if channel not in PLANNING_CHANNELS_SET:
         raise HTTPException(
             status_code=400,
-            detail=f"Channel must be one of: {', '.join(sorted(CHANNELS_SET))}",
+            detail=f"Channel must be one of: {', '.join(sorted(PLANNING_CHANNELS_SET))}",
         )
 
     metrics = _resolve_digital_metrics(channel, request)
-    decay = ADSTOCK_PARAMS[channel]
-    alpha, gamma = SATURATION_PARAMS[channel]
-    max_lift = MAX_LIFT[channel]
+    decay = PLANNING_ADSTOCK[channel]
+    alpha, gamma = PLANNING_SATURATION[channel]
+    max_lift = PLANNING_MAX_LIFT[channel]
+    # Baseline is split across the six core channels only; planning-only
+    # channels must not change the core channels' numbers.
     baseline_per_ch = BASELINE_LEADS / len(CHANNELS_SET)
 
     weekly_spends = list(request.weekly_spends)
@@ -261,6 +265,7 @@ def simulate_media_plan(
         saturation_curve=saturation_curve,
         funnel_curve=funnel_curve,
         digital_metrics=metrics,
+        assumed_metrics=channel in PLACEHOLDER_METRIC_CHANNELS and not request.cpm_override,
     )
 
 
@@ -270,20 +275,21 @@ def get_media_planning_presets(
     _user: dict = Depends(get_current_user),
 ) -> dict:
     """Return default presets and parameters for a digital channel."""
-    if channel not in CHANNELS_SET:
+    if channel not in PLANNING_CHANNELS_SET:
         raise HTTPException(
             status_code=400,
-            detail=f"Channel must be one of: {', '.join(sorted(CHANNELS_SET))}",
+            detail=f"Channel must be one of: {', '.join(sorted(PLANNING_CHANNELS_SET))}",
         )
-    alpha, gamma = SATURATION_PARAMS[channel]
+    alpha, gamma = PLANNING_SATURATION[channel]
     return {
         "channel": channel,
         "preset_spends": DIGITAL_PRESETS.get(channel, []),
-        "decay": ADSTOCK_PARAMS[channel],
+        "decay": PLANNING_ADSTOCK[channel],
         "alpha": alpha,
         "gamma": gamma,
-        "max_lift": MAX_LIFT[channel],
-        "metrics": DIGITAL_CHANNEL_METRICS.get(channel, {}),
+        "max_lift": PLANNING_MAX_LIFT[channel],
+        "metrics": PLANNING_METRICS.get(channel, {}),
+        "assumed_metrics": channel in PLACEHOLDER_METRIC_CHANNELS,
     }
 
 
@@ -305,7 +311,7 @@ def save_media_plan(
         check_campaign_access(db, campaign_id, user)
     if not name or not name.strip():
         raise HTTPException(status_code=400, detail="Simulation name is required")
-    if channel not in CHANNELS_SET:
+    if channel not in PLANNING_CHANNELS_SET:
         raise HTTPException(status_code=400, detail=f"Invalid channel: {channel}")
 
     sim = MediaPlanSimulation(

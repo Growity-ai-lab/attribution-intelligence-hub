@@ -126,6 +126,40 @@ DIGITAL_PRESETS: dict[str, list[float]] = {
 # All channels
 CHANNELS = list(ADSTOCK_PARAMS.keys())
 
+# --------------- Media-planning-only channels ---------------
+# Placements that awareness briefs ask for but that are not attribution
+# channels (e.g. Bonus Yalıtım Q4 2026: X, Maçkolik push, news-site mastheads,
+# TV Ekstra). They exist ONLY for the media planning simulator: they are not
+# in CHANNELS / CHANNELS_SET, so attribution, MMM endpoints and the per-channel
+# baseline split of the six core channels are unaffected.
+#
+# Their parameters are PLACEHOLDERS, not market data. The simulator flags
+# results for these channels (assumed_metrics) until the agency supplies its
+# own CPM — via the plan Excel (CPM or planned-impressions column) or the
+# advanced settings.
+EXTRA_PLANNING_CHANNELS: dict[str, dict] = {
+    "x":        {"metrics": {"cpm": 60, "ctr": 0.008, "lead_rate": 0.0008, "target_audience": 10_000_000, "freq_cap": 4},
+                 "decay": 0.25, "saturation": (300_000.0, 1.2), "max_lift": 50.0},
+    "mackolik": {"metrics": {"cpm": 40, "ctr": 0.020, "lead_rate": 0.0005, "target_audience": 8_000_000, "freq_cap": 3},
+                 "decay": 0.10, "saturation": (300_000.0, 1.2), "max_lift": 50.0},
+    "news":     {"metrics": {"cpm": 50, "ctr": 0.003, "lead_rate": 0.0005, "target_audience": 20_000_000, "freq_cap": 3},
+                 "decay": 0.20, "saturation": (300_000.0, 1.2), "max_lift": 50.0},
+    "tvekstra": {"metrics": {"cpm": 90, "ctr": 0.006, "lead_rate": 0.0005, "target_audience": 6_000_000, "freq_cap": 4},
+                 "decay": 0.35, "saturation": (300_000.0, 1.2), "max_lift": 50.0},
+}
+PLACEHOLDER_METRIC_CHANNELS: frozenset[str] = frozenset(EXTRA_PLANNING_CHANNELS)
+
+# Everything the media planning simulator accepts (core six + planning-only).
+PLANNING_CHANNELS_SET: frozenset[str] = frozenset(CHANNELS_SET) | PLACEHOLDER_METRIC_CHANNELS
+PLANNING_METRICS: dict[str, dict[str, float]] = {
+    **DIGITAL_CHANNEL_METRICS, **{k: v["metrics"] for k, v in EXTRA_PLANNING_CHANNELS.items()}}
+PLANNING_ADSTOCK: dict[str, float] = {
+    **ADSTOCK_PARAMS, **{k: v["decay"] for k, v in EXTRA_PLANNING_CHANNELS.items()}}
+PLANNING_SATURATION: dict[str, tuple[float, float]] = {
+    **SATURATION_PARAMS, **{k: v["saturation"] for k, v in EXTRA_PLANNING_CHANNELS.items()}}
+PLANNING_MAX_LIFT: dict[str, float] = {
+    **MAX_LIFT, **{k: v["max_lift"] for k, v in EXTRA_PLANNING_CHANNELS.items()}}
+
 # Security limits
 MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 MAX_CSV_ROWS = 50_000

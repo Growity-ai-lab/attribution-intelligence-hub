@@ -1,7 +1,10 @@
 /** Media-plan helpers: channel/scenario constants, Excel media-plan parsing, spend distribution. */
 import * as XLSX from 'xlsx'
 
-export const ONLINE = ['meta', 'google', 'tiktok', 'linkedin', 'dv360', 'youtube']
+export const ONLINE = ['meta', 'google', 'tiktok', 'linkedin', 'dv360', 'youtube', 'x', 'mackolik', 'news', 'tvekstra']
+// Planning-only placements: their CPM/CTR/audience defaults are placeholders, so
+// plans for them should carry the agency's own CPM (Excel column or settings).
+export const PLACEHOLDER_CHANNELS = new Set(['x', 'mackolik', 'news', 'tvekstra'])
 export const WEEK_OPTIONS = [4, 8, 12, 16, 20, 24]
 
 export const SCENARIO_PRESETS = {
@@ -18,6 +21,12 @@ const CHANNEL_MAP_KEYWORDS = {
   tiktok: ['tiktok', 'tik tok'],
   linkedin: ['linkedin'],
   dv360: ['dv360', 'dv 360', 'programatik', 'programmatic', 'preroll', 'display&video'],
+  // Checked after the core channels; keep keywords specific ("masthead" alone
+  // would also match YouTube masthead lines).
+  x: ['twitter', 'x (twitter)', 'x.com'],
+  mackolik: ['maçkolik', 'mackolik'],
+  news: ['haber site', 'haber sitesi', 'news site'],
+  tvekstra: ['tv ekstra', 'tvekstra'],
 }
 
 // Header column detection keywords (Turkish media plan conventions)
@@ -148,4 +157,23 @@ export function distributeSpend(totalSpend, numWeeks, mode = 'front-loaded') {
   const drift = totalSpend - weeks.reduce((a, b) => a + b, 0)
   if (weeks.length) weeks[weeks.length - 1] += drift
   return weeks
+}
+
+/**
+ * The agency's own CPM for a set of imported plan lines, when the Excel carries it:
+ * planned impressions on every line (spend / impressions), else a CPM on every
+ * line (spend-weighted). Returns null when the file has neither — the simulator
+ * then uses the channel default.
+ */
+export function agencyCpm(items) {
+  if (!items?.length) return null
+  const spend = items.reduce((s, it) => s + it.spend, 0)
+  if (items.every(it => it.impressions > 0)) {
+    const imps = items.reduce((s, it) => s + it.impressions, 0)
+    return Math.round((spend / imps) * 1000 * 100) / 100
+  }
+  if (items.every(it => it.cpm > 0)) {
+    return Math.round((items.reduce((s, it) => s + it.cpm * it.spend, 0) / spend) * 100) / 100
+  }
+  return null
 }

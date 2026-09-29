@@ -214,3 +214,5 @@ class MediaPlanningResponse(BaseModel):
     saturation_curve: dict
     funnel_curve: list[FunnelDataPoint]
     digital_metrics: dict
+    # True when the channel's CPM/CTR/audience are placeholders and no CPM override was given.
+    assumed_metrics: bool = False

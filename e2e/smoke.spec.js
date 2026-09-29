@@ -456,3 +456,60 @@ test('traffic (awareness) campaign: create in UI, visit wording everywhere, reac
   await page.getByRole('button', { name: 'YouTube', exact: true }).click()
   await expect(page.getByLabel('Hedef Kitle (kişi)')).toHaveAttribute('placeholder', '6000000')
 })
+
+test('multi-channel import: all lines incl. planning-only placements, agency CPM, save all', async ({ page }) => {
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'AutoMatic Filo')
+  await page.getByRole('tab', { name: 'Medya Planlama' }).click()
+
+  const XLSX = (await import('xlsx')).default
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Marka:', 'Bonus Yalıtım'],
+    ['Kampanya Adı:', 'E2E Lansman'],
+    [],
+    ['Mecra', 'Site/Network', 'Net Yayın Bedeli', 'CPM'],
+    ['YouTube', 'Masthead + Bumper', 4500000, ''],
+    ['Google Ads', 'Search', 2250000, ''],
+    ['DV360', 'Programatik video', 1500000, ''],
+    ['Meta', 'Reach + Traffic', 2250000, ''],
+    ['TikTok', 'Topview + In-Feed', 1500000, ''],
+    ['LinkedIn', 'Reach', 600000, ''],
+    ['X (Twitter)', 'Reach + Traffic (Video Post)', 450000, ''],
+    ['Maçkolik', 'Push Notification', 450000, ''],
+    ['Haber Siteleri', 'Masthead (5 haber sitesi)', 1200000, 25],
+    ['TV Ekstra', 'Video', 300000, ''],
+  ]), 'Plan')
+  await page.locator('input[type=file][accept=".xlsx,.xls,.csv"]').setInputFiles({
+    name: 'bonus.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }),
+  })
+  const dialog = page.getByRole('dialog', { name: 'Plan içe aktarma' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('Eşlenmeyen Satırlar')).toHaveCount(0) // X, Maçkolik, news, TV Ekstra now map
+  await dialog.getByRole('button', { name: 'Tüm kanalları uygula (10)' }).click()
+
+  const summary = page.getByRole('region', { name: 'İçe aktarılan plan özeti' })
+  await expect(summary).toBeVisible()
+  const totalRow = summary.locator('tr', { hasText: 'Toplam' })
+  await expect(totalRow).toContainText('15.0M')
+  await expect(summary.locator('tbody tr')).toHaveCount(11) // 10 channels + total
+  const news = summary.locator('tr', { hasText: 'Haber Siteleri' })
+  await expect(news).toContainText('Excel') // agency CPM from the file
+  await expect(news).not.toContainText('yer tutucu')
+  await expect(summary.locator('tr', { hasText: 'X (Twitter)' })).toContainText('yer tutucu')
+  await expect(news.locator('td').nth(3)).toHaveText('48.0M') // 1.2M TL / 25 TL CPM × 1000
+
+  await summary.getByRole('button', { name: 'Tüm kanalları kaydet (10)' }).click()
+  await expect(summary.getByText('10 plan kaydedildi')).toBeVisible()
+
+  // "Detay" moves one channel into the editor without the preset overwriting it.
+  await summary.locator('tr', { hasText: 'YouTube' }).getByRole('button', { name: 'Detay' }).click()
+  await expect(page.getByRole('button', { name: 'YouTube', exact: true })).toHaveClass(/text-white/)
+  await expect(page.getByText(/^Toplam: /).first()).toHaveText('Toplam: 4.5M TL')
+
+  // A single "Uygula" keeps the import available for the other channels.
+  await page.getByRole('button', { name: 'İçe Aktarılan Plan' }).click()
+  await dialog.getByRole('button', { name: 'Uygula', exact: true }).first().click()
+  await expect(page.getByRole('button', { name: 'İçe Aktarılan Plan' })).toBeVisible()
+})

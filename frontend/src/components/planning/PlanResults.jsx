@@ -301,6 +301,13 @@ export default function PlanResults({ result, campaign, benchmarks, channelBench
 
   return (
     <>
+      {result.assumed_metrics && (
+        <p className="text-[11px] text-amber-300 bg-amber-900/15 border border-amber-800/30 rounded-lg px-3 py-2">
+          ⚠ Bu kanalın CPM/CTR/kitle değerleri <strong>yer tutucu</strong>dur, piyasa verisi değildir. Gelişmiş Ayarlar'dan
+          ajansın CPM'ini girin ya da Excel planına CPM veya planlanan gösterim sütunu ekleyin.
+        </p>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <div className="bg-dark-card border border-dark-border rounded-xl p-3 text-center">
