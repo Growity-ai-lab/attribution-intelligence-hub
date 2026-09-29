@@ -86,11 +86,13 @@ def _resolve_digital_metrics(channel: str, request: MediaPlanningRequest) -> dic
         base["target_audience"] = int(request.target_audience_override)
     if request.freq_cap_override is not None and request.freq_cap_override > 0:
         base["freq_cap"] = int(request.freq_cap_override)
-    if request.planned_clicks is not None and request.planned_clicks > 0 and base["cpm"] > 0:
-        # The agency plans clicks directly (CPC lines): derive the CTR that delivers them.
+    if (request.planned_clicks is not None or request.traffic_impressions is not None) and base["cpm"] > 0:
+        # Line-based plan: clicks come only from what the plan buys as traffic — clicks on
+        # CPC lines plus traffic/lead CPM lines at the channel CTR. Reach and video lines
+        # add impressions but no clicks. The CTR is whatever delivers those clicks.
         total_impressions = sum(request.weekly_spends) / base["cpm"] * 1000
-        if total_impressions > 0:
-            base["ctr"] = min(1.0, float(request.planned_clicks) / total_impressions)
+        clicks = (request.planned_clicks or 0.0) + (request.traffic_impressions or 0.0) * base["ctr"]
+        base["ctr"] = min(1.0, clicks / total_impressions) if total_impressions > 0 else 0.0
     return base
 
 

@@ -186,6 +186,12 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
     butce olarak "Net Yayin Bedeli" kullanilir ("Her Sey Dahil" degil)
   - Ice aktarma penceresinde her satirin kanali ve alim modeli (`BASIS_OPTIONS`: CPM/CPC/CPV/Diger) secilebilir;
     otomatik tespit "oto" etiketiyle gosterilir, secimler kampanya bazinda sessionStorage'da tutulur
+  - Satir bazinda ayrica: amac (`OBJECTIVE_OPTIONS`: Erisim/Trafik/Video izlenme/Lead), yayin donemi (hafta araligi), hedef kitle
+    - Tiklamayi yalnizca Trafik/Lead satirlari getirir: simulate'e `planned_clicks` (CPC satirlari) + `traffic_impressions`
+      (trafik/lead CPM satirlari × kanal CTR) gider; ikisinden biri verilirse erisim/video satirlari tiklama uretmez
+    - Yayin donemi: "Yayin Tarihleri"/"Sure" hucreleri + plan baslangici ("Kampanya Donemi" ayindan) → `autoFlight()`;
+      tarihli satir butcesini yayin gunlerine, yalnizca sureli olan plan basindan, digerleri tum plana dagitir (`lineWeeklySpends`)
+    - Kanal erisimi satir kitlelerinin en buyuguyle hesaplanir (`linesAudience`, kitleler ic ice varsayilir)
 
 ## Veri Kaynaklari
 

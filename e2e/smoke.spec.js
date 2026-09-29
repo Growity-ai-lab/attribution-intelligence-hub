@@ -570,15 +570,15 @@ test('mixed-unit agency plan: CPC/CPV lines, total row, news sites by name', asy
   // Search: 40K is clicks, not impressions → default CPM, clicks from the plan, CPC = 5 TL.
   const google = summary.locator('tr', { hasText: 'Google Ads' })
   await expect(google.locator('td').nth(2)).toContainText('vars.')
-  await expect(google.locator('td').nth(4)).toHaveText(/^40\.0K/)
-  await expect(google.locator('td').nth(5)).toHaveText('5')
+  await expect(google.locator('td').nth(5)).toHaveText(/^40\.0K/) // clicks (after "Amaç")
+  await expect(google.locator('td').nth(7)).toHaveText('5') // CPC
   // YouTube: TrueView views stay out of the CPM → masthead's 50 TL, not ~(2M / 23.3M).
   await expect(summary.locator('tr', { hasText: 'YouTube' }).locator('td').nth(2)).toContainText('50')
   await expect(summary.locator('tr', { hasText: 'Haber Siteleri' }).locator('td').nth(2)).toContainText('100')
 
   // In the editor too: planned clicks drive Google's clicks.
   await google.getByRole('button', { name: 'Detay' }).click()
-  await expect(page.getByTestId('spend-source')).toContainText('planlanan tıklama 40.0K')
+  await expect(page.getByTestId('spend-source')).toContainText('tıklama 40.0K')
   await expect(page.getByText('Clicks', { exact: true }).first().locator('xpath=following-sibling::p[1]')).toHaveText('40.0K')
 })
 
@@ -634,8 +634,68 @@ test("agency media-plan format: summary sheet first, device column, 'Yayın Tür
   // Picking the model by hand: the preroll as CPM impressions → agency CPM 900.
   await page.getByRole('button', { name: 'İçe Aktarılan Plan' }).click()
   await model('Trt1 / Şampiyonlar Ligi / Preroll').selectOption('impressions')
-  await expect(lines.getByRole('row', { name: /Trt1/ })).not.toContainText('oto')
+  await expect(lines.getByRole('row', { name: /Trt1/ }).locator('td').nth(4)).not.toContainText('oto') // buying-model cell
   await dialog.getByRole('button', { name: 'Tüm kanalları uygula (5)' }).click()
   await expect(dv.locator('td').nth(2)).toContainText('900')
+})
+
+test('plan lines: objective decides clicks, dates/duration place the budget, line audience drives reach', async ({ page }) => {
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'AutoMatic Filo')
+  await page.getByRole('tab', { name: 'Medya Planlama' }).click()
+
+  const XLSX = (await import('xlsx')).default
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['', 'Kampanya Adı:', '', 'Satır Testi'],
+    ['', 'Kampanya Dönemi:', '', 'Ekim'],
+    ['', 'Platform', 'Mecra', 'Site/Network', 'Kategori / Hedefleme', 'Yayın Türü', 'Planlanan (imp, view, Click)',
+      'Tahmini Birim Maliyet CPM-CPC', 'Net Yayın Bedeli', 'Süre', 'Yayın Tarihleri'],
+    ['', 'Desktop / Mobile', 'Google', 'Youtube', 'Hedeflemeli', 'Masthead', 20000000, 50, 1000000, 5, '12 - 16 Ekim'],
+    ['', 'Desktop / Mobile', 'Google', 'Youtube', 'Hedeflemeli', 'Bumper', 20000000, 30, 600000, '', ''],
+    ['', 'Desktop / Mobile', 'TikTok', 'TikTok', 'Rezervasyonlu', 'Top View', 12307692, 65, 800000, 1, ''],
+    ['', 'Desktop / Mobile', 'Meta', 'Instagram', 'Hedeflemeli', 'Reach', 100000000, 15, 1500000, '', ''],
+    ['', 'Desktop / Mobile', 'Linkedln', 'Linkedln', 'Hedeflemeli', 'Reach', 727273, 550, 400000, '', ''],
+  ]), 'Media Plan')
+  await page.locator('input[type=file][accept=".xlsx,.xls,.csv"]').setInputFiles({
+    name: 'satir.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }),
+  })
+  const dialog = page.getByRole('dialog', { name: 'Plan içe aktarma' })
+  await expect(dialog.getByLabel('Plan başlangıcı')).toHaveValue(/^20\d\d-10-01$/) // "Kampanya Dönemi: Ekim"
+  await dialog.getByRole('button', { name: /^Satırlar \(5\)/ }).click()
+  const lines = dialog.getByRole('table', { name: 'Plan satırları' })
+  const row = name => lines.getByRole('row', { name })
+  // Flights: dated masthead (Oct 12–16 = days 11–15 → W2–W3), 1-day TopView at launch, the rest the whole plan.
+  await expect(lines.getByLabel('Google / Youtube / Masthead başlangıç haftası')).toHaveValue('2')
+  await expect(lines.getByLabel('Google / Youtube / Masthead bitiş haftası')).toHaveValue('3')
+  await expect(row(/Masthead/).getByTestId('flight-source')).toHaveText('Excel tarihi')
+  await expect(lines.getByLabel('TikTok / Top View bitiş haftası')).toHaveValue('1')
+  await expect(row(/Top View/).getByTestId('flight-source')).toHaveText('Excel süresi')
+  await expect(lines.getByLabel('Google / Youtube / Bumper bitiş haftası')).toHaveValue('12')
+  await expect(lines.getByLabel('Meta / Instagram / Reach amaç')).toHaveValue('reach')
+
+  await dialog.getByRole('button', { name: 'Tüm kanalları uygula (4)' }).click()
+  const summary = page.getByRole('region', { name: 'İçe aktarılan plan özeti' })
+  const meta = summary.locator('tr', { hasText: 'Meta Ads' })
+  await expect(meta.locator('td').nth(4)).toContainText('Erişim %100')
+  await expect(meta.locator('td').nth(5)).toHaveText('0') // reach lines bring no clicks
+
+  // The TopView's budget sits in week 1 only.
+  await summary.locator('tr', { hasText: 'TikTok' }).getByRole('button', { name: 'Detay' }).click()
+  const weeks = page.locator('input[type=number][placeholder="0"]')
+  await expect(weeks.nth(0)).toHaveValue('800000')
+  await expect(weeks.nth(1)).toHaveValue('')
+
+  // Re-purposing the Meta line as traffic: its impressions now click at Meta's CTR.
+  await page.getByRole('button', { name: 'İçe Aktarılan Plan' }).click()
+  await lines.getByLabel('Meta / Instagram / Reach amaç').selectOption('traffic')
+  // A line audience replaces the channel default in the reach model.
+  const reachCell = () => summary.locator('tr', { hasText: 'LinkedIn' }).locator('td').nth(8)
+  await lines.getByLabel('Linkedln / Reach hedef kitle').fill('50000000')
+  await dialog.getByRole('button', { name: 'Tüm kanalları uygula (4)' }).click()
+  await expect(meta.locator('td').nth(4)).toContainText('Trafik %100')
+  await expect(meta.locator('td').nth(5)).toHaveText('1.8M') // 100M × 1.8%
+  await expect(reachCell()).toHaveText(/^%[0-9]\./) // 727K impressions over 50M people: single digits
 })
 

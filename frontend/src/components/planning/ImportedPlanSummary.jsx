@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { CHANNEL_LABELS, CHANNEL_COLORS } from '../../utils/colors'
 import { fmtMoney, fmtN } from '../../utils/formatters'
-import { distributeSpend, PLACEHOLDER_CHANNELS } from './planHelpers'
+import { PLACEHOLDER_CHANNELS, OBJECTIVE_OPTIONS } from './planHelpers'
 
 // An agency CPM this far from the channel default usually means the Excel column
 // the CPM was derived from holds clicks or video views rather than impressions.
@@ -14,7 +14,9 @@ const cellInput = 'w-28 bg-dark-bg border border-dark-border rounded-lg px-2 py-
  * with the agency's CPM from the Excel (when present) and an optional audience,
  * then shown with totals, and can be saved as one plan per channel.
  *
- * plan: [{ channel, totalSpend, cpm, clicks, labels }]: agency CPM / planned CPC clicks, or null
+ * plan: [{ channel, totalSpend, weeklySpends, cpm, clicks, trafficImpressions, views, audience, objectives, labels }]
+ *   weeklySpends follow each line's flight; clicks come only from traffic/lead lines
+ *   (planned CPC clicks + trafficImpressions × channel CTR); audience = largest line audience.
  */
 export default function ImportedPlanSummary({
   plan, unmapped, numWeeks, distribution, title, campaignId,
@@ -26,12 +28,12 @@ export default function ImportedPlanSummary({
   const [error, setError] = useState('')
   const [saveState, setSaveState] = useState('')
 
-  const spendsFor = row => distributeSpend(row.totalSpend, numWeeks, distribution)
+  const spendsFor = row => row.weeklySpends
+  const audienceFor = row => Number(audiences[row.channel]) || row.audience || null
   const overridesFor = row => {
-    const ov = {}
+    const ov = { planned_clicks: row.clicks || 0, traffic_impressions: row.trafficImpressions || 0 }
     if (row.cpm) ov.cpm_override = row.cpm
-    if (row.clicks) ov.planned_clicks = row.clicks
-    const aud = Number(audiences[row.channel])
+    const aud = audienceFor(row)
     if (aud > 0) ov.target_audience_override = Math.round(aud)
     return ov
   }
@@ -65,8 +67,9 @@ export default function ImportedPlanSummary({
       impressions: s.total_impressions,
       clicks: s.total_clicks,
       plannedClicks: row.clicks,
+      views: row.views,
       cpmUsed: s.avg_cpm,
-      cpc: s.avg_cpc,
+      cpc: s.avg_cpc > 0 ? s.avg_cpc : null, // no clicks (reach/video-only channel): no CPC
       reach: fc.length ? fc[fc.length - 1].reach_pct : null,
       assumed: r?.assumed_metrics,
       cpmSuspect: cpmSuspect(row.cpm, r?.default_metrics?.cpm, row.channel),
@@ -75,6 +78,7 @@ export default function ImportedPlanSummary({
   const totalSpend = rows.reduce((a, r) => a + r.totalSpend, 0)
   const totalImp = rows.reduce((a, r) => a + (r.impressions || 0), 0)
   const totalClicks = rows.reduce((a, r) => a + (r.clicks || 0), 0)
+  const totalViews = rows.reduce((a, r) => a + (r.views || 0), 0)
   const anyAssumed = rows.some(r => r.assumed)
   const suspects = rows.filter(r => r.cpmSuspect)
 
@@ -93,15 +97,15 @@ export default function ImportedPlanSummary({
   }
 
   const downloadCsv = () => {
-    const header = ['Kanal', 'Bütçe (TL)', 'CPM (TL)', 'CPM kaynağı', 'Gösterim', 'Tıklama', 'CPC (TL)', 'Erişim son hafta (%)', 'Hedef kitle']
+    const header = ['Kanal', 'Bütçe (TL)', 'CPM (TL)', 'CPM kaynağı', 'Gösterim', 'Amaç', 'Tıklama', 'İzlenme', 'CPC (TL)', 'Erişim son hafta (%)', 'Hedef kitle']
     const lines = rows.map(r => [
       CHANNEL_LABELS[r.channel] || r.channel, r.totalSpend, r.cpmUsed ?? '', cpmSource(r),
-      Math.round(r.impressions || 0), Math.round(r.clicks || 0), r.cpc ?? '',
-      r.reach != null ? r.reach.toFixed(1) : '', audiences[r.channel] || 'varsayılan',
+      Math.round(r.impressions || 0), objectiveText(r.objectives), Math.round(r.clicks || 0), Math.round(r.views || 0), r.cpc ?? '',
+      r.reach != null ? r.reach.toFixed(1) : '', audienceFor(r) || 'varsayılan',
     ])
     lines.push(['TOPLAM', totalSpend, totalImp ? (totalSpend / totalImp * 1000).toFixed(2) : '', '',
-      Math.round(totalImp), Math.round(totalClicks), totalClicks ? (totalSpend / totalClicks).toFixed(2) : '', '', ''])
-    if (unmapped.count) lines.push([`Eşlenmemiş (${unmapped.count} satır, plana dahil değil)`, unmapped.total, '', '', '', '', '', '', ''])
+      Math.round(totalImp), '', Math.round(totalClicks), Math.round(totalViews), totalClicks ? (totalSpend / totalClicks).toFixed(2) : '', '', ''])
+    if (unmapped.count) lines.push([`Eşlenmemiş (${unmapped.count} satır, plana dahil değil)`, unmapped.total, '', '', '', '', '', '', '', '', ''])
     const csv = [header, ...lines].map(l => l.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n')
     const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
     const a = document.createElement('a')
@@ -140,14 +144,16 @@ export default function ImportedPlanSummary({
           </p>
         )}
         <div className="scroll-hint">
-          <table className="w-full text-xs min-w-[860px]">
+          <table className="w-full text-xs min-w-[1080px]">
             <thead>
               <tr className="border-b border-dark-border text-slate-400">
                 <th className="text-left py-2 px-2">Kanal</th>
                 <th className="text-right py-2 px-2">Bütçe</th>
                 <th className="text-right py-2 px-2">CPM</th>
                 <th className="text-right py-2 px-2">Gösterim</th>
-                <th className="text-right py-2 px-2">Tıklama</th>
+                <th className="text-left py-2 px-2">Amaç</th>
+                <th className="text-right py-2 px-2" title="Yalnızca trafik ve lead satırları">Tıklama</th>
+                <th className="text-right py-2 px-2" title="CPV satırlarında planlanan izlenme">İzlenme</th>
                 <th className="text-right py-2 px-2">CPC</th>
                 <th className="text-right py-2 px-2">Erişim (son hafta)</th>
                 <th className="text-right py-2 px-2">Hedef kitle (kişi)</th>
@@ -174,10 +180,12 @@ export default function ImportedPlanSummary({
                     )}
                   </td>
                   <td className="py-2 px-2 text-right font-mono text-slate-300">{fmtN(r.impressions)}</td>
+                  <td className="py-2 px-2 text-[10px] text-slate-400 whitespace-nowrap">{objectiveText(r.objectives)}</td>
                   <td className="py-2 px-2 text-right font-mono text-slate-300">
                     {fmtN(r.clicks)}
-                    {r.plannedClicks && <span className="ml-1 text-[9px] text-slate-500" title="CPC satırlarındaki planlanan tıklama">Excel</span>}
+                    {r.plannedClicks > 0 && <span className="ml-1 text-[9px] text-slate-500" title="CPC satırlarındaki planlanan tıklama">Excel</span>}
                   </td>
+                  <td className="py-2 px-2 text-right font-mono text-slate-300">{r.views ? fmtN(r.views) : '—'}</td>
                   <td className="py-2 px-2 text-right font-mono text-slate-300">{r.cpc != null ? fmtMoney(r.cpc) : '—'}</td>
                   <td className="py-2 px-2 text-right font-mono text-accent">{r.reach != null ? `%${r.reach.toFixed(1)}` : '—'}</td>
                   <td className="py-2 px-2 text-right">
@@ -186,13 +194,15 @@ export default function ImportedPlanSummary({
                       aria-label={`${CHANNEL_LABELS[r.channel] || r.channel} hedef kitle`}
                       value={audiences[r.channel] ?? ''}
                       onChange={e => setAudiences(prev => ({ ...prev, [r.channel]: e.target.value }))}
-                      placeholder={r.result?.digital_metrics?.target_audience ? String(r.result.digital_metrics.target_audience) : 'varsayılan'}
+                      placeholder={r.audience ? `${r.audience} (satır)` : r.result?.default_metrics?.target_audience ? String(r.result.default_metrics.target_audience) : 'varsayılan'}
                       className={cellInput}
                     />
                   </td>
                   <td className="py-2 px-2 text-right">
                     <button
-                      onClick={() => onOpenChannel(r.channel, spendsFor(r), { cpm: r.cpm, clicks: r.plannedClicks })}
+                      onClick={() => onOpenChannel(r.channel, spendsFor(r), {
+                        cpm: r.cpm, clicks: r.plannedClicks, trafficImpressions: r.trafficImpressions, audience: audienceFor(r), source: { kind: 'import' },
+                      })}
                       className="px-2 py-0.5 rounded text-[10px] text-slate-300 bg-dark-bg border border-dark-border hover:text-slate-100"
                     >
                       Detay
@@ -205,7 +215,9 @@ export default function ImportedPlanSummary({
                 <td className="py-2 px-2 text-right font-mono">{fmtMoney(totalSpend)}</td>
                 <td className="py-2 px-2 text-right font-mono">{totalImp ? fmtMoney(totalSpend / totalImp * 1000) : '—'}</td>
                 <td className="py-2 px-2 text-right font-mono">{fmtN(totalImp)}</td>
+                <td />
                 <td className="py-2 px-2 text-right font-mono">{fmtN(totalClicks)}</td>
+                <td className="py-2 px-2 text-right font-mono">{totalViews ? fmtN(totalViews) : '—'}</td>
                 <td className="py-2 px-2 text-right font-mono">{totalClicks ? fmtMoney(totalSpend / totalClicks) : '—'}</td>
                 <td className="py-2 px-2 text-right text-[10px] font-normal text-slate-500" title="Aynı kişi birden çok mecrada görülebilir; tekil erişim kanallar arasında toplanamaz.">toplanamaz</td>
                 <td colSpan={2} />
@@ -235,6 +247,12 @@ export default function ImportedPlanSummary({
       </div>
     </div>
   )
+}
+
+/** "Erişim %65 · Trafik %35" from a channel's budget share per line objective. */
+function objectiveText(mix) {
+  return OBJECTIVE_OPTIONS.filter(o => mix?.[o.value] > 0)
+    .map(o => `${o.label} %${Math.round(mix[o.value] * 100)}`).join(' · ') || '—'
 }
 
 function cpmSuspect(cpm, defaultCpm, channel) {

@@ -40,3 +40,26 @@ def test_planned_clicks_drive_ctr(client, auth_headers):
     assert res["summary"]["total_clicks"] == 40_000
     assert res["digital_metrics"]["ctr"] == 40_000 / (200_000 / 60 * 1000)  # default Google CPM 60
     assert res["default_metrics"]["cpm"] == 60
+
+
+def test_reach_only_line_plan_has_no_clicks(client, auth_headers):
+    res = client.post("/api/media-planning/simulate", json={
+        "channel": "meta", "weekly_spends": [100_000], "planned_clicks": 0, "traffic_impressions": 0,
+    }, headers=auth_headers).json()
+    assert res["summary"]["total_clicks"] == 0
+    assert res["summary"]["total_impressions"] > 0
+
+
+def test_traffic_impressions_click_at_channel_ctr(client, auth_headers):
+    res = client.post("/api/media-planning/simulate", json={
+        "channel": "meta", "weekly_spends": [160_000], "planned_clicks": 1_000, "traffic_impressions": 500_000,
+    }, headers=auth_headers).json()
+    # 1,000 bought clicks + 500K traffic impressions × Meta's default 1.8% CTR
+    assert res["summary"]["total_clicks"] == 1_000 + 9_000
+
+
+def test_negative_planned_clicks_rejected(client, auth_headers):
+    res = client.post("/api/media-planning/simulate", json={
+        "channel": "meta", "weekly_spends": [100_000], "planned_clicks": -5,
+    }, headers=auth_headers)
+    assert res.status_code == 422

@@ -16,7 +16,10 @@ import { useAttribution } from '../hooks/useAttribution'
 import { CHANNEL_LABELS, CHANNEL_COLORS } from '../utils/colors'
 import { fmtMoney, fmtN } from '../utils/formatters'
 import PlanResults from './planning/PlanResults'
-import { ONLINE, WEEK_OPTIONS, SCENARIO_PRESETS, parseMediaPlanExcel, distributeSpend, agencyCpm, agencyClicks, withBasis, BASIS_OPTIONS } from './planning/planHelpers'
+import {
+  ONLINE, WEEK_OPTIONS, SCENARIO_PRESETS, parseMediaPlanExcel, agencyCpm, agencyClicks, withBasis, BASIS_OPTIONS,
+  OBJECTIVE_OPTIONS, autoFlight, linesWeeklySpends, trafficImpressions, linesAudience,
+} from './planning/planHelpers'
 import ImportedPlanSummary from './planning/ImportedPlanSummary'
 import { savedMediaImport, saveMediaImport } from '../utils/session'
 
@@ -51,9 +54,10 @@ export default function DigitalPlanningPanel({ campaign }) {
   // so broad awareness briefs must set their own universe or reach saturates.
   const [audienceOverride, setAudienceOverride] = useState('')
   const [freqCapOverride, setFreqCapOverride] = useState('')
-  // Clicks an imported plan commits to on CPC lines, with the spend they were planned for:
-  // { clicks, spend } — scaled with the current total so the implied CPC stays fixed.
-  const [plannedClicks, setPlannedClicks] = useState(null)
+  // What an imported channel's lines deliver besides impressions, with the spend they were
+  // planned for: { clicks, trafficImpressions, spend } — scaled with the current total so the
+  // implied CPC stays fixed. Only traffic/lead lines bring clicks.
+  const [lineDelivery, setLineDelivery] = useState(null)
 
   // Digital metrics defaults (populated from preset response)
   const [channelDefaults, setChannelDefaults] = useState(null)
@@ -66,11 +70,11 @@ export default function DigitalPlanningPanel({ campaign }) {
   const [importError, setImportError] = useState('')
   const [importDistribution, setImportDistribution] = useState(
     () => savedMediaImport(campaign?.id ?? null)?.distribution || 'front-loaded')
-  const [importMappingOverrides, setImportMappingOverrides] = useState(
-    () => savedMediaImport(campaign?.id ?? null)?.overrides || {})
-  // Buying model picked per line (rowIndex → 'impressions' | 'clicks' | 'views' | 'none').
-  const [importBasisOverrides, setImportBasisOverrides] = useState(
-    () => savedMediaImport(campaign?.id ?? null)?.basisOverrides || {})
+  // Per-line picks: rowIndex → { channel, basis, objective, audience, startWeek, endWeek }.
+  const [lineEdits, setLineEdits] = useState(() => savedLineEdits(savedMediaImport(campaign?.id ?? null)))
+  // First day of the plan (ISO date): places dated lines ("12 - 16 Ekim") in their weeks.
+  const [importPlanStart, setImportPlanStart] = useState(
+    () => savedMediaImport(campaign?.id ?? null)?.planStart || '')
   const [showImportLines, setShowImportLines] = useState(false)
   const importCampaignRef = useRef(campaign?.id ?? null)
   const fileInputRef = useRef(null)
@@ -118,25 +122,39 @@ export default function DigitalPlanningPanel({ campaign }) {
     importCampaignRef.current = id
     const saved = savedMediaImport(id)
     setImportData(saved?.data || null)
-    setImportMappingOverrides(saved?.overrides || {})
-    setImportBasisOverrides(saved?.basisOverrides || {})
+    setLineEdits(savedLineEdits(saved))
+    setImportPlanStart(saved?.planStart || '')
     setImportDistribution(saved?.distribution || 'front-loaded')
     setShowImportSummary(false)
   }, [campaign?.id])
 
   useEffect(() => {
     saveMediaImport(importCampaignRef.current, importData
-      ? { data: importData, overrides: importMappingOverrides, basisOverrides: importBasisOverrides, distribution: importDistribution }
+      ? { data: importData, lineEdits, planStart: importPlanStart, distribution: importDistribution }
       : null)
-  }, [importData, importMappingOverrides, importBasisOverrides, importDistribution])
+  }, [importData, lineEdits, importPlanStart, importDistribution])
 
-  // Plan lines with the user's per-line picks (channel, buying model) applied.
+  const editLine = (rowIndex, patch) => setLineEdits(prev => ({ ...prev, [rowIndex]: { ...prev[rowIndex], ...patch } }))
+  const planStart = importPlanStart || importData?.planStart || ''
+
+  // Plan lines with the user's per-line picks applied: channel, buying model, objective,
+  // audience and flight (the plan's dates/"Süre" unless weeks were picked by hand).
   const effectiveImportLines = useMemo(() => (importData?.lineItems || []).map(item => {
-    const line = importBasisOverrides[item.rowIndex] ? withBasis(item, importBasisOverrides[item.rowIndex]) : item
-    const override = importMappingOverrides[item.rowIndex]
-    const channel = override !== undefined ? override : (item.mappedChannel || '_unmapped')
-    return { ...line, channel: channel || '_unmapped' }
-  }), [importData, importMappingOverrides, importBasisOverrides])
+    const e = lineEdits[item.rowIndex] || {}
+    const line = e.basis ? withBasis(item, e.basis) : item
+    const channel = e.channel !== undefined ? e.channel : (item.mappedChannel || '_unmapped')
+    const auto = autoFlight(item, planStart, numWeeks)
+    const flight = e.startWeek
+      ? { startWeek: Math.min(e.startWeek, numWeeks), endWeek: Math.min(Math.max(e.endWeek || e.startWeek, e.startWeek), numWeeks), source: 'user' }
+      : auto
+    return {
+      ...line,
+      channel: channel || '_unmapped',
+      objective: e.objective || item.objective || 'reach',
+      audience: e.audience !== undefined ? e.audience : item.audience ?? null,
+      flight,
+    }
+  }), [importData, lineEdits, planStart, numWeeks])
 
   const getEffectiveImportAgg = useCallback(() => {
     const agg = {}
@@ -153,16 +171,12 @@ export default function DigitalPlanningPanel({ campaign }) {
     return agg
   }, [effectiveImportLines])
 
-  // A channel's line from the imported plan, spread over the weeks; null if the plan lacks it.
+  // A channel's lines from the imported plan as editor inputs (weekly spends by flight,
+  // agency CPM, clicks, audience); null if the plan lacks the channel.
   const importedSpendsFor = useCallback((channel, weeks) => {
     const agg = getEffectiveImportAgg()
     if (!agg[channel]) return null
-    return {
-      spends: distributeSpend(agg[channel].totalSpend, weeks, importDistribution),
-      cpm: agencyCpm(agg[channel].items),
-      clicks: agencyClicks(agg[channel].items),
-      source: { kind: 'import' },
-    }
+    return { spends: linesWeeklySpends(agg[channel].items, weeks, importDistribution), ...channelDelivery(agg[channel].items) }
   }, [getEffectiveImportAgg, importDistribution])
 
   // Load presets when channel changes. With an imported plan, its line for the
@@ -189,7 +203,8 @@ export default function DigitalPlanningPanel({ campaign }) {
         setAudienceOverride('')
         setFreqCapOverride('')
         if (pending?.cpm) setCpmOverride(String(pending.cpm))
-        setPlannedClicks(plannedClicksFor(pending))
+        if (pending?.audience) setAudienceOverride(String(pending.audience))
+        setLineDelivery(deliveryFor(pending))
       } catch (err) {
         console.error('[DigitalPlanning]', err)
         if (!cancelled && pending) { // never drop an imported/saved plan
@@ -215,7 +230,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (spendSource.kind !== 'import' || spendSource.edited) return
     const imp = importedSpendsFor(selectedChannel, numWeeks)
     if (imp) setWeeklySpends(imp.spends)
-  }, [numWeeks, importData, importDistribution, importMappingOverrides, importBasisOverrides]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [numWeeks, importData, importDistribution, lineEdits, importPlanStart]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build overrides object
   const buildOverrides = useCallback(() => {
@@ -226,12 +241,14 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (audienceOverride !== '' && Number(audienceOverride) > 0) ov.target_audience_override = Math.round(Number(audienceOverride))
     if (freqCapOverride !== '' && Number(freqCapOverride) > 0) ov.freq_cap_override = Math.round(Number(freqCapOverride))
     // A CTR typed by the user wins over the plan's clicks.
-    if (plannedClicks && !ov.ctr_override) {
+    if (lineDelivery && !ov.ctr_override) {
       const total = weeklySpends.reduce((a, v) => a + v, 0)
-      if (total > 0) ov.planned_clicks = Math.round(plannedClicks.clicks * total / plannedClicks.spend)
+      const scale = total > 0 ? total / lineDelivery.spend : 0
+      ov.planned_clicks = Math.round(lineDelivery.clicks * scale)
+      ov.traffic_impressions = Math.round(lineDelivery.trafficImpressions * scale)
     }
     return ov
-  }, [cpmOverride, ctrOverride, leadRateOverride, audienceOverride, freqCapOverride, plannedClicks, weeklySpends])
+  }, [cpmOverride, ctrOverride, leadRateOverride, audienceOverride, freqCapOverride, lineDelivery, weeklySpends])
 
   // Auto-simulate with debounce
   const runSimulation = useCallback(async (spends) => {
@@ -272,7 +289,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       const spends = presets.preset_spends || []
       setWeeklySpends(Array(numWeeks).fill(0).map((_, i) => spends[i] || 0))
       setSpendSource({ kind: 'preset' })
-      setPlannedClicks(null)
+      setLineDelivery(null)
     } catch (err) { console.error('[DigitalPlanning]', err) }
   }
 
@@ -282,7 +299,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => runSimulation(weeklySpends), 600)
     return () => clearTimeout(debounceRef.current)
-  }, [cpmOverride, ctrOverride, leadRateOverride, audienceOverride, freqCapOverride, plannedClicks]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cpmOverride, ctrOverride, leadRateOverride, audienceOverride, freqCapOverride, lineDelivery]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save
   const handleSave = async () => {
@@ -303,16 +320,18 @@ export default function DigitalPlanningPanel({ campaign }) {
   }
 
   // Put a plan's weekly spends on a channel without the channel's preset overwriting them.
-  // cpm: the agency's CPM for this plan (from the imported Excel), applied as the CPM override.
-  // opts: { cpm, clicks, source } — the agency's CPM and planned clicks from the imported Excel.
-  const applySpendsToChannel = (channel, spends, { cpm = null, clicks = null, source = { kind: 'import' } } = {}) => {
+  // opts from the imported Excel: { cpm, clicks, trafficImpressions, audience, source } —
+  // the agency's CPM (as the CPM override), what the lines deliver, and their audience.
+  const applySpendsToChannel = (channel, spends, opts = {}) => {
+    const { cpm = null, audience = null, source = { kind: 'import' } } = opts
     if (channel === selectedChannel) {
       setWeeklySpends(spends)
       setSpendSource(source)
       if (cpm) setCpmOverride(String(cpm))
-      setPlannedClicks(plannedClicksFor({ spends, clicks }))
+      if (audience) setAudienceOverride(String(audience))
+      setLineDelivery(deliveryFor({ ...opts, source, spends }))
     } else {
-      pendingSpendsRef.current = { spends, cpm, clicks, source }
+      pendingSpendsRef.current = { ...opts, spends, source }
       setSelectedChannel(channel)
     }
   }
@@ -352,8 +371,8 @@ export default function DigitalPlanningPanel({ campaign }) {
     try {
       const parsed = await parseMediaPlanExcel(file)
       setImportData(parsed)
-      setImportMappingOverrides({})
-      setImportBasisOverrides({})
+      setLineEdits({})
+      setImportPlanStart('')
       setShowImportSummary(false)
       setShowImportModal(true)
     } catch (err) {
@@ -362,15 +381,10 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleImportChannelMapping = (itemIdx, newChannel) => {
-    setImportMappingOverrides(prev => ({ ...prev, [itemIdx]: newChannel }))
-  }
-
   const handleImportApply = (channel) => {
-    const agg = getEffectiveImportAgg()
-    if (!agg[channel]) return
-    applySpendsToChannel(channel, distributeSpend(agg[channel].totalSpend, numWeeks, importDistribution),
-      { cpm: agencyCpm(agg[channel].items), clicks: agencyClicks(agg[channel].items) })
+    const imp = importedSpendsFor(channel, numWeeks)
+    if (!imp) return
+    applySpendsToChannel(channel, imp.spends, imp)
     setShowImportModal(false) // keep importData: the other channels stay available
   }
 
@@ -390,12 +404,17 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (!importData) return null
     const agg = getEffectiveImportAgg()
     const plan = ONLINE.filter(ch => agg[ch]).map(ch => ({
-      channel: ch, totalSpend: agg[ch].totalSpend, cpm: agencyCpm(agg[ch].items),
-      clicks: agencyClicks(agg[ch].items), labels: agg[ch].labels,
+      channel: ch,
+      totalSpend: agg[ch].totalSpend,
+      weeklySpends: linesWeeklySpends(agg[ch].items, numWeeks, importDistribution),
+      ...channelDelivery(agg[ch].items),
+      views: agg[ch].items.reduce((a, it) => a + (it.views || 0), 0),
+      objectives: objectiveMix(agg[ch].items),
+      labels: agg[ch].labels,
     }))
     const rest = effectiveImportLines.filter(i => i.channel === '_unmapped')
     return { plan, unmapped: { count: rest.length, total: rest.reduce((a, i) => a + i.spend, 0) } }
-  }, [importData, getEffectiveImportAgg, effectiveImportLines])
+  }, [importData, getEffectiveImportAgg, effectiveImportLines, numWeeks, importDistribution])
 
 
   // Derived data
@@ -486,7 +505,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               importName={importData?.campaignName}
               distribution={importDistribution}
               channelMissingFromImport={!!importData && spendSource.kind === 'preset'}
-              plannedClicks={buildOverrides().planned_clicks}
+              plannedClicks={lineDelivery ? buildOverrides().planned_clicks : null}
             />
           </div>
           <div className="flex items-center gap-3">
@@ -794,18 +813,30 @@ export default function DigitalPlanningPanel({ campaign }) {
                 </p>
               )}
 
-              {/* Every plan line: channel and buying model can be picked per line */}
+              {/* Every plan line: channel, buying model, objective, flight and audience per line */}
               <div className="space-y-1.5">
-                <button
-                  onClick={() => setShowImportLines(v => !v)}
-                  className="text-[10px] text-slate-400 uppercase tracking-wide hover:text-slate-200"
-                  aria-expanded={showImportLines || unmappedItems.length > 0}
-                >
-                  Satırlar ({importData.lineItems.length}) — kanal ve alım modeli {showImportLines || unmappedItems.length > 0 ? '▾' : '▸'}
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={() => setShowImportLines(v => !v)}
+                    className="text-[10px] text-slate-400 uppercase tracking-wide hover:text-slate-200"
+                    aria-expanded={showImportLines || unmappedItems.length > 0}
+                  >
+                    Satırlar ({importData.lineItems.length}) — kanal, alım modeli, amaç, yayın dönemi, kitle {showImportLines || unmappedItems.length > 0 ? '▾' : '▸'}
+                  </button>
+                  <label className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                    Plan başlangıcı
+                    <input
+                      type="date"
+                      value={planStart}
+                      onChange={e => setImportPlanStart(e.target.value)}
+                      aria-label="Plan başlangıcı"
+                      className="bg-dark-bg border border-dark-border rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300"
+                    />
+                  </label>
+                </div>
                 {(showImportLines || unmappedItems.length > 0) && (
                   <div className="scroll-hint">
-                    <table className="w-full text-[11px] min-w-[760px]" aria-label="Plan satırları">
+                    <table className="w-full text-[11px] min-w-[1180px]" aria-label="Plan satırları">
                       <thead>
                         <tr className="text-slate-500 border-b border-dark-border">
                           <th className="text-left py-1.5 px-2 font-normal">Satır</th>
@@ -813,46 +844,76 @@ export default function DigitalPlanningPanel({ campaign }) {
                           <th className="text-right py-1.5 px-2 font-normal">Birim maliyet</th>
                           <th className="text-right py-1.5 px-2 font-normal">Planlanan</th>
                           <th className="text-left py-1.5 px-2 font-normal">Alım modeli</th>
+                          <th className="text-left py-1.5 px-2 font-normal">Amaç</th>
                           <th className="text-left py-1.5 px-2 font-normal">Kanal</th>
+                          <th className="text-left py-1.5 px-2 font-normal">Yayın dönemi (hafta)</th>
+                          <th className="text-right py-1.5 px-2 font-normal">Hedef kitle (kişi)</th>
                         </tr>
                       </thead>
                       <tbody>
                         {effectiveImportLines.map(item => {
-                          const picked = importBasisOverrides[item.rowIndex] !== undefined
+                          const e = lineEdits[item.rowIndex] || {}
                           const label = item.label || `${item.mecra}${item.site ? ' / ' + item.site : ''}`
+                          const f = item.flight
+                          const oto = title => <span className="ml-1 text-[9px] text-slate-500" title={title}>oto</span>
+                          const weekOpts = Array.from({ length: numWeeks }, (_, i) => <option key={i} value={i + 1}>W{i + 1}</option>)
                           return (
                             <tr key={item.rowIndex} className={`border-b border-dark-border/40 ${item.channel === '_unmapped' ? 'bg-amber-500/5' : ''}`}>
                               <td className="py-1.5 px-2 text-slate-300">{label}</td>
                               <td className="py-1.5 px-2 text-right font-mono text-slate-300">{fmtMoney(item.spend)}</td>
                               <td className="py-1.5 px-2 text-right font-mono text-slate-400">{item.unit ? fmtUnit(item.unit) : '—'}</td>
                               <td className="py-1.5 px-2 text-right font-mono text-slate-400">{item.qty ? fmtN(item.qty) : '—'}</td>
-                              <td className="py-1.5 px-2">
-                                <select
-                                  value={item.basis || 'none'}
-                                  onChange={e => setImportBasisOverrides(prev => ({ ...prev, [item.rowIndex]: e.target.value }))}
-                                  aria-label={`${label} alım modeli`}
-                                  className="bg-dark-bg border border-dark-border rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300"
-                                >
+                              <td className="py-1.5 px-2 whitespace-nowrap">
+                                <select value={item.basis || 'none'} onChange={ev => editLine(item.rowIndex, { basis: ev.target.value })}
+                                  aria-label={`${label} alım modeli`} className={lineSelect}>
                                   {BASIS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                 </select>
-                                {!picked && <span className="ml-1 text-[9px] text-slate-500" title="Bütçe ÷ miktar ile birim maliyetten otomatik bulundu">oto</span>}
+                                {!e.basis && oto('Bütçe ÷ miktar ile birim maliyetten otomatik bulundu')}
+                              </td>
+                              <td className="py-1.5 px-2 whitespace-nowrap">
+                                <select value={item.objective} onChange={ev => editLine(item.rowIndex, { objective: ev.target.value })}
+                                  aria-label={`${label} amaç`} className={lineSelect}>
+                                  {OBJECTIVE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                </select>
+                                {!e.objective && oto('Yayın türü ve alım modelinden otomatik bulundu')}
                               </td>
                               <td className="py-1.5 px-2">
-                                <select
-                                  value={item.channel}
-                                  onChange={e => handleImportChannelMapping(item.rowIndex, e.target.value)}
-                                  aria-label={`${label} kanal`}
-                                  className="bg-dark-bg border border-dark-border rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300"
-                                >
+                                <select value={item.channel} onChange={ev => editLine(item.rowIndex, { channel: ev.target.value })}
+                                  aria-label={`${label} kanal`} className={lineSelect}>
                                   <option value="_unmapped">Eşle...</option>
                                   {ONLINE.map(ch => <option key={ch} value={ch}>{CHANNEL_LABELS[ch]}</option>)}
                                 </select>
+                              </td>
+                              <td className="py-1.5 px-2 whitespace-nowrap">
+                                <select value={f.startWeek}
+                                  onChange={ev => { const w = Number(ev.target.value); editLine(item.rowIndex, { startWeek: w, endWeek: Math.max(w, f.endWeek) }) }}
+                                  aria-label={`${label} başlangıç haftası`} className={lineSelect}>{weekOpts}</select>
+                                <span className="mx-1 text-slate-500">–</span>
+                                <select value={f.endWeek}
+                                  onChange={ev => { const w = Number(ev.target.value); editLine(item.rowIndex, { startWeek: Math.min(w, f.startWeek), endWeek: w }) }}
+                                  aria-label={`${label} bitiş haftası`} className={lineSelect}>{weekOpts}</select>
+                                {f.source === 'user'
+                                  ? <button onClick={() => editLine(item.rowIndex, { startWeek: undefined, endWeek: undefined })}
+                                      className="ml-1 text-[9px] text-slate-400 hover:text-slate-200" title="Excel'deki döneme dön">sıfırla</button>
+                                  : <span className="ml-1 text-[9px] text-slate-500" data-testid="flight-source">{FLIGHT_SOURCE_LABELS[f.source]}</span>}
+                              </td>
+                              <td className="py-1.5 px-2 text-right">
+                                <input type="number" min="0" value={item.audience ?? ''}
+                                  onChange={ev => editLine(item.rowIndex, { audience: ev.target.value === '' ? null : Math.max(0, Number(ev.target.value)) })}
+                                  placeholder="varsayılan" aria-label={`${label} hedef kitle`}
+                                  className="w-28 bg-dark-bg border border-dark-border rounded-lg px-1.5 py-0.5 text-[11px] font-mono text-slate-300 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                               </td>
                             </tr>
                           )
                         })}
                       </tbody>
                     </table>
+                    <p className="mt-1.5 text-[10px] text-slate-500 leading-relaxed">
+                      Tıklamayı yalnızca Trafik ve Lead satırları getirir (CPC satırında planlanan tıklama, CPM satırında gösterim × kanal CTR'ı);
+                      Erişim ve Video satırları gösterim ve erişime yazılır. Tarihli satırlar bütçesini yayın günlerine göre haftalara böler,
+                      yalnızca "Süre"si olanlar plan başlangıcından başlar, diğerleri tüm plana dağılır. Bir kanalın erişimi satırlarına girilen
+                      en büyük kitleyle hesaplanır (kitleler iç içe varsayılır).
+                    </p>
                   </div>
                 )}
               </div>
@@ -1012,7 +1073,7 @@ function SpendSourceNote({ source, importName, distribution, channelMissingFromI
     return (
       <p className="text-[10px] text-blue-300 mt-0.5" data-testid="spend-source">
         Kaynak: içe aktarılan plan{importName ? ` (${importName})` : ''} · {distribution === 'even' ? 'eşit' : 'ön ağırlıklı'} dağıtım
-        {plannedClicks ? ` · planlanan tıklama ${fmtN(plannedClicks)} (Excel, CTR buna göre)` : ''}{edited}
+        {plannedClicks != null ? ` · tıklama ${fmtN(plannedClicks)} (yalnızca trafik/lead satırları)` : ''}{edited}
       </p>
     )
   }
@@ -1027,11 +1088,43 @@ function SpendSourceNote({ source, importName, distribution, channelMissingFromI
   )
 }
 
-/** Planned clicks of an imported line, tied to the spend they were planned for. */
-function plannedClicksFor(pending) {
-  const spend = (pending?.spends || []).reduce((a, v) => a + v, 0)
-  return pending?.clicks && spend > 0 ? { clicks: pending.clicks, spend } : null
+/** What a channel's imported lines give the simulator besides spend. */
+function channelDelivery(items) {
+  return {
+    cpm: agencyCpm(items),
+    clicks: agencyClicks(items) || 0,
+    trafficImpressions: trafficImpressions(items),
+    audience: linesAudience(items),
+    source: { kind: 'import' },
+  }
 }
+
+/** Line delivery tied to the spend it was planned for (null outside imported plans). */
+function deliveryFor(pending) {
+  const spend = (pending?.spends || []).reduce((a, v) => a + v, 0)
+  if (pending?.source?.kind !== 'import' || spend <= 0 || pending.clicks == null) return null
+  return { clicks: pending.clicks || 0, trafficImpressions: pending.trafficImpressions || 0, spend }
+}
+
+/** Budget share per line objective, e.g. { reach: 0.65, traffic: 0.35 }. */
+function objectiveMix(items) {
+  const total = items.reduce((a, it) => a + it.spend, 0)
+  const mix = {}
+  for (const it of items) mix[it.objective] = (mix[it.objective] || 0) + it.spend / (total || 1)
+  return mix
+}
+
+/** Line picks saved with an import; older saves kept channel and buying model in separate maps. */
+function savedLineEdits(saved) {
+  if (saved?.lineEdits) return saved.lineEdits
+  const edits = {}
+  for (const [k, channel] of Object.entries(saved?.overrides || {})) edits[k] = { ...edits[k], channel }
+  for (const [k, basis] of Object.entries(saved?.basisOverrides || {})) edits[k] = { ...edits[k], basis }
+  return edits
+}
+
+const lineSelect = 'bg-dark-bg border border-dark-border rounded-lg px-1.5 py-0.5 text-[11px] text-slate-300'
+const FLIGHT_SOURCE_LABELS = { dates: 'Excel tarihi', duration: 'Excel süresi', plan: 'tüm plan' }
 
 /** Unit costs run from 0.09 TL (push) to hundreds (CPM): keep the decimals that matter. */
 function fmtUnit(v) {

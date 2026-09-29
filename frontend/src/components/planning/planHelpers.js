@@ -50,6 +50,8 @@ const MODEL_COL_KEYWORDS = ['satın alma', 'satin alma', 'alım modeli', 'alim m
 // Total / subtotal rows repeat the lines above them; importing them double counts the budget.
 const TOTAL_ROW_RE = /^((genel|ara)\s+)?(toplam|total|subtotal)\b|\s(toplam|total|subtotal)$/i
 const DURATION_COL_KEYWORDS = ['süre', 'sure', 'duration']
+const DATES_COL_KEYWORDS = ['yayın tarih', 'yayin tarih', 'flight', 'tarih']
+const AUDIENCE_COL_KEYWORDS = ['kitle büyüklüğü', 'kitle buyuklugu', 'hedef kitle', 'audience size', 'evren', 'universe']
 
 // Plain toLowerCase (a 'tr' locale would turn "Instagram" into "ınstagram"); "İ" → "i".
 const lower = v => String(v ?? '').toLowerCase().replace(/i\u0307/g, 'i')
@@ -139,6 +141,8 @@ export function parseMediaPlanExcel(file) {
         const unitPriceIdx = col(UNIT_PRICE_COL_KEYWORDS)
         const modelIdx = col(MODEL_COL_KEYWORDS)
         const durationIdx = col(DURATION_COL_KEYWORDS)
+        const datesIdx = col(DATES_COL_KEYWORDS)
+        const audienceIdx = col(AUDIENCE_COL_KEYWORDS)
         const text = (row, idx) => (idx >= 0 ? String(row[idx] ?? '').replace(/\s+/g, ' ').trim() : '')
 
         // Parse data rows
@@ -165,11 +169,19 @@ export function parseMediaPlanExcel(file) {
           const lineText = `${mecra} ${site} ${format} ${targeting} ${model}`
           const basis = lineBasis(spend, unit, qty, lineText)
           const duration = text(row, durationIdx)
+          const datesCell = datesIdx >= 0 ? row[datesIdx] : ''
+          const audience = audienceIdx >= 0 && typeof row[audienceIdx] === 'number' ? Math.round(row[audienceIdx]) : null
           const mapped = autoMapChannel(lineText, mecra)
           // "Google / Search / Search" → "Google / Search"
           const label = [mecra, site, format].filter((v, k, all) => v && all.findIndex(o => lower(o) === lower(v)) === k).join(' / ')
           lineItems.push(withBasis({
             mecra, site, format, label, spend, qty, unit, cpmGiven: qty ? 0 : unit, model, duration,
+            // Flight as written in the plan; resolved to weeks once the plan start is known.
+            datesText: typeof datesCell === 'number' ? '' : String(datesCell ?? '').trim(),
+            dateSerial: typeof datesCell === 'number' ? datesCell : null,
+            durationDays: parseDurationDays(duration),
+            audience,
+            objective: autoObjective(basis, lineText),
             mappedChannel: mapped, rowIndex: i,
           }, basis || 'none'))
         }
@@ -177,16 +189,19 @@ export function parseMediaPlanExcel(file) {
         // Extract campaign info from header area
         let campaignName = ''
         let brand = ''
+        let period = ''
         for (let i = 0; i < headerIdx; i++) {
-          const row = rows[i].map(c => String(c).toLowerCase())
+          const row = rows[i].map(c => lower(c))
           const vals = rows[i].map(c => String(c).trim())
           for (let j = 0; j < row.length; j++) {
             if (row[j].includes('marka')) brand = vals[j + 1] || vals[j + 2] || ''
             if (row[j].includes('kampanya') && row[j].includes('ad')) campaignName = vals[j + 1] || vals[j + 2] || ''
+            if (row[j].includes('dönem') || row[j].includes('donem')) period = vals[j + 1] || vals[j + 2] || ''
           }
         }
+        const planStart = defaultPlanStart({ period, campaignName, lineItems })
 
-        resolve({ lineItems, skippedTotals, campaignName, brand, sheetName, headers: headers.map(String) })
+        resolve({ lineItems, skippedTotals, campaignName, brand, period, planStart, sheetName, headers: headers.map(String) })
       } catch (err) {
         reject(err)
       }
@@ -268,3 +283,158 @@ export function agencyClicks(items) {
   const clicks = (items || []).reduce((s, it) => s + (it.clicks || 0), 0)
   return clicks > 0 ? Math.round(clicks) : null
 }
+
+// --------------- Line objective, audience and flight ---------------
+
+/** What a plan line is bought for; only traffic and lead lines are expected to bring clicks. */
+export const OBJECTIVE_OPTIONS = [
+  { value: 'reach', label: 'Erişim' },
+  { value: 'traffic', label: 'Trafik' },
+  { value: 'video', label: 'Video izlenme' },
+  { value: 'lead', label: 'Lead' },
+]
+const LEAD_LINE_RE = /\blead|form|başvuru|basvuru|dönüşüm|donusum|conversion|\bcpl\b|\bcpa\b/i
+
+export function autoObjective(basis, text = '') {
+  if (LEAD_LINE_RE.test(text)) return 'lead'
+  if (basis === 'clicks' || CLICK_LINE_RE.test(text)) return 'traffic'
+  if (basis === 'views' || VIEW_LINE_RE.test(text) || /pre-?roll/i.test(text)) return 'video'
+  return 'reach'
+}
+
+const MONTHS = {
+  ocak: 0, şubat: 1, subat: 1, mart: 2, nisan: 3, mayıs: 4, mayis: 4, haziran: 5, temmuz: 6,
+  ağustos: 7, agustos: 7, eylül: 8, eylul: 8, ekim: 9, kasım: 10, kasim: 10, aralık: 11, aralik: 11,
+}
+const monthOf = word => MONTHS[lower(word)]
+const DAY_MS = 86_400_000
+const utc = (y, m, d) => Date.UTC(y, m, d)
+export const isoDate = ms => new Date(ms).toISOString().slice(0, 10)
+const excelSerialToMs = serial => Date.UTC(1899, 11, 30) + Math.round(serial) * DAY_MS
+
+/** Days of a "Süre" cell: 5, "1 gün", "5 gün (12 - 16 Ekim)" → 5; null when absent. */
+export function parseDurationDays(v) {
+  const m = String(v ?? '').match(/^\s*(\d{1,3})(\s*(gün|gun|day))?/i)
+  return m ? Number(m[1]) : null
+}
+
+/**
+ * Flight dates written in a plan cell, as UTC ms {start, end} (inclusive), or null.
+ * "12 - 16 Ekim", "12 Ekim - 3 Kasım", "5 gün (12 - 16 Ekim)", "12.10.2026 - 16.10.2026", "12 Ekim".
+ */
+export function parseFlightDates(text, year) {
+  const t = String(text ?? '')
+  let m = t.match(/(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?\s*[-–]\s*(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?/)
+  if (m) {
+    const y1 = m[3] ? Number(m[3].length === 2 ? `20${m[3]}` : m[3]) : year
+    const y2 = m[6] ? Number(m[6].length === 2 ? `20${m[6]}` : m[6]) : y1
+    return { start: utc(y1, Number(m[2]) - 1, Number(m[1])), end: utc(y2, Number(m[5]) - 1, Number(m[4])) }
+  }
+  m = t.match(/(\d{1,2})\s*([a-zçğıöşüİ]+)\s*[-–]\s*(\d{1,2})\s*([a-zçğıöşüİ]+)/i)
+  if (m && monthOf(m[2]) !== undefined && monthOf(m[4]) !== undefined) {
+    const m1 = monthOf(m[2]); const m2 = monthOf(m[4])
+    return { start: utc(year, m1, Number(m[1])), end: utc(m2 < m1 ? year + 1 : year, m2, Number(m[3])) }
+  }
+  m = t.match(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s*([a-zçğıöşüİ]+)/i)
+  if (m && monthOf(m[3]) !== undefined) {
+    return { start: utc(year, monthOf(m[3]), Number(m[1])), end: utc(year, monthOf(m[3]), Number(m[2])) }
+  }
+  for (const d of t.matchAll(/(\d{1,2})\s*([a-zçğıöşüİ]+)/gi)) {
+    if (monthOf(d[2]) === undefined) continue // "5 gün"
+    const day = utc(year, monthOf(d[2]), Number(d[1]))
+    return { start: day, end: day }
+  }
+  return null
+}
+
+/** Year the plan runs in: a 4-digit year in the campaign name or period, else the next time that month comes. */
+function planYear({ period = '', campaignName = '' }, month = null) {
+  const y = `${period} ${campaignName}`.match(/\b(20\d{2})\b/)
+  if (y) return Number(y[1])
+  const now = new Date()
+  return month != null && month < now.getUTCMonth() ? now.getUTCFullYear() + 1 : now.getUTCFullYear()
+}
+
+/**
+ * First day of the plan (ISO date): the campaign period's first month ("Ekim", "Ekim-Aralık"),
+ * else the earliest dated line, else today.
+ */
+export function defaultPlanStart({ period = '', campaignName = '', lineItems = [] }) {
+  const word = `${period} ${campaignName}`.match(/[a-zçğıöşüİ]+/gi)?.find(w => monthOf(w) !== undefined)
+  if (word) {
+    const month = monthOf(word)
+    return isoDate(utc(planYear({ period, campaignName }, month), month, 1))
+  }
+  const year = planYear({ period, campaignName })
+  const starts = lineItems
+    .map(it => (it.dateSerial ? excelSerialToMs(it.dateSerial) : parseFlightDates(`${it.datesText} ${it.duration}`, year)?.start))
+    .filter(Boolean)
+  return isoDate(starts.length ? Math.min(...starts) : Date.now())
+}
+
+/**
+ * Where a line runs in the plan, in plan days and weeks (0-based days, 1-based weeks):
+ * its written dates if any, else "Süre" days from the plan start (launch), else the whole plan.
+ * Returns {startWeek, endWeek, startDay?, endDay?, source: 'dates'|'duration'|'plan'}.
+ */
+export function autoFlight(item, planStartIso, numWeeks) {
+  const start = Date.parse(`${planStartIso}T00:00:00Z`)
+  const lastDay = numWeeks * 7 - 1
+  const clampDay = d => Math.min(Math.max(d, 0), lastDay)
+  const weeksOf = (a, b) => ({ startWeek: Math.floor(a / 7) + 1, endWeek: Math.floor(b / 7) + 1 })
+  const year = new Date(start).getUTCFullYear()
+  let dates = item.dateSerial ? { start: excelSerialToMs(item.dateSerial), end: excelSerialToMs(item.dateSerial) } : null
+  dates ??= parseFlightDates(`${item.datesText || ''} ${item.duration || ''}`, year)
+  if (dates && !Number.isNaN(start)) {
+    let end = dates.end
+    // "12 Ekim" with a 5-day "Süre": run the stated days.
+    if (dates.start === dates.end && item.durationDays > 1) end = dates.start + (item.durationDays - 1) * DAY_MS
+    const a = clampDay(Math.round((dates.start - start) / DAY_MS))
+    const b = clampDay(Math.round((end - start) / DAY_MS))
+    return { ...weeksOf(a, Math.max(a, b)), startDay: a, endDay: Math.max(a, b), source: 'dates' }
+  }
+  if (item.durationDays > 0) {
+    const b = clampDay(item.durationDays - 1)
+    return { ...weeksOf(0, b), startDay: 0, endDay: b, source: 'duration' }
+  }
+  return { startWeek: 1, endWeek: numWeeks, source: 'plan' }
+}
+
+/**
+ * A line's weekly spends over the plan: dated/duration flights spread evenly over their
+ * days, a week range (whole plan or picked by the user) by the chosen distribution.
+ */
+export function lineWeeklySpends(spend, flight, numWeeks, mode = 'front-loaded') {
+  const weeks = Array(numWeeks).fill(0)
+  if (flight?.startDay != null && flight?.endDay != null) {
+    const days = flight.endDay - flight.startDay + 1
+    for (let d = flight.startDay; d <= flight.endDay; d++) weeks[Math.min(Math.floor(d / 7), numWeeks - 1)] += spend / days
+    const rounded = weeks.map(w => Math.round(w))
+    // Keep the line's budget exact after rounding.
+    rounded[Math.min(Math.floor(flight.endDay / 7), numWeeks - 1)] += spend - rounded.reduce((a, b) => a + b, 0)
+    return rounded
+  }
+  const s = Math.min(Math.max(flight?.startWeek || 1, 1), numWeeks)
+  const e = Math.min(Math.max(flight?.endWeek || numWeeks, s), numWeeks)
+  distributeSpend(spend, e - s + 1, mode).forEach((v, i) => { weeks[s - 1 + i] = v })
+  return weeks
+}
+
+/** Summed weekly spends of plan lines. */
+export function linesWeeklySpends(lines, numWeeks, mode) {
+  const total = Array(numWeeks).fill(0)
+  for (const l of lines) lineWeeklySpends(l.spend, l.flight, numWeeks, mode).forEach((v, i) => { total[i] += v })
+  return total
+}
+
+/** Impressions planned on traffic/lead CPM lines: the only impressions expected to bring clicks. */
+export function trafficImpressions(items) {
+  return (items || []).reduce((s, it) => s + (['traffic', 'lead'].includes(it.objective) ? it.impressions || 0 : 0), 0)
+}
+
+/** Largest audience set on the lines (line audiences are assumed nested), or null. */
+export function linesAudience(items) {
+  const a = (items || []).map(it => Number(it.audience) || 0).filter(v => v > 0)
+  return a.length ? Math.max(...a) : null
+}
+

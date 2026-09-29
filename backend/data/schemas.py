@@ -162,7 +162,11 @@ class MediaPlanningRequest(BaseModel):
     target_audience_override: int | None = Field(None, description="Reachable unique users")
     freq_cap_override: int | None = Field(None, description="Effective frequency cap")
     planned_clicks: float | None = Field(
-        None, description="Planda öngörülen toplam tıklama (CPC satırları); CTR bundan türetilir")
+        None, ge=0, description="Planda öngörülen toplam tıklama (CPC satırları); CTR bundan türetilir")
+    traffic_impressions: float | None = Field(
+        None, ge=0,
+        description="Trafik/lead amaçlı CPM satırlarının gösterimi; yalnızca bunlar kanal CTR'ı ile tıklama üretir",
+    )
 
 
 class WeeklySimDetail(BaseModel):
