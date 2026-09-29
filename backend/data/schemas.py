@@ -161,6 +161,8 @@ class MediaPlanningRequest(BaseModel):
     lead_rate_override: float | None = Field(None, description="Lead per click rate")
     target_audience_override: int | None = Field(None, description="Reachable unique users")
     freq_cap_override: int | None = Field(None, description="Effective frequency cap")
+    planned_clicks: float | None = Field(
+        None, description="Planda öngörülen toplam tıklama (CPC satırları); CTR bundan türetilir")
 
 
 class WeeklySimDetail(BaseModel):
@@ -217,5 +219,7 @@ class MediaPlanningResponse(BaseModel):
     saturation_curve: dict
     funnel_curve: list[FunnelDataPoint]
     digital_metrics: dict
+    # The channel's own defaults before any override, to sanity-check agency values against.
+    default_metrics: dict = {}
     # True when the channel's CPM/CTR/audience are placeholders and no CPM override was given.
     assumed_metrics: bool = False

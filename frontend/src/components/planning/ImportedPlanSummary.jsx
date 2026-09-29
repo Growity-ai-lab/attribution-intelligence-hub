@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react'
 import { CHANNEL_LABELS, CHANNEL_COLORS } from '../../utils/colors'
 import { fmtMoney, fmtN } from '../../utils/formatters'
-import { distributeSpend } from './planHelpers'
+import { distributeSpend, PLACEHOLDER_CHANNELS } from './planHelpers'
+
+// An agency CPM this far from the channel default usually means the Excel column
+// the CPM was derived from holds clicks or video views rather than impressions.
+const CPM_CHECK_RATIO = 4
 
 const cellInput = 'w-28 bg-dark-bg border border-dark-border rounded-lg px-2 py-1 text-[11px] font-mono text-slate-100 text-right focus:outline-none focus:border-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
 
@@ -10,7 +14,7 @@ const cellInput = 'w-28 bg-dark-bg border border-dark-border rounded-lg px-2 py-
  * with the agency's CPM from the Excel (when present) and an optional audience,
  * then shown with totals, and can be saved as one plan per channel.
  *
- * plan: [{ channel, totalSpend, cpm, labels }], cpm = agency CPM or null
+ * plan: [{ channel, totalSpend, cpm, clicks, labels }]: agency CPM / planned CPC clicks, or null
  */
 export default function ImportedPlanSummary({
   plan, unmapped, numWeeks, distribution, title, campaignId,
@@ -26,6 +30,7 @@ export default function ImportedPlanSummary({
   const overridesFor = row => {
     const ov = {}
     if (row.cpm) ov.cpm_override = row.cpm
+    if (row.clicks) ov.planned_clicks = row.clicks
     const aud = Number(audiences[row.channel])
     if (aud > 0) ov.target_audience_override = Math.round(aud)
     return ov
@@ -59,16 +64,19 @@ export default function ImportedPlanSummary({
       result: r,
       impressions: s.total_impressions,
       clicks: s.total_clicks,
+      plannedClicks: row.clicks,
       cpmUsed: s.avg_cpm,
       cpc: s.avg_cpc,
       reach: fc.length ? fc[fc.length - 1].reach_pct : null,
       assumed: r?.assumed_metrics,
+      cpmSuspect: cpmSuspect(row.cpm, r?.default_metrics?.cpm, row.channel),
     }
   })
   const totalSpend = rows.reduce((a, r) => a + r.totalSpend, 0)
   const totalImp = rows.reduce((a, r) => a + (r.impressions || 0), 0)
   const totalClicks = rows.reduce((a, r) => a + (r.clicks || 0), 0)
   const anyAssumed = rows.some(r => r.assumed)
+  const suspects = rows.filter(r => r.cpmSuspect)
 
   const saveAll = async () => {
     setSaveState('saving')
@@ -123,6 +131,14 @@ export default function ImportedPlanSummary({
             Excel'e o satırlar için CPM ya da planlanan gösterim sütunu ekleyin; ajans değeri kullanılır.
           </p>
         )}
+        {suspects.length > 0 && (
+          <p className="text-[11px] text-amber-300 bg-amber-900/15 border border-amber-800/30 rounded-lg px-3 py-2" data-testid="cpm-check">
+            ⚠ <strong>{suspects.map(r => `${CHANNEL_LABELS[r.channel] || r.channel} (${fmtMoney(r.cpmUsed)} TL; varsayılan ${fmtMoney(r.result?.default_metrics?.cpm)} TL)`).join(', ')}</strong>:
+            Excel'den çıkan CPM kanal varsayılanından çok farklı. Ajans fiyatı buysa sorun yok; değilse satırın birimini
+            kontrol edin (miktar tıklama/izlenme, birim maliyet CPC/CPV olabilir). Tıklama ve izlenme satırları CPM hesabına
+            katılmaz; kanalın tüm bütçesi gösterim satırlarının CPM'iyle gösterime çevrilir.
+          </p>
+        )}
         <div className="scroll-hint">
           <table className="w-full text-xs min-w-[860px]">
             <thead>
@@ -152,9 +168,16 @@ export default function ImportedPlanSummary({
                   <td className="py-2 px-2 text-right font-mono text-slate-300" title={cpmSource(r)}>
                     {r.cpmUsed != null ? fmtMoney(r.cpmUsed) : '—'}
                     <span className="ml-1 text-[9px] text-slate-500">{r.cpm ? 'Excel' : 'vars.'}</span>
+                    {r.cpmSuspect && (
+                      <span className="ml-1 text-[9px] px-1 rounded bg-amber-500/15 text-amber-400"
+                        title={`Kanal varsayılanı ${fmtMoney(r.result?.default_metrics?.cpm)} TL`}>kontrol et</span>
+                    )}
                   </td>
                   <td className="py-2 px-2 text-right font-mono text-slate-300">{fmtN(r.impressions)}</td>
-                  <td className="py-2 px-2 text-right font-mono text-slate-300">{fmtN(r.clicks)}</td>
+                  <td className="py-2 px-2 text-right font-mono text-slate-300">
+                    {fmtN(r.clicks)}
+                    {r.plannedClicks && <span className="ml-1 text-[9px] text-slate-500" title="CPC satırlarındaki planlanan tıklama">Excel</span>}
+                  </td>
                   <td className="py-2 px-2 text-right font-mono text-slate-300">{r.cpc != null ? fmtMoney(r.cpc) : '—'}</td>
                   <td className="py-2 px-2 text-right font-mono text-accent">{r.reach != null ? `%${r.reach.toFixed(1)}` : '—'}</td>
                   <td className="py-2 px-2 text-right">
@@ -169,7 +192,7 @@ export default function ImportedPlanSummary({
                   </td>
                   <td className="py-2 px-2 text-right">
                     <button
-                      onClick={() => onOpenChannel(r.channel, spendsFor(r), r.cpm)}
+                      onClick={() => onOpenChannel(r.channel, spendsFor(r), { cpm: r.cpm, clicks: r.plannedClicks })}
                       className="px-2 py-0.5 rounded text-[10px] text-slate-300 bg-dark-bg border border-dark-border hover:text-slate-100"
                     >
                       Detay
@@ -212,6 +235,12 @@ export default function ImportedPlanSummary({
       </div>
     </div>
   )
+}
+
+function cpmSuspect(cpm, defaultCpm, channel) {
+  // Placeholder channels have no real default to compare against.
+  if (!cpm || !defaultCpm || PLACEHOLDER_CHANNELS.has(channel)) return false
+  return cpm > defaultCpm * CPM_CHECK_RATIO || cpm < defaultCpm / CPM_CHECK_RATIO
 }
 
 function cpmSource(r) {

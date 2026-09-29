@@ -177,6 +177,10 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
   (`PLANNING_CHANNELS_SET`, `PLANNING_METRICS`, `PLANNING_ADSTOCK` vb. ayri tutulur)
 - Parametreleri YER TUTUCUDUR (piyasa verisi degil): simulasyon `assumed_metrics: true` doner, UI uyari gosterir
 - Ajans CPM'i Excel'den gelir: plan satirlarinda "CPM" ya da "Planlanan Gosterim" sutunu varsa `agencyCpm()` ile CPM override olarak kullanilir
+  - Karma birimli planlar (tek "birim maliyet" + "planlanan miktar" sutunu): `lineBasis()` satir birimini sayilardan cikarir
+    (butce/miktar*1000 ≈ birim → CPM/gosterim; butce/miktar ≈ birim → search/traffic'te tiklama, TrueView'da izlenme).
+    Tiklama/izlenme satirlari CPM'e katilmaz; CPC satirlarinin tiklamalari `planned_clicks` ile CTR'i belirler
+  - TOPLAM / ara toplam satirlari atlanir (cift sayim)
 
 ## Veri Kaynaklari
 

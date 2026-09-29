@@ -538,3 +538,46 @@ test('multi-channel import: all lines incl. planning-only placements, agency CPM
   await dialog.getByRole('button', { name: 'Uygula', exact: true }).first().click()
   await expect(page.getByRole('button', { name: 'İçe Aktarılan Plan' })).toBeVisible()
 })
+
+test('mixed-unit agency plan: CPC/CPV lines, total row, news sites by name', async ({ page }) => {
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'AutoMatic Filo')
+  await page.getByRole('tab', { name: 'Medya Planlama' }).click()
+
+  // One "unit cost" and one "planned quantity" column shared by CPM, CPC and CPV lines.
+  const XLSX = (await import('xlsx')).default
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Kampanya Adı:', 'Karma Birim'],
+    ['Mecra', 'Site/Network', 'Net Yayın Bedeli', 'Birim Maliyet (CPM/CPC, TL)', 'Planlanan Gösterim / Tıklama'],
+    ['Google Ads', 'Search – Erkek Hedef Kitle', 200000, 5, 40000],
+    ['YouTube', 'Masthead', 1000000, 50, 20000000],
+    ['YouTube', 'TrueView In-Stream', 1000000, 0.3, 3333333],
+    ['Sözcü', 'sozcu.com.tr – Masthead', 500000, 100, 5000000],
+    ['TOPLAM', '', 2700000, '', ''],
+  ]), 'Plan')
+  await page.locator('input[type=file][accept=".xlsx,.xls,.csv"]').setInputFiles({
+    name: 'karma.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }),
+  })
+  const dialog = page.getByRole('dialog', { name: 'Plan içe aktarma' })
+  await expect(dialog.getByTestId('skipped-totals')).toContainText('TOPLAM')
+  await expect(dialog.getByText('Eşlenmeyen Satırlar')).toHaveCount(0) // Sözcü maps to news sites
+  await dialog.getByRole('button', { name: 'Tüm kanalları uygula (3)' }).click()
+
+  const summary = page.getByRole('region', { name: 'İçe aktarılan plan özeti' })
+  await expect(summary.locator('tr', { hasText: 'Toplam' })).toContainText('2.7M')
+  // Search: 40K is clicks, not impressions → default CPM, clicks from the plan, CPC = 5 TL.
+  const google = summary.locator('tr', { hasText: 'Google Ads' })
+  await expect(google.locator('td').nth(2)).toContainText('vars.')
+  await expect(google.locator('td').nth(4)).toHaveText(/^40\.0K/)
+  await expect(google.locator('td').nth(5)).toHaveText('5')
+  // YouTube: TrueView views stay out of the CPM → masthead's 50 TL, not ~(2M / 23.3M).
+  await expect(summary.locator('tr', { hasText: 'YouTube' }).locator('td').nth(2)).toContainText('50')
+  await expect(summary.locator('tr', { hasText: 'Haber Siteleri' }).locator('td').nth(2)).toContainText('100')
+
+  // In the editor too: planned clicks drive Google's clicks.
+  await google.getByRole('button', { name: 'Detay' }).click()
+  await expect(page.getByTestId('spend-source')).toContainText('planlanan tıklama 40.0K')
+  await expect(page.getByText('Clicks', { exact: true }).first().locator('xpath=following-sibling::p[1]')).toHaveText('40.0K')
+})

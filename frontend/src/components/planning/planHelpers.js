@@ -25,16 +25,25 @@ const CHANNEL_MAP_KEYWORDS = {
   // would also match YouTube masthead lines).
   x: ['twitter', 'x (twitter)', 'x.com'],
   mackolik: ['maçkolik', 'mackolik'],
-  news: ['haber site', 'haber sitesi', 'news site'],
+  // Before news: TV Ekstra lines list TV channels (e.g. Habertürk) by name.
   tvekstra: ['tv ekstra', 'tvekstra'],
+  news: ['haber site', 'haber sitesi', 'news site', 'sozcu', 'sözcü', 'hurriyet', 'hürriyet', 'sabah.com',
+    'sondakika', 'mynet', 'milliyet', 'haberturk.com', 'ensonhaber', 'haber7', 'internethaber', 'cnnturk.com'],
 }
 
 // Header column detection keywords (Turkish media plan conventions)
 const SPEND_COL_KEYWORDS = ['net yayin bedeli', 'net yayın bedeli', 'butce', 'bütçe', 'her sey dahil', 'her şey dahil', 'toplam maliyet', 'total cost', 'spend', 'harcama', 'net yayın bedeli']
 const MECRA_COL_KEYWORDS = ['mecra', 'media', 'kanal', 'channel']
 const SITE_COL_KEYWORDS = ['site', 'network', 'site/network', 'platform']
-const IMP_COL_KEYWORDS = ['planlanan', 'impression', 'imp', 'goruntulenme', 'görüntülenme']
-const CPM_COL_KEYWORDS = ['cpm', 'birim maliyet', 'birim fiyat', 'unit cost']
+// Impressions only: "Planlanan Tıklama" / "Görüntülenme" (views) columns are not impressions.
+// "Planlanan Gösterim / Tıklama" style columns may mix units per line; see lineBasis().
+const IMP_COL_KEYWORDS = ['gösterim', 'gosterim', 'impression', 'imp']
+const CPM_COL_KEYWORDS = ['cpm']
+// A unit price is a CPM only on lines bought on CPM (the buying-model column says so).
+const UNIT_PRICE_COL_KEYWORDS = ['birim maliyet', 'birim fiyat', 'unit cost', 'unit price']
+const MODEL_COL_KEYWORDS = ['satın alma', 'satin alma', 'alım modeli', 'alim modeli', 'buying', 'fiyatlama', 'model']
+// Total / subtotal rows repeat the lines above them; importing them double counts the budget.
+const TOTAL_ROW_RE = /^((genel|ara)\s+)?(toplam|total|subtotal)\b|\s(toplam|total|subtotal)$/i
 const DURATION_COL_KEYWORDS = ['sure', 'süre', 'duration', 'gun', 'gün']
 
 function findColIndex(headers, keywords) {
@@ -82,6 +91,8 @@ export function parseMediaPlanExcel(file) {
         const spendIdx = findColIndex(headers, SPEND_COL_KEYWORDS)
         const impIdx = findColIndex(headers, IMP_COL_KEYWORDS)
         const cpmIdx = findColIndex(headers, CPM_COL_KEYWORDS)
+        const unitPriceIdx = findColIndex(headers, UNIT_PRICE_COL_KEYWORDS)
+        const modelIdx = findColIndex(headers, MODEL_COL_KEYWORDS)
         const durationIdx = findColIndex(headers, DURATION_COL_KEYWORDS)
 
         if (spendIdx === -1) {
@@ -91,6 +102,7 @@ export function parseMediaPlanExcel(file) {
 
         // Parse data rows
         const lineItems = []
+        const skippedTotals = []
         for (let i = headerIdx + 1; i < rows.length; i++) {
           const row = rows[i]
           const mecra = String(row[mecraIdx] || '').trim()
@@ -100,13 +112,23 @@ export function parseMediaPlanExcel(file) {
 
           if (!mecra && !site) continue
           if (spend <= 0) continue
+          if (TOTAL_ROW_RE.test(mecra) || TOTAL_ROW_RE.test(site)) { skippedTotals.push({ label: mecra || site, spend }); continue }
 
+          const model = modelIdx >= 0 ? String(row[modelIdx] || '').trim().toUpperCase() : ''
           const imp = impIdx >= 0 ? (typeof row[impIdx] === 'number' ? row[impIdx] : parseFloat(String(row[impIdx]).replace(/[^\d]/g, '')) || 0) : 0
-          const cpm = cpmIdx >= 0 ? (typeof row[cpmIdx] === 'number' ? row[cpmIdx] : parseFloat(String(row[cpmIdx]).replace(/[^\d.,]/g, '').replace(',', '.')) || 0) : 0
+          const num = idx => (typeof row[idx] === 'number' ? row[idx] : parseFloat(String(row[idx]).replace(/[^\d.,]/g, '').replace(',', '.')) || 0)
+          let unit = cpmIdx >= 0 ? num(cpmIdx) : 0
+          if (!unit && unitPriceIdx >= 0 && model.includes('CPM')) unit = num(unitPriceIdx)
+          const basis = lineBasis(spend, unit, imp, `${mecra} ${site} ${model}`)
+          const impressions = basis === 'impressions' ? imp : 0
+          const clicks = basis === 'clicks' ? imp : 0
+          const views = basis === 'views' ? imp : 0
+          // A unit price is a CPM only on impression lines priced per thousand.
+          const cpm = basis === 'impressions' || !imp ? (imp ? spend / imp * 1000 : unit) : 0
           const duration = durationIdx >= 0 ? String(row[durationIdx] || '') : ''
 
           const mapped = autoMapChannel(mecra, site)
-          lineItems.push({ mecra, site, spend, impressions: imp, cpm, duration, mappedChannel: mapped, rowIndex: i })
+          lineItems.push({ mecra, site, spend, impressions, clicks, views, basis, unit, cpm, model, duration, mappedChannel: mapped, rowIndex: i })
         }
 
         // Extract campaign info from header area
@@ -133,7 +155,7 @@ export function parseMediaPlanExcel(file) {
           if (!channelAgg[ch].labels.includes(label)) channelAgg[ch].labels.push(label)
         }
 
-        resolve({ lineItems, channelAgg, campaignName, brand, headers: headers.map(String) })
+        resolve({ lineItems, skippedTotals, channelAgg, campaignName, brand, headers: headers.map(String) })
       } catch (err) {
         reject(err)
       }
@@ -141,6 +163,34 @@ export function parseMediaPlanExcel(file) {
     reader.onerror = () => reject(new Error('Dosya okunamadi'))
     reader.readAsArrayBuffer(file)
   })
+}
+
+const CLICK_LINE_RE = /search|arama|traffic|trafik|tıklama|tiklama|click|cpc/i
+const VIEW_LINE_RE = /trueview|video views?|izlenme|görüntülenme|goruntulenme|cpv/i
+
+/**
+ * What a plan line's planned quantity counts. Agency plans often share one
+ * "unit cost" and one "planned quantity" column across CPM, CPC and CPV lines,
+ * so the unit is read from the numbers: spend / qty × 1000 ≈ unit cost → CPM
+ * line (impressions); spend / qty ≈ unit cost → cost per unit, which is clicks on
+ * search/traffic lines, views on TrueView/video-view lines, else impressions
+ * bought per piece (push, addressable TV). Returns null when there is no quantity.
+ */
+export function lineBasis(spend, unit, qty, text = '') {
+  if (!(qty > 0)) return null
+  if (unit > 0) {
+    const close = (a, b) => Math.abs(a - b) <= 0.05 * b
+    if (close(spend / qty * 1000, unit)) return 'impressions'
+    if (close(spend / qty, unit)) {
+      if (CLICK_LINE_RE.test(text)) return 'clicks'
+      if (VIEW_LINE_RE.test(text)) return 'views'
+      return 'impressions'
+    }
+  }
+  // No usable unit cost: trust the line's wording, default to impressions.
+  if (CLICK_LINE_RE.test(text)) return 'clicks'
+  if (VIEW_LINE_RE.test(text)) return 'views'
+  return 'impressions'
 }
 
 export function distributeSpend(totalSpend, numWeeks, mode = 'front-loaded') {
@@ -160,20 +210,29 @@ export function distributeSpend(totalSpend, numWeeks, mode = 'front-loaded') {
 }
 
 /**
- * The agency's own CPM for a set of imported plan lines, when the Excel carries it:
- * planned impressions on every line (spend / impressions), else a CPM on every
- * line (spend-weighted). Returns null when the file has neither — the simulator
- * then uses the channel default.
+ * The agency's own CPM for a set of imported plan lines: spend / planned
+ * impressions over the lines that plan impressions (click and view lines have
+ * none and are left out), else a CPM given on the lines (spend-weighted).
+ * Returns null when the file has neither — the simulator then uses the channel default.
  */
 export function agencyCpm(items) {
   if (!items?.length) return null
-  const spend = items.reduce((s, it) => s + it.spend, 0)
-  if (items.every(it => it.impressions > 0)) {
-    const imps = items.reduce((s, it) => s + it.impressions, 0)
+  const impLines = items.filter(it => it.impressions > 0)
+  if (impLines.length) {
+    const spend = impLines.reduce((s, it) => s + it.spend, 0)
+    const imps = impLines.reduce((s, it) => s + it.impressions, 0)
     return Math.round((spend / imps) * 1000 * 100) / 100
   }
-  if (items.every(it => it.cpm > 0)) {
-    return Math.round((items.reduce((s, it) => s + it.cpm * it.spend, 0) / spend) * 100) / 100
+  const cpmLines = items.filter(it => it.cpm > 0)
+  if (cpmLines.length) {
+    const spend = cpmLines.reduce((s, it) => s + it.spend, 0)
+    return Math.round((cpmLines.reduce((s, it) => s + it.cpm * it.spend, 0) / spend) * 100) / 100
   }
   return null
+}
+
+/** Clicks the plan commits to on its CPC (search/traffic) lines, or null. */
+export function agencyClicks(items) {
+  const clicks = (items || []).reduce((s, it) => s + (it.clicks || 0), 0)
+  return clicks > 0 ? Math.round(clicks) : null
 }

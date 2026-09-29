@@ -31,3 +31,12 @@ def test_simulate_exposes_threshold_flag(client, auth_headers):
     optimal = res.json()["optimal"]
     assert optimal["saturation_threshold_found"] is False
     assert optimal["saturation_threshold_spend"] == 2_400_000
+
+
+def test_planned_clicks_drive_ctr(client, auth_headers):
+    res = client.post("/api/media-planning/simulate", json={
+        "channel": "google", "weekly_spends": [100_000, 100_000], "planned_clicks": 40_000,
+    }, headers=auth_headers).json()
+    assert res["summary"]["total_clicks"] == 40_000
+    assert res["digital_metrics"]["ctr"] == 40_000 / (200_000 / 60 * 1000)  # default Google CPM 60
+    assert res["default_metrics"]["cpm"] == 60

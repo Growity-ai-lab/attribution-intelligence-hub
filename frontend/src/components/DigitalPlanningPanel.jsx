@@ -16,7 +16,7 @@ import { useAttribution } from '../hooks/useAttribution'
 import { CHANNEL_LABELS, CHANNEL_COLORS } from '../utils/colors'
 import { fmtMoney, fmtN } from '../utils/formatters'
 import PlanResults from './planning/PlanResults'
-import { ONLINE, WEEK_OPTIONS, SCENARIO_PRESETS, parseMediaPlanExcel, distributeSpend, agencyCpm } from './planning/planHelpers'
+import { ONLINE, WEEK_OPTIONS, SCENARIO_PRESETS, parseMediaPlanExcel, distributeSpend, agencyCpm, agencyClicks } from './planning/planHelpers'
 import ImportedPlanSummary from './planning/ImportedPlanSummary'
 import { savedMediaImport, saveMediaImport } from '../utils/session'
 
@@ -51,6 +51,9 @@ export default function DigitalPlanningPanel({ campaign }) {
   // so broad awareness briefs must set their own universe or reach saturates.
   const [audienceOverride, setAudienceOverride] = useState('')
   const [freqCapOverride, setFreqCapOverride] = useState('')
+  // Clicks an imported plan commits to on CPC lines, with the spend they were planned for:
+  // { clicks, spend } — scaled with the current total so the implied CPC stays fixed.
+  const [plannedClicks, setPlannedClicks] = useState(null)
 
   // Digital metrics defaults (populated from preset response)
   const [channelDefaults, setChannelDefaults] = useState(null)
@@ -147,6 +150,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     return {
       spends: distributeSpend(agg[channel].totalSpend, weeks, importDistribution),
       cpm: agencyCpm(agg[channel].items),
+      clicks: agencyClicks(agg[channel].items),
       source: { kind: 'import' },
     }
   }, [getEffectiveImportAgg, importDistribution])
@@ -175,6 +179,7 @@ export default function DigitalPlanningPanel({ campaign }) {
         setAudienceOverride('')
         setFreqCapOverride('')
         if (pending?.cpm) setCpmOverride(String(pending.cpm))
+        setPlannedClicks(plannedClicksFor(pending))
       } catch (err) {
         console.error('[DigitalPlanning]', err)
         if (!cancelled && pending) { // never drop an imported/saved plan
@@ -210,8 +215,13 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (leadRateOverride !== '' && !isNaN(Number(leadRateOverride))) ov.lead_rate_override = Number(leadRateOverride) / 100
     if (audienceOverride !== '' && Number(audienceOverride) > 0) ov.target_audience_override = Math.round(Number(audienceOverride))
     if (freqCapOverride !== '' && Number(freqCapOverride) > 0) ov.freq_cap_override = Math.round(Number(freqCapOverride))
+    // A CTR typed by the user wins over the plan's clicks.
+    if (plannedClicks && !ov.ctr_override) {
+      const total = weeklySpends.reduce((a, v) => a + v, 0)
+      if (total > 0) ov.planned_clicks = Math.round(plannedClicks.clicks * total / plannedClicks.spend)
+    }
     return ov
-  }, [cpmOverride, ctrOverride, leadRateOverride, audienceOverride, freqCapOverride])
+  }, [cpmOverride, ctrOverride, leadRateOverride, audienceOverride, freqCapOverride, plannedClicks, weeklySpends])
 
   // Auto-simulate with debounce
   const runSimulation = useCallback(async (spends) => {
@@ -252,6 +262,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       const spends = presets.preset_spends || []
       setWeeklySpends(Array(numWeeks).fill(0).map((_, i) => spends[i] || 0))
       setSpendSource({ kind: 'preset' })
+      setPlannedClicks(null)
     } catch (err) { console.error('[DigitalPlanning]', err) }
   }
 
@@ -261,7 +272,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => runSimulation(weeklySpends), 600)
     return () => clearTimeout(debounceRef.current)
-  }, [cpmOverride, ctrOverride, leadRateOverride, audienceOverride, freqCapOverride]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cpmOverride, ctrOverride, leadRateOverride, audienceOverride, freqCapOverride, plannedClicks]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save
   const handleSave = async () => {
@@ -283,13 +294,15 @@ export default function DigitalPlanningPanel({ campaign }) {
 
   // Put a plan's weekly spends on a channel without the channel's preset overwriting them.
   // cpm: the agency's CPM for this plan (from the imported Excel), applied as the CPM override.
-  const applySpendsToChannel = (channel, spends, cpm = null, source = { kind: 'import' }) => {
+  // opts: { cpm, clicks, source } — the agency's CPM and planned clicks from the imported Excel.
+  const applySpendsToChannel = (channel, spends, { cpm = null, clicks = null, source = { kind: 'import' } } = {}) => {
     if (channel === selectedChannel) {
       setWeeklySpends(spends)
       setSpendSource(source)
       if (cpm) setCpmOverride(String(cpm))
+      setPlannedClicks(plannedClicksFor({ spends, clicks }))
     } else {
-      pendingSpendsRef.current = { spends, cpm, source }
+      pendingSpendsRef.current = { spends, cpm, clicks, source }
       setSelectedChannel(channel)
     }
   }
@@ -299,7 +312,7 @@ export default function DigitalPlanningPanel({ campaign }) {
       const plan = await getSavedMediaPlan(id)
       const spends = plan.weekly_spends || []
       setNumWeeks(spends.length)
-      applySpendsToChannel(plan.channel, spends, null, { kind: 'saved', label: plan.name })
+      applySpendsToChannel(plan.channel, spends, { source: { kind: 'saved', label: plan.name } })
       setShowSavedList(false)
     } catch (err) { console.error('[DigitalPlanning]', err) }
   }
@@ -346,7 +359,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     const agg = getEffectiveImportAgg()
     if (!agg[channel]) return
     applySpendsToChannel(channel, distributeSpend(agg[channel].totalSpend, numWeeks, importDistribution),
-      agencyCpm(agg[channel].items))
+      { cpm: agencyCpm(agg[channel].items), clicks: agencyClicks(agg[channel].items) })
     setShowImportModal(false) // keep importData: the other channels stay available
   }
 
@@ -358,7 +371,7 @@ export default function DigitalPlanningPanel({ campaign }) {
     const agg = getEffectiveImportAgg()
     const target = agg[selectedChannel] ? selectedChannel : ONLINE.find(ch => agg[ch])
     const imp = target && importedSpendsFor(target, numWeeks)
-    if (imp) applySpendsToChannel(target, imp.spends, imp.cpm, imp.source)
+    if (imp) applySpendsToChannel(target, imp.spends, imp)
   }
 
   // Inputs for the multi-channel summary, recomputed only when the import or its mapping changes.
@@ -366,7 +379,8 @@ export default function DigitalPlanningPanel({ campaign }) {
     if (!importData) return null
     const agg = getEffectiveImportAgg()
     const plan = ONLINE.filter(ch => agg[ch]).map(ch => ({
-      channel: ch, totalSpend: agg[ch].totalSpend, cpm: agencyCpm(agg[ch].items), labels: agg[ch].labels,
+      channel: ch, totalSpend: agg[ch].totalSpend, cpm: agencyCpm(agg[ch].items),
+      clicks: agencyClicks(agg[ch].items), labels: agg[ch].labels,
     }))
     const mappedRows = new Set(plan.flatMap(p => agg[p.channel].items.map(i => i.rowIndex)))
     const rest = importData.lineItems.filter(i => !mappedRows.has(i.rowIndex))
@@ -447,7 +461,7 @@ export default function DigitalPlanningPanel({ campaign }) {
           campaignId={campaign?.id || null}
           simulateMediaPlan={simulateMediaPlan}
           saveMediaPlan={saveMediaPlan}
-          onOpenChannel={(channel, spends, cpm) => applySpendsToChannel(channel, spends, cpm)}
+          onOpenChannel={(channel, spends, opts) => applySpendsToChannel(channel, spends, opts)}
           onClose={() => setShowImportSummary(false)}
         />
       )}
@@ -462,6 +476,7 @@ export default function DigitalPlanningPanel({ campaign }) {
               importName={importData?.campaignName}
               distribution={importDistribution}
               channelMissingFromImport={!!importData && spendSource.kind === 'preset'}
+              plannedClicks={buildOverrides().planned_clicks}
             />
           </div>
           <div className="flex items-center gap-3">
@@ -703,6 +718,11 @@ export default function DigitalPlanningPanel({ campaign }) {
                   <p className="text-[10px] text-slate-400 mt-0.5">
                     {importData.lineItems.length} satır okundu | Toplam eşleşen: {fmtMoney(totalMapped)} TL
                   </p>
+                  {importData.skippedTotals?.length > 0 && (
+                    <p className="text-[10px] text-slate-500 mt-0.5" data-testid="skipped-totals">
+                      Toplam/ara toplam satırı olarak atlandı: {importData.skippedTotals.map(t => `${t.label} (${fmtMoney(t.spend)} TL)`).join(', ')}
+                    </p>
+                  )}
                 </div>
                 <button onClick={() => { setShowImportModal(false); setImportData(null) }}
                   className="text-slate-400 hover:text-slate-300 text-lg" aria-label="Kapat">x</button>
@@ -935,12 +955,13 @@ export default function DigitalPlanningPanel({ campaign }) {
 }
 
 /** One line under the spend card title saying where the weekly spends came from. */
-function SpendSourceNote({ source, importName, distribution, channelMissingFromImport }) {
+function SpendSourceNote({ source, importName, distribution, channelMissingFromImport, plannedClicks }) {
   const edited = source.edited ? ' · elle düzenlendi' : ''
   if (source.kind === 'import') {
     return (
       <p className="text-[10px] text-blue-300 mt-0.5" data-testid="spend-source">
-        Kaynak: içe aktarılan plan{importName ? ` (${importName})` : ''} · {distribution === 'even' ? 'eşit' : 'ön ağırlıklı'} dağıtım{edited}
+        Kaynak: içe aktarılan plan{importName ? ` (${importName})` : ''} · {distribution === 'even' ? 'eşit' : 'ön ağırlıklı'} dağıtım
+        {plannedClicks ? ` · planlanan tıklama ${fmtN(plannedClicks)} (Excel, CTR buna göre)` : ''}{edited}
       </p>
     )
   }
@@ -953,4 +974,10 @@ function SpendSourceNote({ source, importName, distribution, channelMissingFromI
       {channelMissingFromImport && ' (içe aktarılan planda bu kanal yok)'}{edited}
     </p>
   )
+}
+
+/** Planned clicks of an imported line, tied to the spend they were planned for. */
+function plannedClicksFor(pending) {
+  const spend = (pending?.spends || []).reduce((a, v) => a + v, 0)
+  return pending?.clicks && spend > 0 ? { clicks: pending.clicks, spend } : null
 }

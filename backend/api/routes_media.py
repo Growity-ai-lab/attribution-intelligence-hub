@@ -86,6 +86,11 @@ def _resolve_digital_metrics(channel: str, request: MediaPlanningRequest) -> dic
         base["target_audience"] = int(request.target_audience_override)
     if request.freq_cap_override is not None and request.freq_cap_override > 0:
         base["freq_cap"] = int(request.freq_cap_override)
+    if request.planned_clicks is not None and request.planned_clicks > 0 and base["cpm"] > 0:
+        # The agency plans clicks directly (CPC lines): derive the CTR that delivers them.
+        total_impressions = sum(request.weekly_spends) / base["cpm"] * 1000
+        if total_impressions > 0:
+            base["ctr"] = min(1.0, float(request.planned_clicks) / total_impressions)
     return base
 
 
@@ -289,6 +294,7 @@ def simulate_media_plan(
         saturation_curve=saturation_curve,
         funnel_curve=funnel_curve,
         digital_metrics=metrics,
+        default_metrics=dict(PLANNING_METRICS[channel]),
         assumed_metrics=channel in PLACEHOLDER_METRIC_CHANNELS and not request.cpm_override,
     )
 
