@@ -226,3 +226,22 @@ def _ensure_demo_sandbox_campaign(db: Session, source_campaign_id: int) -> int:
         db.refresh(sandbox_camp)
 
     return sandbox_camp.id
+
+
+def store_traffic_minutes(db: Session, campaign_id: int, rows: list[dict], source: str) -> None:
+    """Replace a campaign's minute traffic (rows: minute datetime, sessions, sessions_unpaid, conversions).
+
+    Shared by the spot module (file upload, sample) and the BigQuery import.
+    """
+    from backend.db.models import TrafficMinute
+
+    db.query(TrafficMinute).filter(TrafficMinute.campaign_id == campaign_id).delete(synchronize_session=False)
+    db.bulk_insert_mappings(TrafficMinute, [{
+        "campaign_id": campaign_id,
+        "minute": r["minute"].strftime("%Y-%m-%dT%H:%M"),
+        "sessions": float(r["sessions"] or 0),
+        "sessions_unpaid": None if r.get("sessions_unpaid") is None else float(r["sessions_unpaid"]),
+        "conversions": None if r.get("conversions") is None else float(r["conversions"]),
+        "source": source,
+    } for r in rows])
+

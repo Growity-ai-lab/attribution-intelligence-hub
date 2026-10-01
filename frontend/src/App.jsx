@@ -5,6 +5,7 @@ import LoginPage from './components/LoginPage'
 import WorkspaceSelector from './components/WorkspaceSelector'
 import Dashboard from './components/Dashboard'
 import DigitalPlanningPanel from './components/DigitalPlanningPanel'
+import SpotEffectsPanel from './components/SpotEffectsPanel'
 import AttributionPanel from './components/AttributionPanel'
 import { savedWorkspace, saveWorkspace, savedTab, saveTab } from './utils/session'
 
@@ -38,6 +39,7 @@ const TABS = [
   { id: 'unified', label: 'Unified Rapor' },
   { id: 'attribution', label: 'Attribution' },
   { id: 'media', label: 'Medya Planlama' },
+  { id: 'spots', label: 'Spot Etkisi (TV/Radyo)' },
 ]
 
 export { ErrorBoundary }
@@ -341,6 +343,7 @@ export default function App() {
         {activeTab === 'unified' && <div role="tabpanel" id="tabpanel-unified" aria-labelledby="tab-unified"><Dashboard ddaResult={ddaResult} resultLoading={resultLoading} campaign={workspace.campaign} isDemo={isDemo} /></div>}
         {activeTab === 'attribution' && <div role="tabpanel" id="tabpanel-attribution" aria-labelledby="tab-attribution"><AttributionPanel campaign={workspace.campaign} ddaResult={ddaResult} setDdaResult={setDdaResult} /></div>}
         {activeTab === 'media' && <div role="tabpanel" id="tabpanel-media" aria-labelledby="tab-media"><DigitalPlanningPanel campaign={workspace.campaign} /></div>}
+        {activeTab === 'spots' && <div role="tabpanel" id="tabpanel-spots" aria-labelledby="tab-spots"><SpotEffectsPanel campaign={workspace.campaign} /></div>}
       </main>
     </div>
   )

@@ -23,6 +23,7 @@ from backend.api.routes_benchmarks import router as bench_router
 from backend.api.routes_export import router as export_router
 from backend.api.routes_alerts import router as alerts_router
 from backend.api.routes_media import router as media_router
+from backend.api.routes_spots import router as spots_router
 from backend.db.database import Base, engine, migrate_add_columns
 from backend.db.seed import seed_clients_and_campaigns
 
@@ -102,6 +103,7 @@ app.include_router(media_router, prefix="/api")
 app.include_router(bench_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(alerts_router, prefix="/api")
+app.include_router(spots_router, prefix="/api")
 
 # Serve frontend static assets if build exists
 if DIST_DIR.exists() and (DIST_DIR / "index.html").exists():

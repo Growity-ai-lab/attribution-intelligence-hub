@@ -52,6 +52,7 @@ attribution-intelligence-hub/
 │   │   │   ├── data_prep.py     # Journey extraction, assist report
 │   │   │   └── insights.py      # Otomatik cikarim motoru + trend karsilastirma
 │   │   ├── alerts.py            # Proaktif alert kural motoru
+│   │   ├── spot_effects.py      # TV/radyo spot etkisi olcumu (baz, blok, placebo)
 │   │   ├── mmm.py               # Adstock, Saturation, Response (simulasyon icin)
 │   │   ├── mmm_fit.py           # Non-linear MMM fitting
 │   │   ├── mta.py               # Shapley value coalition motoru (shapley_dda.py bunu kullanir)
@@ -77,6 +78,7 @@ attribution-intelligence-hub/
 │   │   ├── routes_export.py     # Excel/PPTX export + trend endpoint'leri
 │   │   ├── routes_alerts.py     # Alert endpoint'leri + DDA sonrasi degerlendirme
 │   │   ├── routes_media.py      # Dijital medya planlama simulasyonu
+│   │   ├── routes_spots.py      # TV/radyo spot etkisi (liste, trafik, analiz, gun gorunumu)
 │   │   └── deps.py              # Dependency injection
 │   └── db/
 │       ├── database.py          # SQLite/PostgreSQL baglanti
@@ -87,7 +89,7 @@ attribution-intelligence-hub/
 │   ├── index.html
 │   ├── vite.config.js
 │   ├── src/
-│   │   ├── App.jsx              # 3 tab: Unified Rapor, Medya Planlama, Veri Yukleme
+│   │   ├── App.jsx              # Sekmeler: Unified Rapor, Attribution, Medya Planlama, Spot Etkisi (TV/Radyo)
 │   │   ├── main.jsx
 │   │   ├── components/
 │   │   │   ├── Dashboard.jsx          # Ana dashboard (KPI + chart + tablo)
@@ -107,6 +109,8 @@ attribution-intelligence-hub/
 │   │   │   │   ├── PlanResults.jsx      # Sonuc: KPI, GA4 saglama, 5 grafik, optimum, haftalik tablo, CSV
 │   │   │   │   ├── ImportedPlanSummary.jsx # Iceri aktarilan cok kanalli plan: kanal bazli ozet, toplamlar, toplu kayit, CSV
 │   │   │   │   └── planHelpers.js       # Excel medya plani okuma, kanal esleme, dagitim, sabitler
+│   │   │   ├── SpotEffectsPanel.jsx   # Spot Etkisi sekmesi: veri yukleme/cekme, ayarlar
+│   │   │   ├── spots/SpotResults.jsx  # KPI, guven testi, tepki egrisi, gun gorunumu, kirilimlar, spot listesi
 │   │   │   ├── DataUpload.jsx         # CSV/Excel yukleme
 │   │   │   ├── WorkspaceSelector.jsx  # Client/Campaign secici
 │   │   │   ├── LoginPage.jsx          # Giris ekrani
@@ -169,7 +173,21 @@ Attribution icin KULLANILMAZ. Ileride 8+ haftalik gercek veri + fit yapildiginda
 ### Desteklenen Kanallar (dijital, 6 adet)
 `meta`, `google`, `tiktok`, `linkedin`, `dv360`, `youtube`
 
-Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
+Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da attribution/planlamadan kaldirildi.
+TV ve radyo Ekim 2026'dan itibaren yalnizca **Spot Etkisi** modulunde (olcum) yer alir; OOH/DOOH yok.
+
+## Spot Etkisi (TV & Radyo) — spoteffects benzeri olcum
+Tahmin degil olcum: her yayinin ardindan sitede olusan anlik ziyaret artisi.
+- Girdi 1: yayin listesi Excel/CSV (`backend/data/spot_loader.py`; Adjinn/Ad-alert/ajans dokumu, basliklar anahtar kelimeyle bulunur;
+  tarih + saat + kanal zorunlu; "25:30" yayin gunu saatleri, Excel tarih/saat hucreleri, TR sayi bicimi desteklenir). API entegrasyonu yok
+- Girdi 2: dakikalik trafik — GA4 BigQuery (`query_minute_traffic`, yerel saat Europe/Istanbul; session_start + donusum olaylari;
+  "ucretsiz" = medium cpc/paid/display vb. olmayan oturumlar) ya da dakikalik trafik dosyasi
+- Model (`backend/models/spot_effects.py`, saf): baz = yayindan onceki N dk medyani; etki = tepki penceresi − baz × sure;
+  pencereleri cakisan spotlar blok olarak olculur, etki GRP > maliyet > esit bolunur;
+  guven testi (placebo) = ayni hesap spotsuz gunlerde ayni saatte → ortalamasi sapma (etkiden dusulur), dagilimi gurultu (z ≥ 2 anlamli)
+- Dogrulama: `backend/data/spot_sample.py` bilinen etki enjekte eden sentetik veri; testler etkiyi %5 icinde geri buldugunu,
+  etki yokken ~0 ve sahte alarm orani ~%2 oldugunu kontrol eder (`tests/test_spot_effects.py`)
+- Dijital kanallar bu modulde yok (ileride eklenti); dijital ziyaret zaten GA4 kaynak/medium ile olculuyor
 
 ### Yalnizca medya planlamada kullanilan kanallar
 `x` (X/Twitter), `mackolik` (push), `news` (haber sitesi masthead), `tvekstra` — `EXTRA_PLANNING_CHANNELS` (config.py).
@@ -279,6 +297,16 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 - `POST /api/alerts/{id}/acknowledge` — Alert okundu isaretle
 - `GET /api/alerts/summary` — Okunmamis alert ozeti
 
+### Spot Etkisi (TV/Radyo)
+- `GET /api/spots/status?campaign_id=` — Spot listesi + dakikalik trafik ozeti
+- `POST /api/spots/upload?campaign_id=&default_medium=tv|radio` — Yayin listesi yukle (kampanyanin listesini degistirir)
+- `POST /api/spots/traffic/upload?campaign_id=` — Dakikalik trafik dosyasi yukle
+- `POST /api/spots/traffic/from-bigquery?campaign_id=` — GA4'ten dakikalik trafik (varsayilan: ilk spottan 14 gun once → son spot, en fazla 92 gun)
+- `POST /api/spots/sample?campaign_id=` — Sentetik ornek veri
+- `GET /api/spots/analysis?campaign_id=&metric=&medium=&pre_minutes=&post_minutes=` — Spot etkisi, kirilimlar, guven testi
+- `GET /api/spots/timeline?campaign_id=&date=` — Gunun dakikalik trafigi + spotlar
+- `DELETE /api/spots?campaign_id=&what=all|spots|traffic`, `GET /api/spots/template/spots|traffic`
+
 ### Konfigürasyon
 - `GET /api/config/channels` — Kanal parametreleri ve agirliklar
 
@@ -321,6 +349,8 @@ Offline kanallar (TV, Radyo, DOOH) Haziran 2026'da tamamen kaldirildi.
 - Oturum: JWT `localStorage`'da (`th_token`) tutulur, acilista `/auth/me` ile dogrulanir; herhangi bir API cagrisi
   401 donerse oturum kapanir. Secili kampanya ve sekme `sessionStorage`'da (sekme bazli, yenilemede geri yuklenir).
   Cikista hepsi temizlenir. Depolama erisimi `utils/session.js` uzerinden (erisilemezse sessizce oturumsuz davranir)
+- Spot etkisi tablolari: `tv_spots` (campaign_id, aired_at yerel "YYYY-MM-DDTHH:MM", medium, station, cost, grp, ...)
+  ve `traffic_minutes` (campaign_id, minute, sessions, sessions_unpaid, conversions, source); yukleme kampanyanin verisini degistirir
 - Alert sistemi 5 kural: conversion_drop, volume_drop, channel_concentration, channel_disappeared, sustained_decline
   - Her tamamlanan DDA calismasindan sonra otomatik degerlendirilir (CSV: sonuc kaydindan sonra; BQ: sonucla ayni commit'te)
   - Karsilastirma yalnizca `status == "complete"` calismalarla yapilir; ayni calisma icin ayni kural tekrar yazilmaz

@@ -5,8 +5,9 @@ import logging
 import os
 import threading
 import time as _time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from backend.api.deps import check_campaign_access, get_current_user, resolve_read_campaign_id
 from backend.crypto import decrypt, encrypt
@@ -15,6 +16,7 @@ from backend.db.models import (
     Campaign,
     DDAResult,
     TouchpointData,
+    TvSpot,
 )
 from backend.config import (
     BQ_CACHE_TTL,
@@ -35,6 +37,7 @@ from backend.integrations.bigquery import (
     consolidate_channels,
     summarize_touchpoints,
     default_date_range,
+    query_minute_traffic,
 )
 from backend.api.routes_alerts import build_alerts_safely
 from backend.api.common import (
@@ -43,6 +46,7 @@ from backend.api.common import (
     _dda_only_unified_report,
     _validate_prior_alpha,
     _ensure_demo_sandbox_campaign,
+    store_traffic_minutes,
 )
 
 router = APIRouter()
@@ -712,3 +716,75 @@ def bq_reconnect(
     if not info.get("ok"):
         raise HTTPException(status_code=400, detail=info.get("error", "Bağlantı kurulamadı"))
     return {**info, "project": camp.bq_project, "dataset": camp.bq_dataset}
+
+
+# --------------- Minute traffic for TV/radio spot effects ---------------
+
+SPOT_TRAFFIC_MAX_DAYS = 92
+SPOT_TRAFFIC_LEAD_DAYS = 14  # spot-free days before the first spot: the placebo check needs them
+
+
+@router.post("/spots/traffic/from-bigquery")
+def spot_traffic_from_bigquery(
+    campaign_id: int = Query(...),
+    start_date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    end_date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    conversion_events: str | None = Query(None),
+    tz: str = Query("Europe/Istanbul"),
+    _user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Pull minute-level GA4 traffic for the spot-effect analysis and store it for the campaign.
+
+    Without dates the range is the spot list's span plus 14 spot-free days before it
+    (the placebo check compares spot times with the same time on other days).
+    """
+    check_campaign_access(db, campaign_id, _user)
+    read_id = _read_id(db, campaign_id, _user)
+    camp = db.query(Campaign).filter(Campaign.id == read_id).first()
+    if camp is None or not camp.bq_project or not camp.bq_dataset:
+        raise HTTPException(status_code=404, detail=(
+            "Bu kampanya için kayıtlı BigQuery bağlantısı yok. Attribution sekmesinden GA4 BigQuery bağlantısını kurun."
+        ))
+    cached = _bq_cache_get(f"{camp.bq_project}:{camp.bq_dataset}") or _bq_reconnect_from_campaign(
+        db, camp.bq_project, camp.bq_dataset, read_id)
+    if not cached:
+        raise HTTPException(status_code=400, detail="BigQuery bağlantısı kurulamadı. Service account JSON dosyasını yeniden yükleyin.")
+
+    write_id = _write_id(db, campaign_id, _user)
+    if not start_date or not end_date:
+        first, last = (
+            db.query(func.min(TvSpot.aired_at), func.max(TvSpot.aired_at))
+            .filter(TvSpot.campaign_id == write_id).one()
+        )
+        if not first:
+            raise HTTPException(status_code=400, detail="Tarih aralığı verin ya da önce spot listesini yükleyin.")
+        start_date = start_date or (datetime.fromisoformat(first) - timedelta(days=SPOT_TRAFFIC_LEAD_DAYS)).strftime("%Y-%m-%d")
+        end_date = end_date or datetime.fromisoformat(last).strftime("%Y-%m-%d")
+    if (datetime.fromisoformat(end_date) - datetime.fromisoformat(start_date)).days + 1 > SPOT_TRAFFIC_MAX_DAYS:
+        raise HTTPException(status_code=400, detail=f"Dakikalık trafik en fazla {SPOT_TRAFFIC_MAX_DAYS} gün için çekilebilir.")
+    if start_date > end_date:
+        raise HTTPException(status_code=400, detail="Başlangıç tarihi bitiş tarihinden sonra olamaz.")
+
+    events = [e.strip() for e in (conversion_events or camp.bq_conversion_events or "purchase").split(",") if e.strip()]
+    try:
+        df = query_minute_traffic(cached["client"], camp.bq_project, camp.bq_dataset, start_date, end_date, events, tz)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Minute traffic query failed (campaign_id=%s)", campaign_id)
+        raise HTTPException(status_code=502, detail=f"BigQuery sorgusu başarısız: {e}")
+    if df.empty:
+        raise HTTPException(status_code=404, detail=f"{start_date} – {end_date} aralığında GA4 oturumu bulunamadı.")
+
+    rows = [{
+        "minute": datetime.fromisoformat(r.minute), "sessions": float(r.sessions),
+        "sessions_unpaid": float(r.sessions_unpaid), "conversions": float(r.conversions),
+    } for r in df.itertuples(index=False)]
+    store_traffic_minutes(db, write_id, rows, "bigquery")
+    db.commit()
+    return {
+        "campaign_id": write_id, "start_date": start_date, "end_date": end_date, "minutes": len(rows),
+        "sessions": round(sum(r["sessions"] for r in rows), 1), "conversion_events": events,
+    }
+

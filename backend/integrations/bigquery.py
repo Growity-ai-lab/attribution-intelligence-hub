@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 from google.cloud import bigquery
@@ -588,3 +588,67 @@ def generic_to_touchpoints(df: pd.DataFrame) -> list[dict]:
         })
 
     return results
+
+
+# --------------- Minute traffic (TV/radio spot effects) ---------------
+
+_MINUTE_TRAFFIC_QUERY = """
+WITH ev AS (
+  SELECT
+    FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M', TIMESTAMP_MICROS(event_timestamp), @tz) AS minute,
+    event_name,
+    LOWER(COALESCE(
+      collected_traffic_source.manual_medium,
+      (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'medium'),
+      ''
+    )) AS medium
+  FROM `{project}.{dataset}.events_*`
+  WHERE _TABLE_SUFFIX BETWEEN @start_suffix AND @end_suffix
+    AND (event_name = 'session_start' OR event_name IN UNNEST(@conversion_events))
+)
+SELECT
+  minute,
+  COUNTIF(event_name = 'session_start') AS sessions,
+  COUNTIF(event_name = 'session_start' AND NOT REGEXP_CONTAINS(medium, @paid_re)) AS sessions_unpaid,
+  COUNTIF(event_name IN UNNEST(@conversion_events)) AS conversions
+FROM ev
+WHERE minute BETWEEN @start_minute AND @end_minute
+GROUP BY minute
+ORDER BY minute
+"""
+# Session media that are bought clicks/views: left out of "unpaid" traffic, where a
+# TV/radio response shows up (direct visits, brand search, organic).
+PAID_MEDIUM_RE = r"cpc|ppc|paid|cpm|cpv|display|banner|affiliate|programmatic|video"
+
+
+def query_minute_traffic(
+    client: bigquery.Client,
+    project: str,
+    dataset: str,
+    start_date: str,
+    end_date: str,
+    conversion_events: list[str] | None = None,
+    tz: str = "Europe/Istanbul",
+) -> pd.DataFrame:
+    """Minute-level sessions / unpaid sessions / conversions in local time.
+
+    ``start_date``/``end_date`` are local dates (YYYY-MM-DD, inclusive). GA4 daily
+    tables are split by the property's timezone, so one extra table on each side is read.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9\-_.:]*", project or ""):
+        raise ValueError(f"Geçersiz proje adı: {project!r}")
+    _safe_ident(dataset, kind="dataset")
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+    sql = _MINUTE_TRAFFIC_QUERY.format(project=project, dataset=dataset)
+    job_config = bigquery.QueryJobConfig(query_parameters=[
+        bigquery.ScalarQueryParameter("tz", "STRING", tz),
+        bigquery.ScalarQueryParameter("start_suffix", "STRING", (start - timedelta(days=1)).strftime("%Y%m%d")),
+        bigquery.ScalarQueryParameter("end_suffix", "STRING", (end + timedelta(days=1)).strftime("%Y%m%d")),
+        bigquery.ScalarQueryParameter("start_minute", "STRING", start.strftime("%Y-%m-%dT00:00")),
+        bigquery.ScalarQueryParameter("end_minute", "STRING", end.strftime("%Y-%m-%dT23:59")),
+        bigquery.ArrayQueryParameter("conversion_events", "STRING", conversion_events or ["purchase"]),
+        bigquery.ScalarQueryParameter("paid_re", "STRING", PAID_MEDIUM_RE),
+    ])
+    return client.query(sql, job_config=job_config).to_dataframe(create_bqstorage_client=False)
+

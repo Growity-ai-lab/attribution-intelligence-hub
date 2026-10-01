@@ -74,6 +74,8 @@ test('demo login lands on the Petrol Ofisi campaign and every tab renders', asyn
     await expect(page.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true')
   }
   await page.getByRole('tab', { name: 'Medya Planlama' }).click()
+  await page.getByRole('tab', { name: 'Spot Etkisi (TV/Radyo)' }).click()
+  await expect(page.getByText('TV & Radyo Spot Etkisi')).toBeVisible()
   await page.getByRole('tab', { name: 'Unified Rapor' }).click()
 })
 
@@ -697,5 +699,49 @@ test('plan lines: objective decides clicks, dates/duration place the budget, lin
   await expect(meta.locator('td').nth(4)).toContainText('Trafik %100')
   await expect(meta.locator('td').nth(5)).toHaveText('1.8M') // 100M × 1.8%
   await expect(reachCell()).toHaveText(/^%[0-9]\./) // 727K impressions over 50M people: single digits
+})
+
+test('spot effects: sample data, trust check, breakdowns, day view, own spot list', async ({ page }) => {
+  await uiLogin(page)
+  await openCampaign(page, 'Petrol Ofisi', 'AutoMatic Filo')
+  await page.getByRole('tab', { name: 'Spot Etkisi (TV/Radyo)' }).click()
+  await page.getByRole('button', { name: 'Örnek veriyle dene' }).click()
+
+  await expect(page.getByTestId('sample-banner')).toBeVisible()
+  await expect(page.getByTestId('spot-status')).toContainText('TV')
+  await expect(page.getByTestId('traffic-status')).toContainText('örnek')
+  const kpi = label => page.getByText(label, { exact: true }).locator('xpath=following-sibling::p[1]')
+  await expect(kpi('Ek ziyaret')).toHaveText(/\d/)
+  await expect(kpi('Ek ziyaret başı maliyet')).toHaveText(/TL/)
+  await expect(page.getByTestId('trust-check')).toContainText('kalibre')
+
+  const breakdown = page.getByRole('region', { name: 'Kırılımlar' })
+  await expect(breakdown.getByRole('row', { name: /Kanal D/ })).toBeVisible()
+  await breakdown.getByRole('button', { name: 'Kuşak' }).click()
+  await expect(breakdown.getByRole('row', { name: /Prime time/ })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Gün' })).toBeVisible()
+  await expect(page.locator('canvas')).toHaveCount(2) // response curve + day view
+
+  // Settings re-measure: radio only, conversions.
+  await page.getByRole('combobox', { name: 'Mecra', exact: true }).selectOption('radio')
+  await expect(breakdown.getByRole('row', { name: /Kanal D/ })).toHaveCount(0)
+  await page.getByRole('combobox', { name: 'Ölçülen metrik' }).selectOption('conversions')
+  await expect(kpi('Ek dönüşüm başı maliyet')).toBeVisible()
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'CSV İndir' }).click(),
+  ])
+  expect(download.suggestedFilename()).toBe('spot_etkisi.csv')
+
+  // An agency/monitoring export replaces the sample spot list.
+  await page.getByTestId('spot-file').setInputFiles({
+    name: 'liste.csv', mimeType: 'text/csv',
+    buffer: Buffer.from('Spot Raporu;;\nTarih;Saat;Kanal;Net Tutar\n15.10.2026;21:05;Kanal D;180000\n16.10.2026;08:10;Power FM;12000\n'),
+  })
+  await expect(page.getByTestId('spot-status')).toContainText('2 spot (1 TV, 1 radyo)')
+  await expect(page.getByTestId('sample-banner')).toBeVisible() // traffic is still the sample
+  await page.getByRole('button', { name: 'Temizle' }).click()
+  await expect(page.getByTestId('spot-empty')).toContainText('yayın listesini')
 })
 

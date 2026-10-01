@@ -187,3 +187,43 @@ class SalesStockData(Base):
     __table_args__ = (
         Index("ix_sales_stock_campaign_week", "campaign_id", "week"),
     )
+
+
+class TvSpot(Base):
+    """One TV/radio airing of a campaign (from a broadcast list / monitoring export)."""
+
+    __tablename__ = "tv_spots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    aired_at = Column(String, nullable=False)  # local time, "YYYY-MM-DDTHH:MM"
+    medium = Column(String, default="tv")  # 'tv' | 'radio'
+    station = Column(String, nullable=False)
+    program = Column(String, default="")
+    creative = Column(String, default="")
+    duration_sec = Column(Integer, nullable=True)
+    cost = Column(Float, default=0.0)
+    grp = Column(Float, nullable=True)
+    source = Column(String, default="file")  # 'file' | 'sample'
+
+    __table_args__ = (
+        Index("ix_tv_spots_campaign_aired", "campaign_id", "aired_at"),
+    )
+
+
+class TrafficMinute(Base):
+    """Minute-level web traffic of a campaign's site (GA4/BigQuery or uploaded file)."""
+
+    __tablename__ = "traffic_minutes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    minute = Column(String, nullable=False)  # local time, "YYYY-MM-DDTHH:MM"
+    sessions = Column(Float, default=0.0)
+    sessions_unpaid = Column(Float, nullable=True)  # direct + organic + referral (no paid media)
+    conversions = Column(Float, nullable=True)
+    source = Column(String, default="file")  # 'bigquery' | 'file' | 'sample'
+
+    __table_args__ = (
+        Index("ix_traffic_minutes_campaign_minute", "campaign_id", "minute"),
+    )
